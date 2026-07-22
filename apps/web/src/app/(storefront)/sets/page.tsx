@@ -1,6 +1,5 @@
 import { listSets } from "@/features/catalogue/queries/list-sets";
-
-export const revalidate = 300;
+import { SetSearchInput } from "@/features/catalogue/components/set-search-input";
 
 const dateFormatter = new Intl.DateTimeFormat("en-AU", { dateStyle: "medium" });
 
@@ -12,8 +11,13 @@ function formatSetMeta(setType: string | null, releasedAt: string | null, cardCo
   return parts.join(" · ");
 }
 
-export default async function SetsPage() {
-  const sets = await listSets();
+export default async function SetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+  const sets = await listSets({ search: q });
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-12 sm:px-6">
@@ -24,10 +28,18 @@ export default async function SetsPage() {
         </p>
       </div>
 
+      <SetSearchInput />
+
       {sets.length === 0 ? (
         <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-          No sets have been imported yet — the catalogue importer (backlog Step 5) hasn&apos;t run
-          against this environment yet. See <code>docs/backlog.md</code>.
+          {q ? (
+            <>No sets match &quot;{q}&quot;.</>
+          ) : (
+            <>
+              No sets have been imported yet — the catalogue importer (backlog Step 5) hasn&apos;t
+              run against this environment yet. See <code>docs/backlog.md</code>.
+            </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">

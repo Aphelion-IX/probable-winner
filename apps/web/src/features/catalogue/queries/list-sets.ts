@@ -16,14 +16,33 @@ type SetRow = {
   card_count: number;
 };
 
-export async function listSets(): Promise<SetSummary[]> {
+export type ListSetsOptions = {
+  search?: string;
+};
+
+// Simple ilike search — a skeleton ahead of Typesense-backed search
+// (backlog Step 9). Good enough for a handful of sets; not meant to survive
+// once the catalogue is fully imported and search needs to rank/facet.
+export function buildSearchFilter(search: string): string {
+  const withoutFilterSyntax = search.replace(/[,()]/g, "").trim();
+  const escaped = withoutFilterSyntax.replace(/[%_\\]/g, (match) => `\\${match}`);
+  return `name.ilike.%${escaped}%,code.ilike.%${escaped}%`;
+}
+
+export async function listSets(options: ListSetsOptions = {}): Promise<SetSummary[]> {
   const supabase = createServerSupabaseClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("sets")
     .select("code, name, set_type, released_at, card_count")
-    .order("released_at", { ascending: false, nullsFirst: false })
-    .returns<SetRow[]>();
+    .order("released_at", { ascending: false, nullsFirst: false });
+
+  const search = options.search?.trim();
+  if (search) {
+    query = query.or(buildSearchFilter(search));
+  }
+
+  const { data, error } = await query.returns<SetRow[]>();
 
   if (error) {
     throw new Error(`Failed to list sets: ${error.message}`);
