@@ -1,7 +1,61 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 
+import { CardTile, type CardTileProps } from "@/components/commerce/card-tile";
 import { Input } from "@/components/ui/input";
+
+// Preview-only demo content — no catalogue exists yet (backlog Phase 1).
+// Not real inventory; remove once /cards is backed by real data.
+const SAMPLE_CARDS: CardTileProps[] = [
+  {
+    href: "/cards",
+    name: "Jeweled Lotus",
+    setCode: "FDN",
+    rarity: "Mythic",
+    condition: "NM",
+    price: 189.95,
+  },
+  {
+    href: "/cards",
+    name: "Mana Crypt",
+    setCode: "FDN",
+    rarity: "Mythic",
+    condition: "NM",
+    price: 249.95,
+  },
+  {
+    href: "/cards",
+    name: "Cavern of Souls",
+    setCode: "FDN",
+    rarity: "Mythic",
+    condition: "NM",
+    price: 89.95,
+  },
+  {
+    href: "/cards",
+    name: "Doubling Season",
+    setCode: "FDN",
+    rarity: "Rare",
+    condition: "NM",
+    price: 48.95,
+  },
+  {
+    href: "/cards",
+    name: "Sol Ring",
+    setCode: "FDN",
+    rarity: "Uncommon",
+    condition: "NM",
+    price: 12.5,
+  },
+  {
+    href: "/cards",
+    name: "Command Tower",
+    setCode: "FDN",
+    rarity: "Common",
+    condition: "NM",
+    price: 2.95,
+  },
+];
 
 export default function Home() {
   return (
@@ -23,6 +77,20 @@ export default function Home() {
             aria-label="Search"
           />
         </form>
+      </section>
+
+      <section>
+        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+          <h2 className="text-lg font-semibold">Popular right now</h2>
+          <span className="text-xs text-muted-foreground">
+            Preview layout — sample cards, not live inventory
+          </span>
+        </div>
+        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
+          {SAMPLE_CARDS.map((card) => (
+            <CardTile key={card.name} {...card} className="w-40 shrink-0 snap-start sm:w-48" />
+          ))}
+        </div>
       </section>
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
