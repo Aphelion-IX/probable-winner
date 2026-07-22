@@ -6,8 +6,8 @@
 -- auth.users, which is managed by Supabase Auth — creating real auth users
 -- requires the Auth Admin API or the dashboard, not a raw SQL insert. Create
 -- the demo staff accounts first (Supabase Studio > Authentication, or
--- `supabase.auth.admin.createUser`), then insert their staff_memberships
--- rows referencing the returned user ids.
+-- `supabase.auth.admin.createUser`), then fill in the user ids in
+-- seed_staff.sql.example and run it.
 
 with org as (
   insert into organisations (name) values ('Demo Card Retailer')
