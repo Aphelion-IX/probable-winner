@@ -26,6 +26,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      justtcg-js:
+        specifier: ^0.2.1
+        version: 0.2.1
       lucide-react:
         specifier: ^1.25.0
         version: 1.25.0(react@19.2.8)
@@ -2379,6 +2382,9 @@ packages:
   jsx-ast-utils@3.3.5:
     resolution: {integrity: sha512-ZZow9HBI5O6EPgSJLUb8n2NKgmVWTwCvHGwFuJlMjvLFqlGG6pjirPhtdsseaLZjSibD8eegzmYpUZwoIlj2cQ==}
     engines: {node: '>=4.0'}
+
+  justtcg-js@0.2.1:
+    resolution: {integrity: sha512-XZriws7yollacOOKHv2emn8cMRzXC53KCvkK57A1wJ42LEEjN8LVXA/5/gli2UeSr0LSmI/dzNbPGYKQY/T09w==}
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
@@ -5861,6 +5867,8 @@ snapshots:
       array.prototype.flat: 1.3.3
       object.assign: 4.1.7
       object.values: 1.2.1
+
+  justtcg-js@0.2.1: {}
 
   keyv@4.5.4:
     dependencies:
