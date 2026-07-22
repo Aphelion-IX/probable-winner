@@ -47,8 +47,8 @@ rather than assuming an older Next.js API.
 
 ## Repository layout
 
-- `apps/web` — Next.js App Router storefront + staff portal + Server Actions
-  + route handlers.
+- `apps/web` — Next.js App Router storefront + staff portal + Server Actions +
+  route handlers.
 - `apps/worker` — background worker (not yet scaffolded; see backlog B-011).
 - `packages/*` — shared domain logic, database access, search, integrations
   (not yet scaffolded).
