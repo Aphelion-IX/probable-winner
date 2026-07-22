@@ -1,6 +1,7 @@
 import type { Sql } from "postgres";
 
 import { importSet } from "../jobs/catalogue-import.js";
+import { promoteRun } from "../jobs/promote-catalogue.js";
 
 const QUEUE_NAME = "catalogue_import";
 const VISIBILITY_TIMEOUT_SECONDS = 60;
@@ -34,6 +35,13 @@ export async function pollCatalogueImportQueue(sql: Sql): Promise<boolean> {
   try {
     const result = await importSet(sql, setCode);
     console.log(`catalogue_import ${setCode}: ${result.status} (${result.cardsProcessed} cards)`);
+
+    if (result.status === "succeeded") {
+      const promoted = await promoteRun(sql, result.runId);
+      console.log(
+        `catalogue_import ${setCode}: promoted ${promoted.oracleCardsUpserted} oracle cards, ${promoted.printingsUpserted} printings`,
+      );
+    }
   } catch (error) {
     // Left in the queue: pgmq's visibility timeout will make it re-readable
     // for a natural retry, per the failure behaviour in blueprint §17.
