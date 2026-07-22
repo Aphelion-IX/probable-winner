@@ -54,7 +54,8 @@ export default function Home() {
 
       <section className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
         Catalogue and inventory data are not connected yet — this is the storefront shell only
-        (backlog Phase 2, Step 10). See <code>docs/backlog.md</code> for what&apos;s next.
+        (backlog Phase 2, Step 10). See <code>docs/backlog.md</code>
+        {" for what's next."}
       </section>
     </div>
   );
