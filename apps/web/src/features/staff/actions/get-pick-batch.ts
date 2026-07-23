@@ -159,7 +159,8 @@ export async function getPickBatch(batchId: string): Promise<PickBatchDetail> {
   }
 
   const detailsMap = new Map(
-    (lineDetails as LineDetail[] | null)?.map((line: LineDetail) => [line.id, line]) || []
+    ((lineDetails as unknown) as LineDetail[] | null)?.map((line: LineDetail) => [line.id, line]) ||
+      []
   );
 
   const enrichedLines: PickLineItem[] = (batch.pick_lines || [])

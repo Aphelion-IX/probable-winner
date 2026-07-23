@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getPickBatch, type PickBatchDetail } from "@/features/staff/actions/get-pick-batch";
+import { recordPickException, getPickLineExceptions, type PickException } from "@/features/staff/actions/handle-pick-exception";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export default function PickBatchPage() {
   const params = useParams();
@@ -14,6 +16,11 @@ export default function PickBatchPage() {
   const [error, setError] = useState<string | null>(null);
   const [scanInput, setScanInput] = useState("");
   const [scannedSkus, setScannedSkus] = useState<Set<string>>(new Set());
+  const [expandedLineId, setExpandedLineId] = useState<string | null>(null);
+  const [lineExceptions, setLineExceptions] = useState<Map<string, PickException[]>>(new Map());
+  const [exceptionType, setExceptionType] = useState<string>("");
+  const [exceptionNotes, setExceptionNotes] = useState<string>("");
+  const [showExceptionForm, setShowExceptionForm] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadBatch() {
@@ -43,6 +50,29 @@ export default function PickBatchPage() {
 
     setScannedSkus((prev) => new Set([...prev, scanInput]));
     setScanInput("");
+  };
+
+  const loadLineExceptions = async (lineId: string) => {
+    try {
+      const exceptions = await getPickLineExceptions(lineId);
+      setLineExceptions((prev) => new Map([...prev, [lineId, exceptions]]));
+    } catch (err) {
+      console.error("Failed to load exceptions:", err);
+    }
+  };
+
+  const handleRecordException = async (lineId: string) => {
+    if (!exceptionType.trim()) return;
+
+    try {
+      await recordPickException(lineId, exceptionType, exceptionNotes || undefined);
+      setExceptionType("");
+      setExceptionNotes("");
+      setShowExceptionForm(null);
+      await loadLineExceptions(lineId);
+    } catch (err) {
+      console.error("Failed to record exception:", err);
+    }
   };
 
   if (loading) {
@@ -139,59 +169,147 @@ export default function PickBatchPage() {
               const isFilled = line.quantity_picked === line.quantity_to_pick;
               const isPartial = line.quantity_picked > 0 && !isFilled;
               const isScanned = scannedSkus.has(line.sku_id);
+              const isExpanded = expandedLineId === line.id;
+              const hasExceptions = lineExceptions.get(line.id)?.length ?? 0 > 0;
 
               return (
-                <div
-                  key={line.id}
-                  className={`rounded-lg border p-4 transition-colors ${
-                    isFilled
-                      ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950"
-                      : isPartial
-                        ? "border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950"
-                        : isScanned
-                          ? "border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-950"
-                          : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-semibold text-muted-foreground">
-                          {line.order_number}
-                        </span>
-                        <span className="text-sm font-medium">{line.card_name}</span>
+                <div key={line.id} className="space-y-0">
+                  <button
+                    onClick={() => {
+                      setExpandedLineId(isExpanded ? null : line.id);
+                      if (!isExpanded && !lineExceptions.has(line.id)) {
+                        loadLineExceptions(line.id);
+                      }
+                    }}
+                    className={`w-full rounded-lg border p-4 transition-colors text-left ${
+                      isFilled
+                        ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950"
+                        : isPartial
+                          ? "border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950"
+                          : isScanned
+                            ? "border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-950"
+                            : hasExceptions
+                              ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950"
+                              : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-semibold text-muted-foreground">
+                            {line.order_number}
+                          </span>
+                          <span className="text-sm font-medium">{line.card_name}</span>
+                          {hasExceptions && <Badge className="bg-red-600">Exceptions</Badge>}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {line.set_code} #{line.collector_number} • {line.finish} • {line.language}
+                        </div>
+                        <div className="mt-2 text-sm">
+                          <span className="font-medium">Expected:</span> {line.expected_condition}
+                          {line.condition_confirmed && (
+                            <>
+                              {" "}
+                              →{" "}
+                              <span
+                                className={
+                                  line.condition_confirmed === "match"
+                                    ? "text-green-600 font-semibold"
+                                    : "text-orange-600 font-semibold"
+                                }
+                              >
+                                {line.condition_confirmed}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {line.set_code} #{line.collector_number} • {line.finish} • {line.language}
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-primary">
+                          {line.quantity_picked}/{line.quantity_to_pick}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {line.scan_count > 0 && `scanned ${line.scan_count}x`}
+                        </div>
                       </div>
-                      <div className="mt-2 text-sm">
-                        <span className="font-medium">Expected:</span> {line.expected_condition}
-                        {line.condition_confirmed && (
-                          <>
-                            {" "}
-                            →{" "}
-                            <span
-                              className={
-                                line.condition_confirmed === "match"
-                                  ? "text-green-600 font-semibold"
-                                  : "text-orange-600 font-semibold"
-                              }
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="rounded-b-lg border border-t-0 border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900 space-y-3">
+                      {hasExceptions && (
+                        <div className="space-y-2">
+                          <div className="text-sm font-semibold">Exceptions</div>
+                          {lineExceptions.get(line.id)?.map((exc) => (
+                            <div
+                              key={exc.id}
+                              className="rounded bg-white dark:bg-gray-800 p-2 text-xs border-l-4 border-red-500"
                             >
-                              {line.condition_confirmed}
-                            </span>
-                          </>
-                        )}
-                      </div>
+                              <div className="font-medium">{exc.exception_type.name}</div>
+                              {exc.notes && <div className="text-muted-foreground mt-1">{exc.notes}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {showExceptionForm !== line.id ? (
+                        <Button
+                          onClick={() => setShowExceptionForm(line.id)}
+                          className="w-full text-sm"
+                          variant="outline"
+                        >
+                          + Report Exception
+                        </Button>
+                      ) : (
+                        <div className="space-y-2 bg-white dark:bg-gray-800 p-3 rounded">
+                          <div>
+                            <label className="block text-xs font-medium mb-1">Exception Type</label>
+                            <select
+                              value={exceptionType}
+                              onChange={(e) => setExceptionType(e.target.value)}
+                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-900"
+                            >
+                              <option value="">Select...</option>
+                              <option value="missing_card">Card Missing</option>
+                              <option value="condition_mismatch">Condition Mismatch</option>
+                              <option value="wrong_edition">Wrong Edition</option>
+                              <option value="damaged_in_picking">Damaged During Pick</option>
+                              <option value="substitution_offered">Substitution Offered</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1">Notes (optional)</label>
+                            <textarea
+                              value={exceptionNotes}
+                              onChange={(e) => setExceptionNotes(e.target.value)}
+                              placeholder="Details about the exception..."
+                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-900"
+                              rows={2}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={() => handleRecordException(line.id)}
+                              className="flex-1 text-xs"
+                            >
+                              Record
+                            </Button>
+                            <Button
+                              onClick={() => {
+                                setShowExceptionForm(null);
+                                setExceptionType("");
+                                setExceptionNotes("");
+                              }}
+                              variant="outline"
+                              className="flex-1 text-xs"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-primary">
-                        {line.quantity_picked}/{line.quantity_to_pick}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {line.scan_count > 0 && `scanned ${line.scan_count}x`}
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })
