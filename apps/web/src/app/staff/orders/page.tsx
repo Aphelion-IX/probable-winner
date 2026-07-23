@@ -1,5 +1,9 @@
 import { fetchStaffOrders, type StaffOrder } from "@/features/staff/actions/fetch-orders";
 
+// Requires an authenticated staff session at request time — cannot be
+// statically prerendered.
+export const dynamic = "force-dynamic";
+
 export default async function StaffOrdersPage() {
   let orders: StaffOrder[] = [];
   let error: string | null = null;

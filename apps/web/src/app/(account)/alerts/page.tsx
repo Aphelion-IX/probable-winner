@@ -3,6 +3,10 @@ import { Badge } from "@/components/ui/badge";
 import { getCustomerAlerts, type CustomerPriceAlert, type CustomerRestockAlert } from "@/features/customer/actions/manage-alerts";
 import { AlertCircle, Trash2, Plus } from "lucide-react";
 
+// Requires an authenticated user's session at request time — cannot be
+// statically prerendered.
+export const dynamic = "force-dynamic";
+
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
   triggered: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100",

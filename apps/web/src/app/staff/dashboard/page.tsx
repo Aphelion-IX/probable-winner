@@ -2,6 +2,10 @@ import Link from "next/link";
 import { getDashboardStats, type DashboardStats } from "@/features/staff/actions/get-dashboard-stats";
 import { Badge } from "@/components/ui/badge";
 
+// Requires an authenticated staff session at request time — cannot be
+// statically prerendered.
+export const dynamic = "force-dynamic";
+
 interface StatCard {
   label: string;
   value: number;

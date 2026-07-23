@@ -1,5 +1,9 @@
 import { createServerSupabaseClient } from "@/server/supabase";
 
+// Requires an authenticated staff session at request time — cannot be
+// statically prerendered.
+export const dynamic = "force-dynamic";
+
 interface PickBatchFulfilmentNode {
   name: string;
   code: string;

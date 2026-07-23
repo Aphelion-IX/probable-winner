@@ -1,6 +1,10 @@
 import { getAnalyticsData } from "@/features/staff/actions/get-analytics";
 import { TrendingUp, AlertTriangle, Package, DollarSign } from "lucide-react";
 
+// Requires an authenticated staff session at request time — cannot be
+// statically prerendered.
+export const dynamic = "force-dynamic";
+
 export default async function AnalyticsDashboard() {
   let analytics = null;
   let error: string | null = null;

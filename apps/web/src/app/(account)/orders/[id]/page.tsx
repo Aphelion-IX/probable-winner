@@ -3,6 +3,10 @@ import { Badge } from "@/components/ui/badge";
 import { fetchCustomerOrderDetail } from "@/features/customer/actions/fetch-customer-orders";
 import { Package, Truck, MapPin, Calendar } from "lucide-react";
 
+// Requires an authenticated user's session at request time — cannot be
+// statically prerendered.
+export const dynamic = "force-dynamic";
+
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100",
   confirmed: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100",

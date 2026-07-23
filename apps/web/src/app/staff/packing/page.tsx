@@ -1,6 +1,10 @@
 import { createServerSupabaseClient } from "@/server/supabase";
 import { Badge } from "@/components/ui/badge";
 
+// Requires an authenticated staff session at request time — cannot be
+// statically prerendered.
+export const dynamic = "force-dynamic";
+
 interface BatchFulfilmentNode {
   name: string;
   code: string;

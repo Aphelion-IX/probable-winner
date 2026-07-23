@@ -5,6 +5,10 @@ import {
 import { getStaffContext } from "@/server/staff-context";
 import { Badge } from "@/components/ui/badge";
 
+// Requires an authenticated staff session at request time — cannot be
+// statically prerendered.
+export const dynamic = "force-dynamic";
+
 export default async function StaffHandoverPage() {
   const staffContext = await getStaffContext();
 
