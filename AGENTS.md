@@ -49,7 +49,10 @@ rather than assuming an older Next.js API.
 
 - `apps/web` — Next.js App Router storefront + staff portal + Server Actions +
   route handlers.
-- `apps/worker` — background worker (not yet scaffolded; see backlog B-011).
+- `apps/worker` — background worker (Node/TypeScript, polls Supabase Queues).
+  Only the `catalogue_import` consumer/job exists so far (backlog Step 5); the
+  other 8 queues from blueprint §17 exist in Postgres but have no consumer
+  yet.
 - `packages/*` — shared domain logic, database access, search, integrations
   (not yet scaffolded).
 - `supabase/` — migrations, seed data, edge functions (not yet scaffolded).
