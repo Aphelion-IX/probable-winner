@@ -126,9 +126,7 @@ export async function calculateAndStoreSuggestedPrice(
     throw new Error(`calculateAndStoreSuggestedPrice: unknown sellable_sku ${sellableSkuId}`);
   }
 
-  const [snapshot] = await sql<
-    { id: string; amount: string; currency: string }[]
-  >`
+  const [snapshot] = await sql<{ id: string; amount: string; currency: string }[]>`
     select id, amount, currency
     from price_snapshots
     where card_printing_id = ${sku.card_printing_id}
@@ -166,16 +164,17 @@ export async function calculateAndStoreSuggestedPrice(
     where pricing_rule_id = ${pricingRuleId} and condition = ${sku.condition_code}
   `;
   const conditionModifier: Modifier = conditionModifierRow
-    ? { type: conditionModifierRow.modifier_type, value: Number(conditionModifierRow.modifier_value) }
+    ? {
+        type: conditionModifierRow.modifier_type,
+        value: Number(conditionModifierRow.modifier_value),
+      }
     : null;
 
   const [{ total_on_hand: totalOnHand }] = await sql<{ total_on_hand: string }[]>`
     select coalesce(sum(quantity_on_hand), 0)::text as total_on_hand
     from inventory_balances where sellable_sku_id = ${sellableSkuId}
   `;
-  const [stockModifierRow] = await sql<
-    { modifier_type: ModifierType; modifier_value: string }[]
-  >`
+  const [stockModifierRow] = await sql<{ modifier_type: ModifierType; modifier_value: string }[]>`
     select modifier_type, modifier_value from pricing_stock_modifiers
     where pricing_rule_id = ${pricingRuleId}
       and min_quantity <= ${Number(totalOnHand)}
