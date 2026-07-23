@@ -1,18 +1,20 @@
 import { sql } from "./db.js";
 import { pollCatalogueImportQueue } from "./consumers/catalogue-import-consumer.js";
 import { pollStockReconciliationQueue } from "./consumers/stock-reconciliation-consumer.js";
+import { pollPricingImportQueue } from "./consumers/pricing-import-consumer.js";
 
 const POLL_INTERVAL_MS = 5_000;
 
-// catalogue_import and stock_reconciliation have consumers wired up so far.
-// The other 7 queues from blueprint §17 (pricing_import, search_index,
+// catalogue_import, stock_reconciliation, and pricing_import have consumers
+// wired up so far. The other 6 queues from blueprint §17 (search_index,
 // email, restock_alerts, order_processing, reservation_cleanup,
 // report_generation) exist in Postgres (migration 20260722120349) but have
 // no consumer yet — future work, one per backlog step as those domains land.
 async function tick(): Promise<boolean> {
   const processedCatalogueImport = await pollCatalogueImportQueue(sql);
   const processedStockReconciliation = await pollStockReconciliationQueue(sql);
-  return processedCatalogueImport || processedStockReconciliation;
+  const processedPricingImport = await pollPricingImportQueue(sql);
+  return processedCatalogueImport || processedStockReconciliation || processedPricingImport;
 }
 
 async function main() {

@@ -422,9 +422,10 @@ Mint.
 
 ### 8.6 Pricing
 
-`price_sources`, `price_import_runs`, `price_snapshots`, `price_books`,
-`price_book_entries`, `store_price_book_assignments`, `store_price_overrides`,
-`pricing_rules`, `calculated_prices`, `price_approvals`, `price_overrides`,
+`price_sources`, `price_import_runs`, `price_import_errors`, `price_snapshots`,
+`price_books`, `price_book_entries`, `store_price_book_assignments`,
+`store_price_overrides`, `pricing_rules`, `calculated_prices`,
+`price_approvals`, `price_overrides`,
 `pricing_exceptions`, `exchange_rates`.
 
 ### 8.7 Shopping and orders
@@ -760,9 +761,10 @@ Use a central price book with controlled store overrides:
 ```
 Main retail price book
 ├── Online store
-├── Melbourne
-├── Frankston
-└── Geelong
+├── Geelong
+├── Bendigo
+├── Werribee
+└── Ballarat
 ```
 
 Optional override example: Main price $24.00; event-store override $26.00;

@@ -1,0 +1,33 @@
+{
+  "meta": { "date": "2026-07-23", "version": "5.2.1" },
+  "data": {
+    "3dd0bd56-5340-5542-8457-646b9acd58ff": {
+      "paper": {
+        "tcgplayer": {
+          "retail": { "normal": 1.23, "foil": 4.56 },
+          "buylist": { "normal": 0.5 }
+        },
+        "cardkingdom": {
+          "retail": { "normal": 1.1 }
+        },
+        "cardmarket": {
+          "retail": { "normal": 1.05 }
+        }
+      }
+    },
+    "aa000000-0000-0000-0000-00000000aa01": {
+      "paper": {
+        "tcgplayer": {
+          "retail": { "normal": 0.25 }
+        }
+      }
+    },
+    "no-paper-data-uuid": {
+      "mtgo": {
+        "cardhoarder": {
+          "retail": { "normal": 0.02 }
+        }
+      }
+    }
+  }
+}
