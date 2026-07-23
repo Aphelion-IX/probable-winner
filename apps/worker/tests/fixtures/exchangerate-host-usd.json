@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "base": "USD",
+  "date": "2026-07-23",
+  "rates": {
+    "AUD": 1.55,
+    "EUR": 0.86,
+    "GBP": 0.74
+  }
+}

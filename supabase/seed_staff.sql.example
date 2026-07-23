@@ -7,6 +7,8 @@
 -- `supabase db execute` once you have the CLI).
 --
 -- Demo Card Retailer organisation_id: 58a5ac20-5aa2-43d8-be60-274e9d8de220
+-- Look up current fulfilment_node ids with:
+--   select id, name, code from fulfilment_nodes where organisation_id = '58a5ac20-5aa2-43d8-be60-274e9d8de220';
 
 insert into staff_memberships (organisation_id, user_id, role_code, scope_type)
 values
@@ -15,10 +17,10 @@ values
   -- Pricing user — pricing decisions are org-wide, not store-scoped
   ('58a5ac20-5aa2-43d8-be60-274e9d8de220', '<PRICING_USER_ID>', 'pricing_manager', 'organisation');
 
--- Store manager — scoped to Melbourne CBD (STR-01)
+-- Store manager — scoped to Geelong (STR-01).
 insert into staff_memberships (organisation_id, user_id, role_code, scope_type, fulfilment_node_id)
-values ('58a5ac20-5aa2-43d8-be60-274e9d8de220', '<STORE_MANAGER_USER_ID>', 'store_manager', 'store', 'e8177b98-c092-4dec-aa24-d8f0aab98a28');
+values ('58a5ac20-5aa2-43d8-be60-274e9d8de220', '<STORE_MANAGER_USER_ID>', 'store_manager', 'store', '<GEELONG_NODE_ID>');
 
--- Warehouse user — scoped to Central Warehouse (WH-01)
+-- Inventory manager — scoped to Bendigo (STR-02).
 insert into staff_memberships (organisation_id, user_id, role_code, scope_type, fulfilment_node_id)
-values ('58a5ac20-5aa2-43d8-be60-274e9d8de220', '<WAREHOUSE_USER_ID>', 'warehouse_manager', 'store', '7278681b-a5cf-4713-b21a-3123c452c40b');
+values ('58a5ac20-5aa2-43d8-be60-274e9d8de220', '<INVENTORY_USER_ID>', 'inventory_manager', 'store', '<BENDIGO_NODE_ID>');

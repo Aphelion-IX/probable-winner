@@ -29,8 +29,9 @@ alternative to MTG MATE while giving the retailer one central system for:
 The platform must support a retailer operating:
 
 - 1 online store
-- 1 central warehouse
-- 10 physical stores
+- 4 physical stores, no separate central warehouse — every store supports
+  click-and-collect, online fulfilment, and store-to-store transfers; there
+  is no single designated hub
 - Thousands of daily customers
 - Hundreds of thousands of card printings
 - Millions of inventory records
@@ -421,9 +422,10 @@ Mint.
 
 ### 8.6 Pricing
 
-`price_sources`, `price_import_runs`, `price_snapshots`, `price_books`,
-`price_book_entries`, `store_price_book_assignments`, `store_price_overrides`,
-`pricing_rules`, `calculated_prices`, `price_approvals`, `price_overrides`,
+`price_sources`, `price_import_runs`, `price_import_errors`, `price_snapshots`,
+`price_books`, `price_book_entries`, `store_price_book_assignments`,
+`store_price_overrides`, `pricing_rules`, `calculated_prices`,
+`price_approvals`, `price_overrides`,
 `pricing_exceptions`, `exchange_rates`.
 
 ### 8.7 Shopping and orders
@@ -759,9 +761,10 @@ Use a central price book with controlled store overrides:
 ```
 Main retail price book
 ├── Online store
-├── Melbourne
-├── Frankston
-└── Geelong
+├── Geelong
+├── Bendigo
+├── Werribee
+└── Ballarat
 ```
 
 Optional override example: Main price $24.00; event-store override $26.00;
@@ -956,10 +959,10 @@ including mobile-device emulation.
 
 Testing must use a realistic seeded dataset.
 
-Minimum performance fixture: 1 organisation; 10 stores; 1 central warehouse;
-100,000+ printings; 500,000+ sellable SKUs; 1,000,000+ inventory balance
-records; 5,000,000+ inventory movements; 100,000+ customers; 100,000+
-historical orders; 10,000+ active carts.
+Minimum performance fixture: 1 organisation; 4 stores (no separate
+warehouse); 100,000+ printings; 500,000+ sellable SKUs; 1,000,000+
+inventory balance records; 5,000,000+ inventory movements; 100,000+
+customers; 100,000+ historical orders; 10,000+ active carts.
 
 Performance scenarios: hundreds of simultaneous searches; many customers
 purchasing one high-demand card; 100-card deck-list import; store-level

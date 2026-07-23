@@ -1,6 +1,7 @@
 import type { Sql } from "postgres";
 
 import { importSet } from "../jobs/catalogue-import.js";
+import { generateSkusForPrintings } from "../jobs/generate-skus.js";
 import { promoteRun } from "../jobs/promote-catalogue.js";
 
 const QUEUE_NAME = "catalogue_import";
@@ -41,6 +42,9 @@ export async function pollCatalogueImportQueue(sql: Sql): Promise<boolean> {
       console.log(
         `catalogue_import ${setCode}: promoted ${promoted.oracleCardsUpserted} oracle cards, ${promoted.printingsUpserted} printings`,
       );
+
+      const skus = await generateSkusForPrintings(sql, promoted.printingIds);
+      console.log(`catalogue_import ${setCode}: generated ${skus.skusInserted} sellable SKUs`);
     }
   } catch (error) {
     // Left in the queue: pgmq's visibility timeout will make it re-readable
