@@ -12,6 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@probable-winner/search": "workspace:*",
+    "@supabase/supabase-js": "^2.110.8",
     "justtcg-js": "^0.2.1",
     "mtggraphql": "^1.0.2",
     "postgres": "^3.4.7"
