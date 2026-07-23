@@ -30,23 +30,6 @@ export async function POST(request: Request) {
   );
 
   try {
-    // Store event with idempotency (event_id as primary key)
-    const { error: insertError } = await supabase
-      .from('stripe_events')
-      .upsert({
-        id: event.id,
-        event_type: event.type,
-        event_data: event.data,
-      });
-
-    if (insertError) {
-      console.error('Failed to store Stripe event:', insertError);
-      return Response.json(
-        { error: 'Failed to store event' },
-        { status: 500 }
-      );
-    }
-
     // Handle specific event types
     if (
       event.type === 'checkout.session.completed' ||
@@ -56,15 +39,23 @@ export async function POST(request: Request) {
       const orderId = session.metadata?.orderId;
 
       if (orderId) {
-        // Update order status to paid
-        await supabase
-          .from('orders')
-          .update({ status: 'paid' })
-          .eq('id', orderId);
+        // Call RPC to confirm payment (handles allocation conversion, event storage with idempotency)
+        const { error: rpcError } = await supabase.rpc(
+          'confirm_order_payment',
+          {
+            order_id: orderId,
+            stripe_event_id: event.id,
+          }
+        );
 
-        // Queue event for allocation conversion (B-125)
-        // This would typically emit to a Supabase Queue, but for now we'll log it
-        console.log(`Order ${orderId} marked as paid, ready for allocation conversion`);
+        if (rpcError) {
+          console.error(
+            `Failed to confirm payment for order ${orderId}:`,
+            rpcError
+          );
+        } else {
+          console.log(`Order ${orderId} payment confirmed via webhook`);
+        }
       }
     }
 
@@ -81,15 +72,24 @@ export async function POST(request: Request) {
           : undefined;
 
       if (orderId) {
-        // Mark order as cancelled and release reservations (B-126)
-        await supabase
-          .from('orders')
-          .update({ status: 'cancelled' })
-          .eq('id', orderId);
-
-        console.log(
-          `Order ${orderId} failed/expired, reservations should be released`
+        // Call RPC to release reservations
+        const { error: rpcError } = await supabase.rpc(
+          'release_failed_order_reservations',
+          {
+            order_id: orderId,
+          }
         );
+
+        if (rpcError) {
+          console.error(
+            `Failed to release reservations for order ${orderId}:`,
+            rpcError
+          );
+        } else {
+          console.log(
+            `Order ${orderId} payment failed/expired, reservations released`
+          );
+        }
       }
     }
 
