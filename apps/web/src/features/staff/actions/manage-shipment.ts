@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/server/supabase";
+import { logger, getRequestId } from "@/lib/logger";
 
 export interface ShipmentCarrier {
   id: string;
@@ -31,7 +32,10 @@ export async function getAvailableCarriers(): Promise<ShipmentCarrier[]> {
     .order("name");
 
   if (error) {
-    console.error("Carriers query error:", error);
+    logger.error("Fetch carriers failed", {
+      requestId: await getRequestId(),
+      error: logger.serializeError(error),
+    });
     throw new Error("Failed to fetch carriers");
   }
 
@@ -50,7 +54,12 @@ export async function createShipmentForBatch(
   });
 
   if (error) {
-    console.error("Create shipment error:", error);
+    logger.error("Create shipment failed", {
+      requestId: await getRequestId(),
+      batchId,
+      carrierCode,
+      error: logger.serializeError(error),
+    });
     throw new Error(`Failed to create shipment: ${error.message}`);
   }
 
@@ -75,7 +84,11 @@ export async function generateShipmentLabel(
   });
 
   if (error) {
-    console.error("Generate label error:", error);
+    logger.error("Generate shipment label failed", {
+      requestId: await getRequestId(),
+      shipmentId,
+      error: logger.serializeError(error),
+    });
     throw new Error(`Failed to generate label: ${error.message}`);
   }
 }
@@ -88,7 +101,11 @@ export async function markShipmentShipped(shipmentId: string): Promise<void> {
   });
 
   if (error) {
-    console.error("Mark shipped error:", error);
+    logger.error("Mark shipment shipped failed", {
+      requestId: await getRequestId(),
+      shipmentId,
+      error: logger.serializeError(error),
+    });
     throw new Error(`Failed to mark shipment as shipped: ${error.message}`);
   }
 }
@@ -117,7 +134,11 @@ export async function getShipmentsForBatch(batchId: string): Promise<Shipment[]>
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Shipments query error:", error);
+    logger.error("Fetch shipments failed", {
+      requestId: await getRequestId(),
+      batchId,
+      error: logger.serializeError(error),
+    });
     throw new Error("Failed to fetch shipments");
   }
 

@@ -1,5 +1,6 @@
 import type { Sql } from "postgres";
 import type { PricingProvider, ImportedPrice, ProviderHealth } from "../pricing/types.js";
+import { logger } from "../../logger.js";
 
 interface TCGPlayerProduct {
   productId: number;
@@ -129,7 +130,7 @@ export class TCGPlayerPriceProvider implements PricingProvider {
     } catch (error) {
       // Log mapping exceptions so unmapped cards are never silently dropped
       if (error instanceof TCGPlayerPriceValidationError) {
-        console.warn("TCGPlayer fetch failed, will retry on next run:", error.message);
+        logger.warn("TCGPlayer fetch failed, will retry on next run", { message: error.message });
         return [];
       }
       throw error;

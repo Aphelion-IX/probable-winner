@@ -2,6 +2,7 @@ import type { Sql } from "postgres";
 
 import { importMtgJsonPrices } from "../jobs/import-prices.js";
 import { importExchangeRates } from "../jobs/import-exchange-rates.js";
+import { logger } from "../logger.js";
 
 const QUEUE_NAME = "pricing_import";
 const VISIBILITY_TIMEOUT_SECONDS = 300;
@@ -38,17 +39,33 @@ export async function pollPricingImportQueue(sql: Sql): Promise<boolean> {
   try {
     if (task === "exchange_rates") {
       const result = await importExchangeRates(sql);
-      console.log(`pricing_import (exchange_rates): stored ${result.ratesStored} rate(s)`);
+      logger.info("pricing_import (exchange_rates): stored rates", {
+        queue: QUEUE_NAME,
+        msgId: msg.msg_id,
+        task,
+        ratesStored: result.ratesStored,
+      });
     } else {
       const result = await importMtgJsonPrices(sql);
-      console.log(
-        `pricing_import run ${result.runId}: ${result.status}, ${result.mappedRowCount} mapped, ${result.unmappedRowCount} unmapped`,
-      );
+      logger.info("pricing_import (mtgjson_prices): run completed", {
+        queue: QUEUE_NAME,
+        msgId: msg.msg_id,
+        task,
+        runId: result.runId,
+        status: result.status,
+        mappedRowCount: result.mappedRowCount,
+        unmappedRowCount: result.unmappedRowCount,
+      });
     }
   } catch (error) {
     // Left in the queue: pgmq's visibility timeout will make it re-readable
     // for a natural retry, per the failure behaviour in blueprint §17.
-    console.error(`pricing_import (${task}) failed, will retry after visibility timeout:`, error);
+    logger.error("pricing_import failed, will retry after visibility timeout", {
+      queue: QUEUE_NAME,
+      msgId: msg.msg_id,
+      task,
+      error: logger.serializeError(error),
+    });
     return true;
   }
 

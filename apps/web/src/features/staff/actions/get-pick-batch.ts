@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/server/supabase";
+import { logger, getRequestId } from "@/lib/logger";
 
 export interface PickLineItem {
   id: string;
@@ -98,7 +99,11 @@ export async function getPickBatch(batchId: string): Promise<PickBatchDetail> {
     .single();
 
   if (batchError) {
-    console.error("Batch query error:", batchError);
+    logger.error("Get pick batch failed", {
+      requestId: await getRequestId(),
+      batchId,
+      error: logger.serializeError(batchError),
+    });
     throw new Error("Failed to fetch batch");
   }
 
@@ -154,7 +159,11 @@ export async function getPickBatch(batchId: string): Promise<PickBatchDetail> {
     .in("id", lineIds);
 
   if (linesError) {
-    console.error("Line details query error:", linesError);
+    logger.error("Get pick batch line details failed", {
+      requestId: await getRequestId(),
+      batchId,
+      error: logger.serializeError(linesError),
+    });
     throw new Error("Failed to fetch line details");
   }
 

@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/server/supabase";
+import { logger, getRequestId } from "@/lib/logger";
 
 // Requires an authenticated staff session at request time — cannot be
 // statically prerendered.
@@ -37,7 +38,10 @@ async function getActiveBatches(): Promise<PickBatch[]> {
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Batches query error:", error);
+    logger.error("Fetch active pick batches failed", {
+      requestId: await getRequestId(),
+      error: logger.serializeError(error),
+    });
     throw new Error("Failed to fetch batches");
   }
 

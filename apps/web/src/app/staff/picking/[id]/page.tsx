@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 import { getPickBatch, type PickBatchDetail } from "@/features/staff/actions/get-pick-batch";
 import { recordPickException, getPickLineExceptions, type PickException } from "@/features/staff/actions/handle-pick-exception";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,7 @@ export default function PickBatchPage() {
       setLineExceptions((prev) => new Map([...prev, [lineId, exceptions]]));
     } catch (err) {
       console.error("Failed to load exceptions:", err);
+      Sentry.captureException(err);
     }
   };
 
@@ -72,6 +74,7 @@ export default function PickBatchPage() {
       await loadLineExceptions(lineId);
     } catch (err) {
       console.error("Failed to record exception:", err);
+      Sentry.captureException(err);
     }
   };
 

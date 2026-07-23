@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from "@/server/supabase";
 import { getStaffContext } from "@/server/staff-context";
+import { logger, getRequestId } from "@/lib/logger";
 
 interface OrderRow {
   id: string;
@@ -91,7 +92,11 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     .order("created_at", { ascending: true });
 
   if (ordersError) {
-    console.error("Fetch orders error:", ordersError);
+    logger.error("Analytics: fetch orders failed", {
+      requestId: await getRequestId(),
+      staffUserId: staffContext.userId,
+      error: logger.serializeError(ordersError),
+    });
     throw new Error("Failed to fetch orders");
   }
 
@@ -121,7 +126,11 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     .gte("created_at", thirtyDaysAgo.toISOString());
 
   if (linesError) {
-    console.error("Fetch order lines error:", linesError);
+    logger.error("Analytics: fetch order lines failed", {
+      requestId: await getRequestId(),
+      staffUserId: staffContext.userId,
+      error: logger.serializeError(linesError),
+    });
     throw new Error("Failed to fetch order lines");
   }
 
@@ -157,7 +166,11 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     .gte("created_at", thirtyDaysAgo.toISOString());
 
   if (pricingError) {
-    console.error("Fetch pricing data error:", pricingError);
+    logger.error("Analytics: fetch pricing data failed", {
+      requestId: await getRequestId(),
+      staffUserId: staffContext.userId,
+      error: logger.serializeError(pricingError),
+    });
     throw new Error("Failed to fetch pricing data");
   }
 
@@ -181,7 +194,11 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     .select("status");
 
   if (allOrdersError) {
-    console.error("Fetch all orders error:", allOrdersError);
+    logger.error("Analytics: fetch all orders failed", {
+      requestId: await getRequestId(),
+      staffUserId: staffContext.userId,
+      error: logger.serializeError(allOrdersError),
+    });
     throw new Error("Failed to fetch orders for breakdown");
   }
 
@@ -205,7 +222,11 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     .select("id");
 
   if (exceptionsError) {
-    console.error("Fetch exceptions error:", exceptionsError);
+    logger.error("Analytics: fetch exceptions failed", {
+      requestId: await getRequestId(),
+      staffUserId: staffContext.userId,
+      error: logger.serializeError(exceptionsError),
+    });
   }
 
   const exceptionCount = exceptionsData?.length || 0;

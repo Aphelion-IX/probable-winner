@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/server/supabase";
+import { logger, getRequestId } from "@/lib/logger";
 
 export interface OrderForHandover {
   order_id: string;
@@ -28,7 +29,11 @@ export async function getReadyForHandoverOrders(nodeId: string): Promise<OrderFo
   });
 
   if (error) {
-    console.error("Get handover orders error:", error);
+    logger.error("Get handover orders failed", {
+      requestId: await getRequestId(),
+      nodeId,
+      error: logger.serializeError(error),
+    });
     throw new Error("Failed to fetch orders ready for handover");
   }
 
@@ -49,7 +54,12 @@ export async function recordOrderHandover(
   });
 
   if (error) {
-    console.error("Record handover error:", error);
+    logger.error("Record order handover failed", {
+      requestId: await getRequestId(),
+      orderId,
+      nodeId,
+      error: logger.serializeError(error),
+    });
     throw new Error(`Failed to record handover: ${error.message}`);
   }
 
@@ -71,7 +81,11 @@ export async function getOrderHandover(orderId: string): Promise<OrderHandover |
 
   if (error && error.code !== "PGRST116") {
     // PGRST116 is "no rows found" which is expected if not handed over yet
-    console.error("Get handover error:", error);
+    logger.error("Get order handover failed", {
+      requestId: await getRequestId(),
+      orderId,
+      error: logger.serializeError(error),
+    });
     throw new Error("Failed to fetch handover");
   }
 

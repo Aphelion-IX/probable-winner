@@ -1,6 +1,7 @@
 import "./instrument.js";
 import * as Sentry from "@sentry/node";
 import { sql } from "./db.js";
+import { logger } from "./logger.js";
 import { pollCatalogueImportQueue } from "./consumers/catalogue-import-consumer.js";
 import { pollStockReconciliationQueue } from "./consumers/stock-reconciliation-consumer.js";
 import { pollPricingImportQueue } from "./consumers/pricing-import-consumer.js";
@@ -29,7 +30,7 @@ async function tick(): Promise<boolean> {
       const processed = await queue.poll(sql);
       processedAny = processedAny || processed;
     } catch (error) {
-      console.error(`queue "${queue.name}" consumer failed:`, error);
+      logger.error("queue consumer failed", { queue: queue.name, error: logger.serializeError(error) });
       Sentry.captureException(error, { tags: { queue: queue.name } });
     }
   }
@@ -37,7 +38,7 @@ async function tick(): Promise<boolean> {
 }
 
 async function main() {
-  console.log("worker started, polling queues...");
+  logger.info("worker started, polling queues");
   for (;;) {
     const processed = await tick();
     if (!processed) {
@@ -47,7 +48,7 @@ async function main() {
 }
 
 main().catch(async (error) => {
-  console.error("worker crashed:", error);
+  logger.error("worker crashed", { error: logger.serializeError(error) });
   Sentry.captureException(error);
   await Sentry.flush(2000);
   process.exit(1);

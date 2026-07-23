@@ -1,5 +1,6 @@
 import type { Sql } from "postgres";
 import type { PricingProvider, ImportedPrice, ProviderHealth } from "../pricing/types.js";
+import { logger } from "../../logger.js";
 
 interface CardKingdomProduct {
   id: string;
@@ -144,7 +145,7 @@ export class CardKingdomPriceProvider implements PricingProvider {
     } catch (error) {
       // Log mapping exceptions so unmapped cards are never silently dropped
       if (error instanceof CardKingdomPriceValidationError) {
-        console.warn("Card Kingdom fetch failed, will retry on next run:", error.message);
+        logger.warn("Card Kingdom fetch failed, will retry on next run", { message: error.message });
         return [];
       }
       throw error;

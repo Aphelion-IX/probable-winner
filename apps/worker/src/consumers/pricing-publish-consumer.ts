@@ -1,4 +1,5 @@
 import type { Sql } from "postgres";
+import { logger } from "../logger.js";
 
 const QUEUE_NAME = "integration_events";
 const VISIBILITY_TIMEOUT_SECONDS = 60;
@@ -44,7 +45,11 @@ export async function pollPricingPublishQueue(sql: Sql): Promise<boolean> {
       `;
 
       if (!calcPrice) {
-        console.warn(`pricing_publish: calculated_price not found: ${aggregate_id}`);
+        logger.warn("pricing_publish: calculated_price not found", {
+          queue: QUEUE_NAME,
+          msgId: msg.msg_id,
+          aggregateId: aggregate_id,
+        });
         await sql`select pgmq.archive(${QUEUE_NAME}, ${msg.msg_id}::bigint)`;
         return true;
       }
@@ -52,9 +57,14 @@ export async function pollPricingPublishQueue(sql: Sql): Promise<boolean> {
       // Emit a reindex event for Typesense (SKU index updated when price changes)
       // In production, this would trigger a separate Typesense reindex job.
       // For now, log the event as proof of concept (B-165 structure complete).
-      console.log(
-        `pricing_publish: ${event_type} for SKU ${calcPrice.sellable_sku_id} - final_amount ${calcPrice.final_amount} ${calcPrice.currency}`,
-      );
+      logger.info("pricing_publish: processed price event", {
+        queue: QUEUE_NAME,
+        msgId: msg.msg_id,
+        eventType: event_type,
+        sellableSkuId: calcPrice.sellable_sku_id,
+        finalAmount: calcPrice.final_amount,
+        currency: calcPrice.currency,
+      });
 
       // Update the calculated_price metadata to track publication
       await sql`
@@ -72,7 +82,12 @@ export async function pollPricingPublishQueue(sql: Sql): Promise<boolean> {
     return true;
   } catch (error) {
     // Leave in queue for retry via visibility timeout
-    console.error(`pricing_publish (${event_type}) failed, will retry:`, error);
+    logger.error("pricing_publish failed, will retry", {
+      queue: QUEUE_NAME,
+      msgId: msg.msg_id,
+      eventType: event_type,
+      error: logger.serializeError(error),
+    });
     return true;
   }
 }

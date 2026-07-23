@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/server/supabase";
+import { logger, getRequestId } from "@/lib/logger";
 
 export interface PickException {
   id: string;
@@ -33,7 +34,12 @@ export async function recordPickException(
   });
 
   if (error) {
-    console.error("Record exception error:", error);
+    logger.error("Record pick exception failed", {
+      requestId: await getRequestId(),
+      pickLineId,
+      exceptionTypeCode,
+      error: logger.serializeError(error),
+    });
     throw new Error(`Failed to record exception: ${error.message}`);
   }
 }
@@ -50,7 +56,12 @@ export async function resolvePickException(
   });
 
   if (error) {
-    console.error("Resolve exception error:", error);
+    logger.error("Resolve pick exception failed", {
+      requestId: await getRequestId(),
+      exceptionId,
+      resolution,
+      error: logger.serializeError(error),
+    });
     throw new Error(`Failed to resolve exception: ${error.message}`);
   }
 }
@@ -89,7 +100,11 @@ export async function getPickLineExceptions(pickLineId: string): Promise<PickExc
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Get exceptions error:", error);
+    logger.error("Get pick line exceptions failed", {
+      requestId: await getRequestId(),
+      pickLineId,
+      error: logger.serializeError(error),
+    });
     throw new Error("Failed to fetch exceptions");
   }
 
@@ -134,7 +149,11 @@ export async function getUnresolvedExceptions(batchId: string): Promise<PickExce
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Get unresolved exceptions error:", error);
+    logger.error("Get unresolved exceptions failed", {
+      requestId: await getRequestId(),
+      batchId,
+      error: logger.serializeError(error),
+    });
     throw new Error("Failed to fetch unresolved exceptions");
   }
 

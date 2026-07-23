@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/server/supabase";
+import { logger, getRequestId } from "@/lib/logger";
 
 interface PriceAlertRow {
   id: string;
@@ -91,12 +92,20 @@ export async function getCustomerAlerts() {
   ]);
 
   if (priceAlertsData.error) {
-    console.error("Fetch price alerts error:", priceAlertsData.error);
+    logger.error("Fetch price alerts failed", {
+      requestId: await getRequestId(),
+      customerId: user.id,
+      error: logger.serializeError(priceAlertsData.error),
+    });
     throw new Error("Failed to fetch price alerts");
   }
 
   if (restockAlertsData.error) {
-    console.error("Fetch restock alerts error:", restockAlertsData.error);
+    logger.error("Fetch restock alerts failed", {
+      requestId: await getRequestId(),
+      customerId: user.id,
+      error: logger.serializeError(restockAlertsData.error),
+    });
     throw new Error("Failed to fetch restock alerts");
   }
 
@@ -152,7 +161,12 @@ export async function createPriceAlert(
   });
 
   if (error) {
-    console.error("Create price alert error:", error);
+    logger.error("Create price alert failed", {
+      requestId: await getRequestId(),
+      customerId: user.id,
+      cardPrintingId,
+      error: logger.serializeError(error),
+    });
     throw new Error("Failed to create price alert");
   }
 
@@ -181,7 +195,12 @@ export async function createRestockAlert(
   });
 
   if (error) {
-    console.error("Create restock alert error:", error);
+    logger.error("Create restock alert failed", {
+      requestId: await getRequestId(),
+      customerId: user.id,
+      cardPrintingId,
+      error: logger.serializeError(error),
+    });
     throw new Error("Failed to create restock alert");
   }
 
@@ -208,7 +227,13 @@ export async function deleteAlert(alertId: string, type: "price" | "restock"): P
     .eq("customer_id", user.id);
 
   if (error) {
-    console.error(`Delete ${type} alert error:`, error);
+    logger.error("Delete alert failed", {
+      requestId: await getRequestId(),
+      customerId: user.id,
+      alertId,
+      alertType: type,
+      error: logger.serializeError(error),
+    });
     throw new Error(`Failed to delete ${type} alert`);
   }
 }

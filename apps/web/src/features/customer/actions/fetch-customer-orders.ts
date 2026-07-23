@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/server/supabase";
+import { logger, getRequestId } from "@/lib/logger";
 
 interface OrderRow {
   id: string;
@@ -99,7 +100,11 @@ export async function fetchCustomerOrders(limit: number = 20): Promise<CustomerO
     .limit(limit);
 
   if (error) {
-    console.error("Fetch customer orders error:", error);
+    logger.error("Fetch customer orders failed", {
+      requestId: await getRequestId(),
+      customerId: user.id,
+      error: logger.serializeError(error),
+    });
     throw new Error("Failed to fetch orders");
   }
 
@@ -143,6 +148,12 @@ export async function fetchCustomerOrderDetail(orderId: string): Promise<Custome
     .single();
 
   if (error || !order) {
+    logger.error("Fetch customer order detail failed", {
+      requestId: await getRequestId(),
+      customerId: user.id,
+      orderId,
+      error: error ? logger.serializeError(error) : "not found",
+    });
     throw new Error("Order not found");
   }
 

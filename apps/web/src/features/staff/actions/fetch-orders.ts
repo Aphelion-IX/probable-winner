@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/server/supabase";
+import { logger, getRequestId } from "@/lib/logger";
 
 export interface OrderLineItem {
   id: string;
@@ -136,7 +137,10 @@ export async function fetchStaffOrders(): Promise<StaffOrder[]> {
     .limit(100);
 
   if (error) {
-    console.error("Orders query error:", error);
+    logger.error("Fetch staff orders failed", {
+      requestId: await getRequestId(),
+      error: logger.serializeError(error),
+    });
     throw new Error("Failed to fetch orders");
   }
 
