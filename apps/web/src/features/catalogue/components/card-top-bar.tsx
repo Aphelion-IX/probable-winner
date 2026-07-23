@@ -30,7 +30,9 @@ function ToggleChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        "rounded-full border px-2.5 py-1 text-xs font-medium transition-all outline-none",
+        "hover:border-ring/60 hover:shadow-[0_0_8px_var(--color-ring)]",
+        "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:shadow-[0_0_12px_var(--color-ring)]",
         active ? "ring-2 ring-ring ring-offset-1" : "opacity-70 hover:opacity-100",
         className,
       )}
@@ -83,7 +85,7 @@ export function CardTopBar() {
           id="card-sort"
           value={sort.value || "name-asc"}
           onChange={(event) => sort.set(event.target.value)}
-          className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+          className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm outline-none transition-all hover:border-ring/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:shadow-[0_0_12px_var(--color-ring)] dark:bg-input/30"
         >
           <option value="name-asc">Name: A to Z</option>
           <option value="name-desc">Name: Z to A</option>
