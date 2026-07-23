@@ -148,7 +148,7 @@ begin
   -- Check: all cart reservations still active (not expired)
   if exists (
     select 1 from cart_lines cl
-    left join reservations r on r.id = cl.reservation_id
+    left join inventory_reservations r on r.id = cl.reservation_id
     where cl.cart_id = cart_id
       and (r.id is null or r.status != 'active')
   ) then
