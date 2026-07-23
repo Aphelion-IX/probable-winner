@@ -38,7 +38,7 @@ begin
     (p_set_data->>'name'),
     (p_set_data->>'type'),
     ((p_set_data->>'releaseDate')::date),
-    ((p_set_data->'cards')::jsonb array_length((p_set_data->'cards')::jsonb array, 1))
+    jsonb_array_length(p_set_data->'cards')
   )
   on conflict (game_id, code) do update set
     name = excluded.name,
