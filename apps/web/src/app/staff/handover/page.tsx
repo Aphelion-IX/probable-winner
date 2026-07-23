@@ -2,11 +2,21 @@ import {
   getReadyForHandoverOrders,
   type OrderForHandover,
 } from "@/features/staff/actions/handle-click-and-collect";
+import { getStaffContext } from "@/server/staff-context";
 import { Badge } from "@/components/ui/badge";
 
 export default async function StaffHandoverPage() {
-  // In a real implementation, would get staff member's node from session/JWT
-  const nodeId = "placeholder-node-id";
+  const staffContext = await getStaffContext();
+
+  if (!staffContext) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+        Not authenticated as staff member
+      </div>
+    );
+  }
+
+  const nodeId = staffContext.nodeId;
 
   let orders: OrderForHandover[] = [];
   let error: string | null = null;
