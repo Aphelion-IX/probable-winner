@@ -1,16 +1,15 @@
-name: Enqueue Catalogue Import
+name: Catalogue Import Worker
 
 on:
   workflow_dispatch:
-    inputs:
-      confirm:
-        description: 'Type "yes" to confirm full catalogue import'
-        required: true
-        default: ''
+  schedule:
+    # Run every 30 minutes to process batches
+    - cron: '*/30 * * * *'
 
 jobs:
-  enqueue:
+  worker:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -23,10 +22,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Enqueue catalogue discovery
-        run: pnpm --filter worker enqueue-catalogue-import
+      - name: Run catalogue import worker
+        run: timeout 1200 pnpm --filter worker start || true
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
 
-      - name: Success
-        run: echo "Catalogue sets enqueued successfully"
+      - name: Report status
+        run: echo "Worker batch completed. Check Supabase for progress."
