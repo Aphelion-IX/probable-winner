@@ -1,5 +1,8 @@
 "use server";
 
+// Operates on packing_shipments (staff packing workflow: weight, dimensions,
+// carrier label) -- distinct from the customer-facing "shipments" table
+// (order tracking info), see @/features/customer/actions/fetch-customer-orders.ts.
 import { createServerSupabaseClient } from "@/server/supabase";
 import { logger, getRequestId } from "@/lib/logger";
 
@@ -114,7 +117,7 @@ export async function getShipmentsForBatch(batchId: string): Promise<Shipment[]>
   const supabase = createServerSupabaseClient();
 
   const { data: shipments, error } = await supabase
-    .from("shipments")
+    .from("packing_shipments")
     .select(
       `
       id,

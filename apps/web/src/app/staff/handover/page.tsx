@@ -71,7 +71,7 @@ export default async function StaffHandoverPage() {
                     {new Intl.NumberFormat("en-AU", {
                       style: "currency",
                       currency: order.currency,
-                    }).format(order.total_amount / 100)}
+                    }).format(order.total_amount)}
                   </div>
                 </div>
               </div>

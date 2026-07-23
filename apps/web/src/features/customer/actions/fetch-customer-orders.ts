@@ -3,11 +3,24 @@
 import { createServerSupabaseClient } from "@/server/supabase";
 import { logger, getRequestId } from "@/lib/logger";
 
+// Matches orders.status's real CHECK constraint
+// (20260723081706_orders_and_shipments_v2.sql) -- there is no "confirmed"
+// status, and "paid"/"dispatched"/"cancelled" were previously missing here.
+export type OrderStatus =
+  | "pending"
+  | "paid"
+  | "picking"
+  | "packed"
+  | "dispatched"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
+
 interface OrderRow {
   id: string;
   order_number: string;
-  status: "pending" | "confirmed" | "picking" | "packed" | "shipped" | "delivered";
-  fulfillment_type: "click_and_collect" | "online_shipping";
+  status: OrderStatus;
+  fulfilment_type: "click_and_collect" | "online_shipping";
   total_amount: number;
   currency: string;
   order_lines: Array<{ id: string }>;
@@ -19,17 +32,27 @@ interface OrderLineRow {
   id: string;
   quantity: number;
   unit_price: number;
-  card_printings: Array<{
-    cards: { name: string } | null;
-    sets: { name: string } | null;
-  }>;
+  // order_lines only has sellable_sku_id -- there is no direct card_printings
+  // embed (20260723081706_orders_and_shipments_v2.sql). The real path is
+  // sellable_sku_id -> sellable_skus.card_printing_id -> card_printings,
+  // and the card table is oracle_cards, not "cards"
+  // (20260722113833_catalogue_core_tables.sql).
+  sellable_skus: Array<{
+    card_printings: Array<{
+      oracle_cards: { name: string } | null;
+      sets: { name: string } | null;
+    }> | null;
+  }> | null;
 }
 
 interface ShipmentRow {
-  carrier: string;
-  tracking_number: string;
-  status: string;
-  estimated_delivery_date: string;
+  carrier: string | null;
+  tracking_number: string | null;
+  // Real columns are carrier_status/shipped_at/delivered_at, not
+  // status/estimated_delivery_date (20260723081706_orders_and_shipments_v2.sql).
+  carrier_status: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
 }
 
 interface HandoverRow {
@@ -46,8 +69,8 @@ interface OrderDetailRow extends OrderRow {
 export interface CustomerOrderSummary {
   id: string;
   order_number: string;
-  status: "pending" | "confirmed" | "picking" | "packed" | "shipped" | "delivered";
-  fulfillment_type: "click_and_collect" | "online_shipping";
+  status: OrderStatus;
+  fulfilment_type: "click_and_collect" | "online_shipping";
   total_amount: number;
   currency: string;
   line_count: number;
@@ -64,10 +87,11 @@ export interface CustomerOrderDetail extends CustomerOrderSummary {
     unit_price: number;
   }>;
   shipment?: {
-    carrier: string;
-    tracking_number: string;
-    status: string;
-    estimated_delivery: string;
+    carrier: string | null;
+    tracking_number: string | null;
+    carrier_status: string | null;
+    shipped_at: string | null;
+    delivered_at: string | null;
   };
   handover?: {
     handed_over_at: string;
@@ -90,7 +114,7 @@ export async function fetchCustomerOrders(limit: number = 20): Promise<CustomerO
     .from("orders")
     .select(
       `
-      id, order_number, status, fulfillment_type, total_amount, currency,
+      id, order_number, status, fulfilment_type, total_amount, currency,
       order_lines(id),
       created_at, updated_at
     `,
@@ -108,11 +132,11 @@ export async function fetchCustomerOrders(limit: number = 20): Promise<CustomerO
     throw new Error("Failed to fetch orders");
   }
 
-  return (orders || []).map((order: OrderRow) => ({
+  return ((orders || []) as unknown as OrderRow[]).map((order) => ({
     id: order.id,
     order_number: order.order_number,
     status: order.status,
-    fulfillment_type: order.fulfillment_type,
+    fulfilment_type: order.fulfilment_type,
     total_amount: order.total_amount,
     currency: order.currency,
     line_count: (order.order_lines || []).length,
@@ -136,9 +160,9 @@ export async function fetchCustomerOrderDetail(orderId: string): Promise<Custome
     .from("orders")
     .select(
       `
-      id, order_number, status, fulfillment_type, total_amount, currency,
-      order_lines(id, quantity, unit_price, card_printings(cards(name), sets(name))),
-      shipments(carrier, tracking_number, status, estimated_delivery_date),
+      id, order_number, status, fulfilment_type, total_amount, currency,
+      order_lines(id, quantity, unit_price, sellable_skus(card_printings(oracle_cards(name), sets(name)))),
+      shipments(carrier, tracking_number, carrier_status, shipped_at, delivered_at),
       order_handovers(handed_over_at, notes),
       created_at, updated_at
     `,
@@ -163,19 +187,22 @@ export async function fetchCustomerOrderDetail(orderId: string): Promise<Custome
     id: typedOrder.id,
     order_number: typedOrder.order_number,
     status: typedOrder.status,
-    fulfillment_type: typedOrder.fulfillment_type,
+    fulfilment_type: typedOrder.fulfilment_type,
     total_amount: typedOrder.total_amount,
     currency: typedOrder.currency,
     line_count: (typedOrder.order_lines || []).length,
     created_at: typedOrder.created_at,
     updated_at: typedOrder.updated_at,
-    order_lines: (typedOrder.order_lines || []).map((line: OrderLineRow) => ({
-      id: line.id,
-      card_name: line.card_printings?.[0]?.cards?.name || "Unknown",
-      set_name: line.card_printings?.[0]?.sets?.name || "Unknown",
-      quantity: line.quantity,
-      unit_price: line.unit_price,
-    })),
+    order_lines: (typedOrder.order_lines || []).map((line) => {
+      const cardPrinting = line.sellable_skus?.[0]?.card_printings?.[0];
+      return {
+        id: line.id,
+        card_name: cardPrinting?.oracle_cards?.name || "Unknown",
+        set_name: cardPrinting?.sets?.name || "Unknown",
+        quantity: line.quantity,
+        unit_price: line.unit_price,
+      };
+    }),
   };
 
   if (typedOrder.shipments && typedOrder.shipments.length > 0) {
@@ -183,8 +210,9 @@ export async function fetchCustomerOrderDetail(orderId: string): Promise<Custome
     detail.shipment = {
       carrier: shipment.carrier,
       tracking_number: shipment.tracking_number,
-      status: shipment.status,
-      estimated_delivery: shipment.estimated_delivery_date,
+      carrier_status: shipment.carrier_status,
+      shipped_at: shipment.shipped_at,
+      delivered_at: shipment.delivered_at,
     };
   }
 

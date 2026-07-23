@@ -34,9 +34,11 @@ create table pick_exceptions (
 );
 
 create index pick_exceptions_line_idx on pick_exceptions (pick_line_id);
-create index pick_exceptions_batch_idx on pick_exceptions (
-  select pick_batches.id from pick_lines join pick_batches on pick_batches.id = pick_lines.pick_batch_id
-);
+-- No separate pick_batch_id index: pick_exceptions has no such column (only
+-- pick_line_id), and CREATE INDEX can't take a cross-table subquery as an
+-- expression -- "batch's exceptions" queries join through pick_lines using
+-- pick_exceptions_line_idx above and pick_lines_batch_idx (migration
+-- 20260724090000_pick_batches_schema.sql).
 create index pick_exceptions_unresolved_idx on pick_exceptions (organisation_id, resolved_at)
   where resolved_at is null;
 create index pick_exceptions_created_idx on pick_exceptions (created_at desc);

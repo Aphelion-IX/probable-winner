@@ -59,17 +59,22 @@ returns json as $$
 $$ language sql security definer stable;
 
 -- Helper: verify allocation completeness (all order lines have allocations)
-create or replace function verify_order_allocation_complete(order_id uuid)
+-- Parameter is prefixed p_ (unlike get_order_allocations() above) because
+-- this function's body references order_lines.order_id and
+-- order_allocations.order_id unqualified -- an unprefixed same-named
+-- parameter would be an ambiguous column reference under plpgsql's default
+-- variable_conflict=error, raising on every call.
+create or replace function verify_order_allocation_complete(p_order_id uuid)
 returns json as $$
 declare
   v_total_lines integer;
   v_allocated_lines integer;
 begin
   select count(*) into v_total_lines
-  from order_lines where order_id = order_id;
+  from order_lines where order_id = p_order_id;
 
   select count(distinct order_line_id) into v_allocated_lines
-  from order_allocations where order_id = order_id;
+  from order_allocations where order_id = p_order_id;
 
   return jsonb_build_object(
     'complete', v_total_lines = v_allocated_lines and v_total_lines > 0,

@@ -21,7 +21,7 @@ interface CompletedBatch {
   status: string;
   pick_lines: Array<{ id: string }>;
   fulfillment_node: BatchFulfilmentNode[];
-  shipments: BatchShipment[];
+  packing_shipments: BatchShipment[];
 }
 
 async function getCompletedBatches(): Promise<CompletedBatch[]> {
@@ -35,7 +35,7 @@ async function getCompletedBatches(): Promise<CompletedBatch[]> {
       status,
       pick_lines(id),
       fulfillment_node:fulfilment_nodes(name, code),
-      shipments(id, status)
+      packing_shipments(id, status)
     `,
     )
     .eq("status", "completed")
@@ -85,8 +85,8 @@ export default async function StaffPackingPage() {
           {batches.map((batch) => {
             const node = (batch.fulfillment_node as BatchFulfilmentNode[])?.[0];
             const lineCount = batch.pick_lines.length;
-            const hasShipment = (batch.shipments as BatchShipment[])?.length > 0;
-            const shipment = (batch.shipments as BatchShipment[])?.[0];
+            const hasShipment = (batch.packing_shipments as BatchShipment[])?.length > 0;
+            const shipment = (batch.packing_shipments as BatchShipment[])?.[0];
 
             return (
               <a

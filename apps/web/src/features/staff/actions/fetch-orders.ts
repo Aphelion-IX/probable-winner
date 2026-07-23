@@ -32,7 +32,7 @@ export interface StaffOrder {
   id: string;
   order_number: string;
   status: string;
-  fulfillment_type: string;
+  fulfilment_type: string;
   total_amount: number;
   currency: string;
   created_at: string;
@@ -51,7 +51,7 @@ interface OrderRow {
   id: string;
   order_number: string;
   status: string;
-  fulfillment_type: string;
+  fulfilment_type: string;
   total_amount: number;
   currency: string;
   created_at: string;
@@ -82,9 +82,9 @@ interface OrderRow {
           name: string;
         };
       };
-      language: string;
-      finish: string;
-      condition: string;
+      language: { code: string; name: string };
+      finish: { code: string; name: string };
+      condition: { code: string; name: string };
     };
   }>;
 }
@@ -104,7 +104,7 @@ export async function fetchStaffOrders(): Promise<StaffOrder[]> {
       id,
       order_number,
       status,
-      fulfillment_type,
+      fulfilment_type,
       total_amount,
       currency,
       created_at,
@@ -125,9 +125,9 @@ export async function fetchStaffOrders(): Promise<StaffOrder[]> {
             oracle_card:oracle_cards(id, name),
             set:sets(code, name)
           ),
-          language,
-          finish,
-          condition
+          language:languages(code, name),
+          finish:finishes(code, name),
+          condition:conditions(code, name)
         )
       )
     `,
@@ -144,9 +144,20 @@ export async function fetchStaffOrders(): Promise<StaffOrder[]> {
     throw new Error("Failed to fetch orders");
   }
 
-  // Transform: fulfillment_node comes as array but should be single object
+  // Transform: fulfillment_node comes as array but should be single object;
+  // language/finish/condition embed as their {code, name} row, flattened to
+  // the code for display.
   return (orders || []).map((order) => ({
     ...order,
     fulfillment_node: order.fulfillment_node[0] || { id: "", name: "", code: "" },
+    order_lines: order.order_lines.map((line) => ({
+      ...line,
+      sellable_sku: {
+        ...line.sellable_sku,
+        language: line.sellable_sku.language?.code || "",
+        finish: line.sellable_sku.finish?.code || "",
+        condition: line.sellable_sku.condition?.code || "",
+      },
+    })),
   }));
 }

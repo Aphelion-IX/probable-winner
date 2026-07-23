@@ -1,5 +1,20 @@
 -- Packing workflow for order fulfillment (backlog B-144).
--- Tracks packing of completed pick batches into shipments with carrier labels.
+-- Tracks packing of completed pick batches into packing_shipments with carrier labels.
+--
+-- RECONCILIATION NOTE: this table was originally named "shipments" here,
+-- but that name collides with the live project's actual shipments table
+-- (20260723081706_orders_and_shipments_v2.sql) -- a different concept
+-- (order_id, tracking_number, carrier, carrier_status: a customer-facing
+-- shipment tracking record) with an incompatible schema (this table has no
+-- order_id at all, only pick_batch_id, plus staff-packing-specific columns
+-- like weight/dimensions/label_url). Renamed to packing_shipments to avoid
+-- the collision; apps/web/src/features/staff/actions/manage-shipment.ts,
+-- apps/web/src/app/staff/packing/page.tsx, and
+-- apps/web/src/features/staff/actions/get-dashboard-stats.ts were updated
+-- to match. The two tables likely belong in one data model eventually
+-- (a packed parcel is the thing that becomes the customer-visible
+-- shipment), but reconciling that design is a separate, larger decision
+-- than this hardening pass should make unilaterally.
 
 create table shipment_carriers (
   id uuid primary key default gen_random_uuid(),
@@ -15,7 +30,7 @@ insert into shipment_carriers (code, name) values
   ('dhl', 'DHL'),
   ('courier', 'Local Courier');
 
-create table shipments (
+create table packing_shipments (
   id uuid primary key default gen_random_uuid(),
   organisation_id uuid not null references organisations(id) on delete cascade,
   pick_batch_id uuid not null references pick_batches(id) on delete restrict,
@@ -35,41 +50,41 @@ create table shipments (
   updated_at timestamptz not null default now()
 );
 
-create index shipments_batch_idx on shipments (pick_batch_id);
-create index shipments_status_idx on shipments (status);
-create index shipments_carrier_idx on shipments (carrier_id);
-create index shipments_organisation_idx on shipments (organisation_id, status);
-create index shipments_created_idx on shipments (created_at desc);
+create index shipments_batch_idx on packing_shipments (pick_batch_id);
+create index shipments_status_idx on packing_shipments (status);
+create index shipments_carrier_idx on packing_shipments (carrier_id);
+create index shipments_organisation_idx on packing_shipments (organisation_id, status);
+create index shipments_created_idx on packing_shipments (created_at desc);
 
 -- RLS: scoped by node membership via pick_batch → fulfilment_node
-alter table shipments enable row level security;
+alter table packing_shipments enable row level security;
 
-create policy shipments_select on shipments
+create policy shipments_select on packing_shipments
   for select to authenticated
   using (
     exists (
       select 1 from pick_batches pb
-      where pb.id = shipments.pick_batch_id
+      where pb.id = packing_shipments.pick_batch_id
         and staff_has_node_access(pb.fulfilment_node_id)
     )
   );
 
-create policy shipments_insert on shipments
+create policy shipments_insert on packing_shipments
   for insert to authenticated
   with check (
     exists (
       select 1 from pick_batches pb
-      where pb.id = shipments.pick_batch_id
+      where pb.id = packing_shipments.pick_batch_id
         and staff_has_node_access(pb.fulfilment_node_id)
     )
   );
 
-create policy shipments_update on shipments
+create policy shipments_update on packing_shipments
   for update to authenticated
   using (
     exists (
       select 1 from pick_batches pb
-      where pb.id = shipments.pick_batch_id
+      where pb.id = packing_shipments.pick_batch_id
         and staff_has_node_access(pb.fulfilment_node_id)
     )
   );
@@ -79,14 +94,14 @@ create or replace function create_shipment(
   p_pick_batch_id uuid,
   p_carrier_code text default null
 )
-returns shipments
+returns packing_shipments
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
   v_batch pick_batches;
-  v_shipment shipments;
+  v_shipment packing_shipments;
   v_carrier_id uuid;
   v_org_id uuid;
 begin
@@ -109,7 +124,7 @@ begin
     end if;
   end if;
 
-  insert into shipments (
+  insert into packing_shipments (
     organisation_id, pick_batch_id, carrier_id, packed_by_user_id, packed_at
   ) values (
     v_org_id, p_pick_batch_id, v_carrier_id, auth.uid(), now()
@@ -135,9 +150,9 @@ security definer
 set search_path = public
 as $$
 declare
-  v_shipment shipments;
+  v_shipment packing_shipments;
 begin
-  select * into v_shipment from shipments where id = p_shipment_id;
+  select * into v_shipment from packing_shipments where id = p_shipment_id;
   if v_shipment is null then
     raise exception 'generate_shipment_label: unknown shipment %', p_shipment_id;
   end if;
@@ -152,7 +167,7 @@ begin
       using errcode = '42501';
   end if;
 
-  update shipments
+  update packing_shipments
   set
     status = 'labeled',
     tracking_number = p_tracking_number,
@@ -173,9 +188,9 @@ security definer
 set search_path = public
 as $$
 declare
-  v_shipment shipments;
+  v_shipment packing_shipments;
 begin
-  select * into v_shipment from shipments where id = p_shipment_id;
+  select * into v_shipment from packing_shipments where id = p_shipment_id;
   if v_shipment is null then
     raise exception 'mark_shipment_shipped: unknown shipment %', p_shipment_id;
   end if;
@@ -189,7 +204,7 @@ begin
       using errcode = '42501';
   end if;
 
-  update shipments
+  update packing_shipments
   set status = 'shipped', shipped_at = now(), updated_at = now()
   where id = p_shipment_id;
 end;

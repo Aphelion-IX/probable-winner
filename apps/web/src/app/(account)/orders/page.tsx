@@ -11,11 +11,13 @@ export const dynamic = "force-dynamic";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100",
-  confirmed: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100",
+  paid: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100",
   picking: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100",
   packed: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100",
+  dispatched: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-100",
   shipped: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-100",
   delivered: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
+  cancelled: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100",
 };
 
 export default async function OrderHistoryPage() {
@@ -72,7 +74,7 @@ export default async function OrderHistoryPage() {
                     </Badge>
                   </td>
                   <td className="px-6 py-3 text-xs">
-                    {order.fulfillment_type === "click_and_collect"
+                    {order.fulfilment_type === "click_and_collect"
                       ? "Click & Collect"
                       : "Online Shipping"}
                   </td>
@@ -81,7 +83,7 @@ export default async function OrderHistoryPage() {
                     {new Intl.NumberFormat("en-AU", {
                       style: "currency",
                       currency: order.currency,
-                    }).format(order.total_amount / 100)}
+                    }).format(order.total_amount)}
                   </td>
                   <td className="px-6 py-3 text-xs text-muted-foreground">
                     {new Date(order.created_at).toLocaleDateString("en-AU")}

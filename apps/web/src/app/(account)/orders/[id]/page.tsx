@@ -9,11 +9,13 @@ export const dynamic = "force-dynamic";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100",
-  confirmed: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100",
+  paid: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100",
   picking: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100",
   packed: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100",
+  dispatched: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-100",
   shipped: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-100",
   delivered: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
+  cancelled: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100",
 };
 
 interface OrderDetailPageProps {
@@ -64,7 +66,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
     day: "numeric",
   });
 
-  const total = order.total_amount / 100;
+  const total = order.total_amount;
 
   return (
     <div className="space-y-8">
@@ -94,7 +96,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
             Fulfillment Type
           </div>
           <p className="mt-2 text-sm">
-            {order.fulfillment_type === "click_and_collect" ? "Click & Collect" : "Online Shipping"}
+            {order.fulfilment_type === "click_and_collect" ? "Click & Collect" : "Online Shipping"}
           </p>
         </div>
 
@@ -132,13 +134,13 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                     {new Intl.NumberFormat("en-AU", {
                       style: "currency",
                       currency: order.currency,
-                    }).format(line.unit_price / 100)}
+                    }).format(line.unit_price)}
                   </td>
                   <td className="px-6 py-3 text-right font-medium">
                     {new Intl.NumberFormat("en-AU", {
                       style: "currency",
                       currency: order.currency,
-                    }).format((line.unit_price * line.quantity) / 100)}
+                    }).format(line.unit_price * line.quantity)}
                   </td>
                 </tr>
               ))}
@@ -152,30 +154,49 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
           <h2 className="text-xl font-semibold">Shipment Tracking</h2>
           <div className="rounded-lg border p-6">
             <div className="space-y-4">
-              <div>
-                <p className="text-sm font-semibold text-muted-foreground">Carrier</p>
-                <p className="mt-1 text-base">{order.shipment.carrier}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-muted-foreground">Tracking Number</p>
-                <p className="mt-1 font-mono text-base">{order.shipment.tracking_number}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-muted-foreground">Status</p>
-                <Badge className="mt-1 bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-100">
-                  {order.shipment.status.charAt(0).toUpperCase() + order.shipment.status.slice(1)}
-                </Badge>
-              </div>
-              {order.shipment.estimated_delivery && (
+              {order.shipment.carrier && (
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground">Carrier</p>
+                  <p className="mt-1 text-base">{order.shipment.carrier}</p>
+                </div>
+              )}
+              {order.shipment.tracking_number && (
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground">Tracking Number</p>
+                  <p className="mt-1 font-mono text-base">{order.shipment.tracking_number}</p>
+                </div>
+              )}
+              {order.shipment.carrier_status && (
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground">Status</p>
+                  <Badge className="mt-1 bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-100">
+                    {order.shipment.carrier_status.charAt(0).toUpperCase() +
+                      order.shipment.carrier_status.slice(1)}
+                  </Badge>
+                </div>
+              )}
+              {order.shipment.delivered_at ? (
                 <div>
                   <p className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
                     <Calendar className="h-4 w-4" />
-                    Estimated Delivery
+                    Delivered
                   </p>
                   <p className="mt-1 text-base">
-                    {new Date(order.shipment.estimated_delivery).toLocaleDateString("en-AU")}
+                    {new Date(order.shipment.delivered_at).toLocaleDateString("en-AU")}
                   </p>
                 </div>
+              ) : (
+                order.shipment.shipped_at && (
+                  <div>
+                    <p className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      Shipped
+                    </p>
+                    <p className="mt-1 text-base">
+                      {new Date(order.shipment.shipped_at).toLocaleDateString("en-AU")}
+                    </p>
+                  </div>
+                )
               )}
             </div>
           </div>

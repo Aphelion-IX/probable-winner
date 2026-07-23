@@ -161,7 +161,7 @@ export default async function StaffDashboardPage() {
                       {order.order_number}
                     </td>
                     <td className="px-6 py-3 text-xs">
-                      {order.fulfillment_type === "click_and_collect"
+                      {order.fulfilment_type === "click_and_collect"
                         ? "Click & Collect"
                         : "Online Shipping"}
                     </td>

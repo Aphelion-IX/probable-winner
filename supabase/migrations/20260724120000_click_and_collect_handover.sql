@@ -90,12 +90,15 @@ revoke execute on function record_order_handover(uuid, uuid, text) from public, 
 grant execute on function record_order_handover(uuid, uuid, text) to authenticated;
 
 -- Helper: get click-and-collect orders ready for handover at a node
+-- total_amount is numeric(12,2), matching orders.total_amount exactly
+-- (20260723081706_orders_and_shipments_v2.sql) -- declaring it integer
+-- here would round every order total to whole dollars on return.
 create or replace function get_ready_for_handover_orders(p_fulfilment_node_id uuid)
 returns table (
   order_id uuid,
   order_number text,
   customer_id uuid,
-  total_amount integer,
+  total_amount numeric(12, 2),
   currency text,
   status text,
   created_at timestamptz
@@ -122,7 +125,13 @@ begin
     from orders o
     where o.fulfilment_node_id = p_fulfilment_node_id
       and o.fulfillment_type = 'click_and_collect'
-      and o.status = 'ready'
+      -- 'ready' isn't a value orders.status's CHECK constraint allows
+      -- (pending/paid/picking/packed/dispatched/shipped/delivered/cancelled,
+      -- 20260723081706_orders_and_shipments_v2.sql) -- as originally
+      -- written this filter matched zero rows, ever. 'packed' is the
+      -- closest existing status to "ready for the customer to collect"
+      -- for a click-and-collect order (there's no dispatch/shipping leg).
+      and o.status = 'packed'
       and not exists (
         select 1 from order_handovers oh
         where oh.order_id = o.id

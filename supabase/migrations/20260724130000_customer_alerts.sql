@@ -17,6 +17,12 @@ create table price_alerts (
 create index price_alerts_customer_idx on price_alerts (customer_id);
 create index price_alerts_card_idx on price_alerts (card_printing_id);
 create index price_alerts_status_idx on price_alerts (status);
+-- Required by upsert_price_alert()'s ON CONFLICT (customer_id,
+-- card_printing_id, finish) below -- without this constraint that upsert
+-- fails with "no unique or exclusion constraint matching the ON CONFLICT
+-- specification" on every call.
+alter table price_alerts add constraint price_alerts_customer_card_finish_uq
+  unique (customer_id, card_printing_id, finish);
 
 create table restock_alerts (
   id uuid primary key default gen_random_uuid(),
@@ -33,6 +39,11 @@ create table restock_alerts (
 create index restock_alerts_customer_idx on restock_alerts (customer_id);
 create index restock_alerts_card_idx on restock_alerts (card_printing_id);
 create index restock_alerts_status_idx on restock_alerts (status);
+-- Required by upsert_restock_alert()'s ON CONFLICT (customer_id,
+-- card_printing_id, finish, condition) below -- same reasoning as
+-- price_alerts_customer_card_finish_uq above.
+alter table restock_alerts add constraint restock_alerts_customer_card_finish_condition_uq
+  unique (customer_id, card_printing_id, finish, condition);
 
 -- RLS: customers see only their own alerts
 alter table price_alerts enable row level security;

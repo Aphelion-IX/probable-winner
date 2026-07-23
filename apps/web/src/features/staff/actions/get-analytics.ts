@@ -14,9 +14,11 @@ interface OrderRow {
 interface OrderLineRow {
   quantity: number;
   unit_price: number;
-  card_printings: Array<{
-    cards: { name: string } | null;
-    sets: { name: string } | null;
+  sellable_skus: Array<{
+    card_printings: Array<{
+      oracle_cards: { name: string } | null;
+      sets: { name: string } | null;
+    }> | null;
   }> | null;
   created_at?: string;
 }
@@ -107,7 +109,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     const existing = trendMap.get(date) || { count: 0, revenue: 0 };
     trendMap.set(date, {
       count: existing.count + 1,
-      revenue: existing.revenue + order.total_amount / 100,
+      revenue: existing.revenue + order.total_amount,
     });
   });
 
@@ -122,7 +124,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
   // Get popular cards
   const { data: linesData, error: linesError } = await supabase
     .from("order_lines")
-    .select("quantity, unit_price, card_printings(cards(name), sets(name))")
+    .select("quantity, unit_price, sellable_skus(card_printings(oracle_cards(name), sets(name)))")
     .gte("created_at", thirtyDaysAgo.toISOString());
 
   if (linesError) {
@@ -136,13 +138,14 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
 
   const cardMap = new Map<string, { units: number; revenue: number }>();
   ((linesData || []) as unknown as OrderLineRow[]).forEach((line: OrderLineRow) => {
-    const cardName = line.card_printings?.[0]?.cards?.name || "Unknown";
-    const setName = line.card_printings?.[0]?.sets?.name || "Unknown";
+    const cardPrinting = line.sellable_skus?.[0]?.card_printings?.[0];
+    const cardName = cardPrinting?.oracle_cards?.name || "Unknown";
+    const setName = cardPrinting?.sets?.name || "Unknown";
     const key = `${cardName}|${setName}`;
     const existing = cardMap.get(key) || { units: 0, revenue: 0 };
     cardMap.set(key, {
       units: existing.units + line.quantity,
-      revenue: existing.revenue + (line.unit_price * line.quantity) / 100,
+      revenue: existing.revenue + line.unit_price * line.quantity,
     });
   });
 
@@ -232,7 +235,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
   const exceptionCount = exceptionsData?.length || 0;
 
   // Calculate total revenue
-  const totalRevenue = ((ordersData || []) as unknown as OrderRow[]).reduce((sum: number, order: OrderRow) => sum + order.total_amount / 100, 0);
+  const totalRevenue = ((ordersData || []) as unknown as OrderRow[]).reduce((sum: number, order: OrderRow) => sum + order.total_amount, 0);
 
   return {
     orderTrends,

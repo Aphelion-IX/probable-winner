@@ -67,7 +67,7 @@ export default async function StaffOrdersPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs">
-                    {order.fulfillment_type === "click_and_collect"
+                    {order.fulfilment_type === "click_and_collect"
                       ? "Click & Collect"
                       : "Online Shipping"}
                   </td>
@@ -80,7 +80,7 @@ export default async function StaffOrdersPage() {
                     {new Intl.NumberFormat("en-AU", {
                       style: "currency",
                       currency: order.currency,
-                    }).format(order.total_amount / 100)}
+                    }).format(order.total_amount)}
                   </td>
                   <td className="px-4 py-3 text-xs font-mono">
                     {order.fulfillment_node.code}

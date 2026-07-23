@@ -1,0 +1,26 @@
+-- RECONCILIATION NOTE: pulled verbatim from the live project's migration
+-- history (see 20260723064823_fix_transfer_status_transitions.sql for why).
+-- The bearer token below is the project's anon key (safe to be public by
+-- design -- RLS enforces access control, not key secrecy; see
+-- docs/security.md), not a service-role or other secret key.
+
+create extension if not exists pg_net;
+
+select cron.unschedule('catalogue-import-worker') where exists (
+  select 1 from cron.job where jobname = 'catalogue-import-worker'
+);
+
+select cron.schedule(
+  'catalogue-import-worker',
+  '* * * * *',
+  $$
+  select net.http_post(
+    url := 'https://lbsxsptpyhypuheuosye.supabase.co/functions/v1/process-catalogue-import',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxic3hzcHRweWh5cHVoZXVvc3llIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2ODcxOTIsImV4cCI6MjEwMDI2MzE5Mn0.NlMazoT_3FuQfF26-jOKOHfy4GuA6b1keRtPq0v49lE',
+      'Content-Type', 'application/json'
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);

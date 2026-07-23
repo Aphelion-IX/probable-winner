@@ -13,7 +13,7 @@ export interface DashboardStats {
     id: string;
     order_number: string;
     status: string;
-    fulfillment_type: string;
+    fulfilment_type: string;
     created_at: string;
   }>;
 }
@@ -44,9 +44,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     .select("*", { count: "exact", head: true })
     .is("resolved_at", null);
 
-  // Count shipments ready to ship
+  // Count packing shipments ready to ship
   const { count: ready_shipments } = await supabase
-    .from("shipments")
+    .from("packing_shipments")
     .select("*", { count: "exact", head: true })
     .eq("status", "labeled");
 
@@ -59,7 +59,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   // Get recent orders
   const { data: recent_orders } = await supabase
     .from("orders")
-    .select("id, order_number, status, fulfillment_type, created_at")
+    .select("id, order_number, status, fulfilment_type, created_at")
     .order("created_at", { ascending: false })
     .limit(10);
 
