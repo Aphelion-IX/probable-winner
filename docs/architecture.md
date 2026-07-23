@@ -827,6 +827,16 @@ Queues: `catalogue-import`, `pricing-import`, `search-index`, `email`,
 `restock-alerts`, `order-processing`, `reservation-cleanup`,
 `stock-reconciliation`, `report-generation`.
 
+Getting the catalogue downloaded: a `catalogue-import` message importing one
+set at a time requires already knowing that set's code, so a discovery step
+enumerates MTGJSON's full `SetList` and enqueues one message per set not yet
+successfully imported (backlog B-040). Discovery runs on a weekly
+`pg_cron` schedule (`weekly-catalogue-discovery`,
+`supabase/migrations/20260724000500_schedule_catalogue_discovery.sql`, since
+new sets release far less often than prices change) and can also be run
+on demand with `pnpm --filter worker enqueue-catalogue-import` for an
+immediate backfill/refresh.
+
 Example worker flow:
 
 ```
