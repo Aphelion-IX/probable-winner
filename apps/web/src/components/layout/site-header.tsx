@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, Menu, Search, ShoppingCart, User } from "lucide-react";
+import { LogIn, MapPin, Menu, Search, ShoppingCart, User } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,13 @@ export function SiteHeader() {
               >
                 Cart
               </Link>
+              <div className="my-2 h-px bg-border" />
+              <Link
+                href="/staff/dashboard"
+                className="rounded-md px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950"
+              >
+                Admin Dashboard
+              </Link>
             </nav>
           </SheetContent>
         </Sheet>
@@ -99,6 +106,15 @@ export function SiteHeader() {
           </Button>
           <Button variant="ghost" size="icon" render={<Link href="/cart" aria-label="Cart" />}>
             <ShoppingCart />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            render={<Link href="/staff/dashboard" aria-label="Admin Dashboard" />}
+            className="hidden sm:inline-flex"
+            title="Admin Dashboard"
+          >
+            <LogIn />
           </Button>
         </div>
       </div>
