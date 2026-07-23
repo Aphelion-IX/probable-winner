@@ -13,6 +13,20 @@ interface CreatePendingOrderResult {
   errors?: CheckoutValidationError[];
 }
 
+interface CartData {
+  id: string;
+  organisation_id: string;
+  cart_lines: Array<{
+    id: string;
+    sellable_sku_id: string;
+    quantity: number;
+    price_at_add: number;
+    reservation_id: string;
+    reservations: { id: string; expires_at: string } | null;
+    published_prices: { final_amount: number } | null;
+  }>;
+}
+
 export async function createPendingOrder(
   cartId: string,
   fulfillmentType: 'delivery' | 'collect',
@@ -32,7 +46,6 @@ export async function createPendingOrder(
 
   const errors: CheckoutValidationError[] = [];
 
-  // Validate fulfillment type
   if (!fulfillmentType || !['delivery', 'collect'].includes(fulfillmentType)) {
     errors.push({
       field: 'fulfillmentType',
@@ -40,7 +53,6 @@ export async function createPendingOrder(
     });
   }
 
-  // Validate address for delivery
   if (fulfillmentType === 'delivery') {
     if (!address?.line1?.trim()) {
       errors.push({
@@ -67,7 +79,6 @@ export async function createPendingOrder(
     }
   }
 
-  // Validate store for click-and-collect
   if (fulfillmentType === 'collect' && !storeId?.trim()) {
     errors.push({
       field: 'storeId',
@@ -75,32 +86,14 @@ export async function createPendingOrder(
     });
   }
 
-  // Validate cart exists and has items
+  // Fetch cart with organisation and items
   const { data: cart, error: cartError } = await supabase
     .from('carts')
-    .select('id, cart_lines(count)')
-    .eq('id', cartId)
-    .single();
-
-  if (cartError || !cart) {
-    errors.push({
-      field: 'cart',
-      message: 'Cart not found',
-    });
-  }
-
-  if (cart && (!cart.cart_lines || cart.cart_lines.length === 0)) {
-    errors.push({
-      field: 'cart',
-      message: 'Cart is empty',
-    });
-  }
-
-  // Validate cart contents (revalidate reservations and prices)
-  if (cart?.id) {
-    const { data: cartLines, error: linesError } = await supabase
-      .from('cart_lines')
-      .select(`
+    .select(
+      `
+      id,
+      organisation_id,
+      cart_lines(
         id,
         sellable_sku_id,
         quantity,
@@ -111,50 +104,64 @@ export async function createPendingOrder(
           expires_at
         ),
         published_prices(final_amount)
-      `)
-      .eq('cart_id', cartId);
+      )
+    `
+    )
+    .eq('id', cartId)
+    .single();
 
-    if (linesError) {
-      errors.push({
-        field: 'cart',
-        message: 'Failed to validate cart contents',
-      });
-    } else if (cartLines) {
-      // Check for expired reservations
-      const now = new Date();
-      for (const line of cartLines) {
-        const reservation = Array.isArray(line.reservations)
-          ? line.reservations[0]
-          : line.reservations;
+  if (cartError || !cart) {
+    errors.push({
+      field: 'cart',
+      message: 'Cart not found',
+    });
+  }
 
-        if (
-          !reservation ||
-          (reservation.expires_at && new Date(reservation.expires_at) < now)
-        ) {
-          errors.push({
-            field: `cartLine_${line.id}`,
-            message: 'Item reservation has expired. Please add it to cart again.',
-          });
-        }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cartData = cart as any as CartData;
+
+  if (
+    cartData &&
+    (!cartData.cart_lines || cartData.cart_lines.length === 0)
+  ) {
+    errors.push({
+      field: 'cart',
+      message: 'Cart is empty',
+    });
+  }
+
+  // Validate cart contents
+  if (cartData?.id) {
+    const now = new Date();
+    for (const line of cartData.cart_lines) {
+      const reservation = Array.isArray(line.reservations)
+        ? line.reservations[0]
+        : line.reservations;
+
+      if (
+        !reservation ||
+        (reservation.expires_at && new Date(reservation.expires_at) < now)
+      ) {
+        errors.push({
+          field: `cartLine_${line.id}`,
+          message: 'Item reservation has expired. Please add it to cart again.',
+        });
       }
 
-      // Check for price changes (tolerance: ±10%)
-      for (const line of cartLines) {
-        const prices = Array.isArray(line.published_prices)
-          ? line.published_prices
-          : [line.published_prices];
-        const currentPrice = prices?.[0]?.final_amount;
+      const prices = Array.isArray(line.published_prices)
+        ? line.published_prices
+        : [line.published_prices];
+      const currentPrice = prices?.[0]?.final_amount;
 
-        if (currentPrice !== undefined && currentPrice !== null) {
-          const priceDifference = Math.abs(currentPrice - line.price_at_add);
-          const percentChange = (priceDifference / line.price_at_add) * 100;
+      if (currentPrice !== undefined && currentPrice !== null) {
+        const priceDifference = Math.abs(currentPrice - line.price_at_add);
+        const percentChange = (priceDifference / line.price_at_add) * 100;
 
-          if (percentChange > 10) {
-            errors.push({
-              field: `cartLine_${line.id}_price`,
-              message: `Price changed by ${percentChange.toFixed(1)}%. Please review and reconfirm.`,
-            });
-          }
+        if (percentChange > 10) {
+          errors.push({
+            field: `cartLine_${line.id}_price`,
+            message: `Price changed by ${percentChange.toFixed(1)}%. Please review and reconfirm.`,
+          });
         }
       }
     }
@@ -164,16 +171,83 @@ export async function createPendingOrder(
     return { success: false, errors };
   }
 
-  // Create pending order
   try {
+    // Get the default fulfilment node for the organisation
+    const { data: defaultNode } = await supabase
+      .from('fulfilment_nodes')
+      .select('id')
+      .eq('organisation_id', cartData.organisation_id)
+      .limit(1)
+      .single();
+
+    if (!defaultNode) {
+      return {
+        success: false,
+        errors: [
+          {
+            field: 'organisation',
+            message: 'No fulfilment node found for organisation',
+          },
+        ],
+      };
+    }
+
+    let shippingAddressId: string | null = null;
+    let collectionStoreId: string | null = null;
+
+    // Create address record if delivery
+    if (fulfillmentType === 'delivery' && address) {
+      const { data: newAddress, error: addressError } = await supabase
+        .from('addresses')
+        .insert({
+          organisation_id: cartData.organisation_id,
+          line1: address.line1,
+          line2: address.line2 || null,
+          suburb: address.suburb,
+          state: address.state,
+          postcode: address.postcode,
+          country: 'AU',
+        })
+        .select('id')
+        .single();
+
+      if (addressError || !newAddress) {
+        return {
+          success: false,
+          errors: [
+            {
+              field: 'address',
+              message: 'Failed to save address',
+            },
+          ],
+        };
+      }
+
+      shippingAddressId = newAddress.id;
+    }
+
+    // Map fulfilment node for collection
+    if (fulfillmentType === 'collect') {
+      collectionStoreId = storeId || defaultNode.id;
+    }
+
+    // Generate order number
+    const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+    // Create order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        cart_id: cartId,
+        organisation_id: cartData.organisation_id,
+        fulfilment_node_id: collectionStoreId || defaultNode.id,
+        order_number: orderNumber,
         status: 'pending',
-        fulfillment_type: fulfillmentType,
-        delivery_address: fulfillmentType === 'delivery' ? address : null,
-        fulfillment_node_id: fulfillmentType === 'collect' ? storeId : null,
+        fulfilment_type:
+          fulfillmentType === 'delivery' ? 'online_shipping' : 'click_and_collect',
+        shipping_address_id: shippingAddressId,
+        collection_store_id: collectionStoreId,
+        total_amount: 0,
+        currency: 'AUD',
       })
       .select('id')
       .single();
@@ -185,6 +259,31 @@ export async function createPendingOrder(
           {
             field: 'order',
             message: 'Failed to create order. Please try again.',
+          },
+        ],
+      };
+    }
+
+    // Create order lines from cart lines
+    const orderLines = cartData.cart_lines.map((line) => ({
+      order_id: order.id,
+      sellable_sku_id: line.sellable_sku_id,
+      quantity: line.quantity,
+      unit_price: line.price_at_add,
+      line_total: line.price_at_add * line.quantity,
+    }));
+
+    const { error: linesError } = await supabase
+      .from('order_lines')
+      .insert(orderLines);
+
+    if (linesError) {
+      return {
+        success: false,
+        errors: [
+          {
+            field: 'order',
+            message: 'Failed to create order lines',
           },
         ],
       };
