@@ -31,7 +31,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
   if (error) {
     return (
       <div className="space-y-6">
-        <Link href="/account/orders" className="text-blue-600 hover:underline">
+        <Link href="/orders" className="text-blue-600 hover:underline">
           ← Back to Orders
         </Link>
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
@@ -44,7 +44,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
   if (!order) {
     return (
       <div className="space-y-6">
-        <Link href="/account/orders" className="text-blue-600 hover:underline">
+        <Link href="/orders" className="text-blue-600 hover:underline">
           ← Back to Orders
         </Link>
         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -64,7 +64,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
 
   return (
     <div className="space-y-8">
-      <Link href="/account/orders" className="text-blue-600 hover:underline">
+      <Link href="/orders" className="text-blue-600 hover:underline">
         ← Back to Orders
       </Link>
 

@@ -1,10 +1,5 @@
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { redirect } from "next/navigation";
 
 export default function RestockAlertsPage() {
-  return (
-    <PlaceholderPage
-      title="Restock alerts"
-      description="Exact-printing and any-printing restock subscriptions are backlog Step 20."
-    />
-  );
+  redirect("/alerts");
 }

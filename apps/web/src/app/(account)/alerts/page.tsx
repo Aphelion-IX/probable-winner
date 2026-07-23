@@ -38,7 +38,7 @@ export default async function AlertsPage() {
           </p>
         </div>
         <Link
-          href="/account/alerts/new"
+          href="/alerts/new"
           className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
         >
           <Plus className="h-4 w-4" />
@@ -54,7 +54,7 @@ export default async function AlertsPage() {
         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
           <AlertCircle className="mx-auto h-8 w-8 opacity-50" />
           <p className="mt-2">No alerts yet.</p>
-          <Link href="/account/alerts/new" className="mt-4 text-blue-600 hover:underline">
+          <Link href="/alerts/new" className="mt-4 text-blue-600 hover:underline">
             Create your first alert
           </Link>
         </div>

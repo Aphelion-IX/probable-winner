@@ -1,10 +1,5 @@
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { redirect } from "next/navigation";
 
 export default function PriceAlertsPage() {
-  return (
-    <PlaceholderPage
-      title="Price alerts"
-      description="Price-threshold subscriptions are backlog Step 20."
-    />
-  );
+  redirect("/alerts");
 }

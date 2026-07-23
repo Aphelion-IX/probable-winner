@@ -52,7 +52,7 @@ export default function CreateAlertPage() {
         await createRestockAlert(mockCardId, finish, condition);
       }
 
-      router.push("/account/alerts");
+      router.push("/alerts");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create alert");
       setIsLoading(false);
@@ -61,7 +61,7 @@ export default function CreateAlertPage() {
 
   return (
     <div className="space-y-6">
-      <Link href="/account/alerts" className="inline-flex items-center gap-2 text-blue-600 hover:underline">
+      <Link href="/alerts" className="inline-flex items-center gap-2 text-blue-600 hover:underline">
         <ArrowLeft className="h-4 w-4" />
         Back to Alerts
       </Link>
@@ -204,7 +204,7 @@ export default function CreateAlertPage() {
             {isLoading ? "Creating..." : "Create Alert"}
           </button>
           <Link
-            href="/account/alerts"
+            href="/alerts"
             className="flex items-center justify-center rounded-lg border px-4 py-2 font-semibold hover:bg-muted"
           >
             Cancel
