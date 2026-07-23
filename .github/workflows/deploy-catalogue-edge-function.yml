@@ -1,0 +1,48 @@
+name: Deploy Catalogue Edge Function
+
+on:
+  workflow_dispatch:
+    inputs:
+      process_queue:
+        description: 'Trigger queue processing after deploy'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        run: supabase link --project-ref lbsxsptpyhypuheuosye
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Push migrations
+        run: supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Deploy Edge Function
+        run: supabase functions deploy process-catalogue-import
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Process queue (optional)
+        if: ${{ inputs.process_queue == 'true' }}
+        run: |
+          curl -X POST \
+            "https://lbsxsptpyhypuheuosye.supabase.co/functions/v1/process-catalogue-import" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+
+      - name: Done
+        run: echo "✅ Edge Function deployed and queue processing started"
