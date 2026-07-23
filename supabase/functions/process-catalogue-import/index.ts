@@ -31,7 +31,7 @@ async function processQueue(req: Request) {
       try {
         // Read one message from queue
         const result = await client.queryObject(
-          `select * from pgmq.read('catalogue_import', 60, 1)`
+          `select * from pgmq.read('catalogue_import', 60, 1)`,
         );
 
         if (!result.rows || result.rows.length === 0) {
@@ -57,13 +57,15 @@ async function processQueue(req: Request) {
           // own bookkeeping (see catalogue_import_transaction_fix migration).
           const importResult = await client.queryObject(
             `select import_set_and_promote($1, $2::jsonb) as result`,
-            [setCode, JSON.stringify(setData)]
+            [setCode, JSON.stringify(setData)],
           );
 
           const outcome = (importResult.rows[0] as any)?.result;
 
           if (outcome?.status === "succeeded") {
-            await client.queryObject(`select pgmq.archive('catalogue_import', $1::bigint)`, [msgId]);
+            await client.queryObject(`select pgmq.archive('catalogue_import', $1::bigint)`, [
+              msgId,
+            ]);
             processed++;
           } else {
             failed++;
@@ -75,7 +77,10 @@ async function processQueue(req: Request) {
           errors.push({ setCode, message: String(error?.message ?? error) });
         }
       } catch (error) {
-        errors.push({ setCode: "unknown", message: `Queue read error: ${String(error?.message ?? error)}` });
+        errors.push({
+          setCode: "unknown",
+          message: `Queue read error: ${String(error?.message ?? error)}`,
+        });
         break;
       }
     }
@@ -89,13 +94,13 @@ async function processQueue(req: Request) {
         errors,
         status: "ok",
       }),
-      { headers: { "Content-Type": "application/json" } }
+      { headers: { "Content-Type": "application/json" } },
     );
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: String(error?.message ?? error) }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: String(error?.message ?? error) }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }
 
