@@ -13,7 +13,7 @@ export type CardTileProps = {
   rarity: string;
   condition?: string;
   finish?: "Foil" | "Etched";
-  price: number;
+  price?: number;
   imageSrc?: string;
   className?: string;
 };
@@ -78,7 +78,9 @@ export function CardTile({
             </>
           ) : null}
         </p>
-        <p className="mt-auto pt-1 text-base font-semibold">{priceFormatter.format(price)}</p>
+        <p className="mt-auto pt-1 text-base font-semibold">
+          {price != null ? priceFormatter.format(price) : "Price unavailable"}
+        </p>
       </div>
     </Link>
   );

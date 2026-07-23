@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/server/supabase";
+import { sanitizeForIlike } from "@/features/catalogue/lib/postgrest-filters";
 
 export type SetSummary = {
   code: string;
@@ -24,8 +25,7 @@ export type ListSetsOptions = {
 // (backlog Step 9). Good enough for a handful of sets; not meant to survive
 // once the catalogue is fully imported and search needs to rank/facet.
 export function buildSearchFilter(search: string): string {
-  const withoutFilterSyntax = search.replace(/[,()]/g, "").trim();
-  const escaped = withoutFilterSyntax.replace(/[%_\\]/g, (match) => `\\${match}`);
+  const escaped = sanitizeForIlike(search);
   return `name.ilike.%${escaped}%,code.ilike.%${escaped}%`;
 }
 

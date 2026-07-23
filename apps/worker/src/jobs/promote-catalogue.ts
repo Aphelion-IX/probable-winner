@@ -96,18 +96,19 @@ export async function promoteRun(sql: Sql, runId: string): Promise<PromoteRunRes
 
       const [printing] = await sql<{ id: string }[]>`
         insert into card_printings (
-          oracle_card_id, set_id, artist_id, collector_number, rarity,
+          oracle_card_id, set_id, artist_id, collector_number, rarity, finishes,
           frame, border_color, flavor_text, is_promo, is_variation, released_at
         )
         values (
           ${oracleCardId}, ${set.id}, ${artistId}, ${printingRow.collectorNumber}, ${printingRow.rarity},
-          ${printingRow.frame}, ${printingRow.borderColor}, ${printingRow.flavorText},
+          ${printingRow.finishes}, ${printingRow.frame}, ${printingRow.borderColor}, ${printingRow.flavorText},
           ${printingRow.isPromo}, ${printingRow.isVariation}, ${setRow.releasedAt}
         )
         on conflict (set_id, collector_number) do update set
           oracle_card_id = excluded.oracle_card_id,
           artist_id = excluded.artist_id,
           rarity = excluded.rarity,
+          finishes = excluded.finishes,
           frame = excluded.frame,
           border_color = excluded.border_color,
           flavor_text = excluded.flavor_text,

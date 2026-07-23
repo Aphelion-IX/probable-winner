@@ -17,6 +17,7 @@ export type OracleCardRow = {
 export type PrintingRow = {
   collectorNumber: string;
   rarity: string;
+  finishes: string[];
   frame: string | null;
   borderColor: string | null;
   flavorText: string | null;
@@ -67,6 +68,7 @@ export function mapPrinting(card: MtgJsonCard): PrintingRow {
   return {
     collectorNumber: card.number,
     rarity: card.rarity,
+    finishes: card.finishes ?? [],
     frame: card.frameVersion ?? null,
     borderColor: card.borderColor ?? null,
     flavorText: card.flavorText ?? null,

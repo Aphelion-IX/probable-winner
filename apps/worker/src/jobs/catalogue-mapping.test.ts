@@ -70,6 +70,7 @@ describe("mapPrinting", () => {
     expect(row.frame).toBe("1993");
     expect(row.borderColor).toBe("black");
     expect(row.isPromo).toBe(false);
+    expect(row.finishes).toEqual(["nonfoil"]);
   });
 });
 

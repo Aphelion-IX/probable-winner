@@ -28,6 +28,7 @@ export type MtgJsonCard = {
   loyalty?: string;
   colors?: string[];
   colorIdentity?: string[];
+  finishes?: string[];
   borderColor?: string;
   frameVersion?: string;
   flavorText?: string;
