@@ -24,7 +24,7 @@ where pr.organisation_id = 'test-org-id' and sk.card_printing_id = 'test-printin
 insert into carts (id, organisation_id, guest_session_id, customer_id)
 values ('test-cart-1', 'test-org-id', 'guest-session-1', auth.uid());
 
-insert into reservations (id, sellable_sku_id, fulfilment_node_id, status, quantity)
+insert into inventory_reservations (id, sellable_sku_id, fulfilment_node_id, status, quantity)
 values ('test-reservation-1', (select id from sellable_skus where card_printing_id = 'test-printing-1' limit 1), 'store-1', 'active', 1);
 
 insert into cart_lines (id, cart_id, sellable_sku_id, reservation_id, quantity, price_at_add)
