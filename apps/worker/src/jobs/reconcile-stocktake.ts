@@ -24,7 +24,10 @@ type StocktakeLine = {
 // reconciled with no movement (nothing to adjust). Safe to re-run: already
 // -reconciled lines are excluded from the update, so a retry after a
 // partial failure only processes what's left.
-export async function reconcileStocktake(sql: Sql, stocktakeId: string): Promise<ReconcileStocktakeResult> {
+export async function reconcileStocktake(
+  sql: Sql,
+  stocktakeId: string,
+): Promise<ReconcileStocktakeResult> {
   const [stocktake] = await sql<{ id: string }[]>`
     select id from stocktakes where id = ${stocktakeId}
   `;

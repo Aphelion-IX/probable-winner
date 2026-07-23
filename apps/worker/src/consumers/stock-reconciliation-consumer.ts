@@ -40,7 +40,10 @@ export async function pollStockReconciliationQueue(sql: Sql): Promise<boolean> {
   } catch (error) {
     // Left in the queue: pgmq's visibility timeout will make it re-readable
     // for a natural retry, per the failure behaviour in blueprint §17.
-    console.error(`stock_reconciliation ${stocktakeId} failed, will retry after visibility timeout:`, error);
+    console.error(
+      `stock_reconciliation ${stocktakeId} failed, will retry after visibility timeout:`,
+      error,
+    );
     return true;
   }
 
