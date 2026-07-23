@@ -72,3 +72,25 @@ When the Stripe integration and any service-role-key usage (e.g. an admin
 tool) are added, extend `FORBIDDEN_NAMES` / `FORBIDDEN_VALUE_PATTERNS` in
 that script for the new secret's env var name and value shape, the same way
 `STRIPE_SECRET_KEY` is covered today even though nothing reads it yet.
+
+## Audit trail (B-204)
+
+Every state-changing atomic function in `supabase/migrations/20260724140000_audit_events.sql`
+writes a row to `audit_events` (organisation, actor, action, entity, metadata)
+in the same transaction as the change it's recording, so a rolled-back call
+never leaves an orphaned audit row — same reasoning as the `integration_events`
+outbox. Covered today: every inventory function (receive, adjust, reserve,
+release, allocate, begin/complete pick, quarantine, release quarantine),
+both transfer functions (dispatch, receive), and all six pricing approval
+functions (approve, override, reject, publish, set override, clear override).
+
+Payments has no atomic functions yet — checkout is still a placeholder page
+— so there's nothing to wire up there. When payment confirmation (blueprint
+B-124) lands, its webhook handler should call `record_audit_event()` the
+same way, inside the same transaction as the payment state change.
+
+`audit_events` is staff-readable (RLS scoped by `staff_has_org_access()`,
+same policy shape as `published_prices`) but has no direct-write policy —
+`record_audit_event()` is a `security definer` function locked down to be
+callable only from other `security definer` atomic functions, not directly
+from the Data API.
