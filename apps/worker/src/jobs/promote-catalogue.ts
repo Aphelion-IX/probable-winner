@@ -9,6 +9,7 @@ export type PromoteRunResult = {
   setId: string;
   oracleCardsUpserted: number;
   printingsUpserted: number;
+  printingIds: string[];
 };
 
 // Promotes validated staging rows for one import run into the live catalogue
@@ -48,6 +49,7 @@ export async function promoteRun(sql: Sql, runId: string): Promise<PromoteRunRes
     `;
 
     const oracleCardIds = new Map<string, string>();
+    const printingIds: string[] = [];
     let printingsUpserted = 0;
 
     for (const { raw: card } of stagedCards) {
@@ -118,6 +120,7 @@ export async function promoteRun(sql: Sql, runId: string): Promise<PromoteRunRes
         returning id
       `;
       printingsUpserted += 1;
+      printingIds.push(printing.id);
 
       const idRow = mapIdentifiers(card);
       await sql`
@@ -141,6 +144,7 @@ export async function promoteRun(sql: Sql, runId: string): Promise<PromoteRunRes
       setId: set.id,
       oracleCardsUpserted: oracleCardIds.size,
       printingsUpserted,
+      printingIds,
     };
   });
 }
