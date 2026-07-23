@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { createPendingOrder } from "@/app/actions/create-pending-order";
+import { AlertCircle, Loader2 } from "lucide-react";
 
 interface OrderReviewProps {
   fulfillmentType: "delivery" | "collect" | null;
@@ -13,6 +17,7 @@ interface OrderReviewProps {
     postcode: string;
   } | null;
   storeId?: string | null;
+  cartId?: string;
 }
 
 const priceFormatter = new Intl.NumberFormat("en-AU", {
@@ -24,15 +29,81 @@ export function OrderReview({
   fulfillmentType,
   address,
   storeId,
+  cartId = "demo_cart",
 }: OrderReviewProps) {
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<
+    Array<{ field: string; message: string }>
+  >([]);
+
   // Mock values - in production, would come from cart
   const subtotal = 299.85;
   const shipping = fulfillmentType === "delivery" ? 15.0 : 0;
   const tax = ((subtotal + shipping) * 0.1).toFixed(2);
   const total = subtotal + shipping + parseFloat(tax as string);
 
+  const handleCreateOrder = async () => {
+    if (!fulfillmentType) {
+      setValidationErrors([
+        { field: "fulfillmentType", message: "Please select a fulfillment method" },
+      ]);
+      return;
+    }
+
+    setIsLoading(true);
+    setValidationErrors([]);
+
+    try {
+      const result = await createPendingOrder(
+        cartId,
+        fulfillmentType,
+        fulfillmentType === "delivery" ? address || undefined : undefined,
+        fulfillmentType === "collect" ? storeId || undefined : undefined
+      );
+
+      if (result.success && result.orderId) {
+        // Navigate to payment page
+        router.push(`/checkout/payment/${result.orderId}`);
+      } else if (result.errors) {
+        setValidationErrors(result.errors);
+      }
+    } catch (error) {
+      setValidationErrors([
+        {
+          field: "order",
+          message:
+            error instanceof Error ? error.message : "Failed to create order",
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Validation Errors */}
+      {validationErrors.length > 0 && (
+        <div className="rounded-lg border border-destructive bg-destructive/5 p-4">
+          <div className="flex gap-3">
+            <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-destructive text-sm">
+                Unable to proceed
+              </h3>
+              <ul className="mt-2 space-y-1">
+                {validationErrors.map((error) => (
+                  <li key={error.field} className="text-xs text-destructive">
+                    • {error.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fulfillment Details */}
       <div className="rounded-lg border p-4 bg-muted/50">
         <h3 className="font-semibold text-sm">
@@ -98,7 +169,20 @@ export function OrderReview({
         <span>{priceFormatter.format(total)}</span>
       </div>
 
-      <Button className="w-full">Proceed to payment</Button>
+      <Button
+        onClick={handleCreateOrder}
+        disabled={isLoading || !fulfillmentType}
+        className="w-full"
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Creating order...
+          </>
+        ) : (
+          "Proceed to payment"
+        )}
+      </Button>
     </div>
   );
 }
