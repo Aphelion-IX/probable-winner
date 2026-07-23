@@ -44,6 +44,9 @@ importers:
       shadcn:
         specifier: ^4.13.1
         version: 4.13.1(typescript@5.9.3)
+      stripe:
+        specifier: ^15.8.0
+        version: 15.12.0
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -96,6 +99,12 @@ importers:
 
   apps/worker:
     dependencies:
+      '@probable-winner/search':
+        specifier: workspace:*
+        version: link:../../packages/search
+      '@supabase/supabase-js':
+        specifier: ^2.110.8
+        version: 2.110.8
       justtcg-js:
         specifier: ^0.2.1
         version: 0.2.1
@@ -127,6 +136,8 @@ importers:
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@24.13.3)(jsdom@29.1.1)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
+
+  packages/search: {}
 
 packages:
 
@@ -3372,6 +3383,10 @@ packages:
   strip-json-comments@3.1.1:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
+
+  stripe@15.12.0:
+    resolution: {integrity: sha512-slTbYS1WhRJXVB8YXU8fgHizkUrM9KJyrw4Dd8pLEwzKHYyQTIE46EePC2MVbSDZdE24o1GdNtzmJV4PrPpmJA==}
+    engines: {node: '>=12.*'}
 
   styled-jsx@5.1.6:
     resolution: {integrity: sha512-qSVyDTeMotdvQYoHWLNGwRFJHC+i+ZvdBRYosOFgC+Wg1vx4frN2/RG/NA7SYqqvKNLf39P2LSRA2pu6n0XYZA==}
@@ -7097,6 +7112,11 @@ snapshots:
       min-indent: 1.0.1
 
   strip-json-comments@3.1.1: {}
+
+  stripe@15.12.0:
+    dependencies:
+      '@types/node': 24.13.3
+      qs: 6.15.3
 
   styled-jsx@5.1.6(@babel/core@7.29.7)(react@19.2.8):
     dependencies:
