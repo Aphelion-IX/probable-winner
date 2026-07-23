@@ -29,8 +29,9 @@ alternative to MTG MATE while giving the retailer one central system for:
 The platform must support a retailer operating:
 
 - 1 online store
-- 1 central warehouse
-- 10 physical stores
+- 4 physical stores, no separate central warehouse — every store supports
+  click-and-collect, online fulfilment, and store-to-store transfers; there
+  is no single designated hub
 - Thousands of daily customers
 - Hundreds of thousands of card printings
 - Millions of inventory records
@@ -956,10 +957,10 @@ including mobile-device emulation.
 
 Testing must use a realistic seeded dataset.
 
-Minimum performance fixture: 1 organisation; 10 stores; 1 central warehouse;
-100,000+ printings; 500,000+ sellable SKUs; 1,000,000+ inventory balance
-records; 5,000,000+ inventory movements; 100,000+ customers; 100,000+
-historical orders; 10,000+ active carts.
+Minimum performance fixture: 1 organisation; 4 stores (no separate
+warehouse); 100,000+ printings; 500,000+ sellable SKUs; 1,000,000+
+inventory balance records; 5,000,000+ inventory movements; 100,000+
+customers; 100,000+ historical orders; 10,000+ active carts.
 
 Performance scenarios: hundreds of simultaneous searches; many customers
 purchasing one high-demand card; 100-card deck-list import; store-level

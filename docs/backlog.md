@@ -107,8 +107,8 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 - AC: RLS enabled on every table exposed via the Data API; policies reference `organisation_id`/`fulfilment_node_id`/`user_id`; those columns are indexed per blueprint §18.
 - Tests: pgTAP suite asserts a user scoped to Store A cannot read/write Store B rows, and an org-scoped user can read all stores in their org.
 
-**B-033 Seed script: demo retailer, warehouse, 10 stores, staff users** — deps: B-032
-- AC: `supabase/seed.sql` (or a seed script invoked by it) creates 1 organisation, 1 warehouse, 10 stores, and one user per role listed in blueprint §4 seed list (admin, store manager, warehouse user, pricing user).
+**B-033 Seed script: demo retailer, 4 stores, staff users** — deps: B-032
+- AC: `supabase/seed.sql` (or a seed script invoked by it) creates 1 organisation, 4 stores (no separate warehouse — every store supports online fulfilment, click-and-collect, and transfers equally), and one user per role listed in blueprint §4 seed list (admin, store manager, inventory manager, pricing user).
 - Tests: re-running the seed is idempotent (no duplicate-key errors).
 
 **B-034 pgTAP tests: staff scope access control** — deps: B-033
@@ -550,7 +550,7 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 - Tests: a documented (possibly manual/staging-only) restore drill, logged in `docs/deployment.md`.
 
 **B-210 Realistic seed generator for performance testing** — deps: B-046, B-051, B-060
-- AC: generates the volumes in blueprint §23 (100k+ printings, 500k+ SKUs, 1M+ balances, 5M+ movements, 100k+ customers, 100k+ historical orders, 10k+ active carts) across 10 stores + 1 warehouse.
+- AC: generates the volumes in blueprint §23 (100k+ printings, 500k+ SKUs, 1M+ balances, 5M+ movements, 100k+ customers, 100k+ historical orders, 10k+ active carts) across 4 stores (no separate warehouse).
 - Tests: this task's deliverable is the generator; verify row counts meet the stated minimums.
 
 **B-211 Load test suite against performance budgets** — deps: B-210, B-087, B-105, B-116, B-185
@@ -577,8 +577,8 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 - AC: feature-flagged or config-gated rollout to exactly one store; rollback path documented.
 - Tests: monitoring dashboards (B-202) actively watched during the pilot window.
 
-**B-222 Warehouse pilot** — deps: B-221
-- AC: warehouse fulfilment/transfers exercised live with the pilot store.
+**B-222 Store transfer pilot** — deps: B-221
+- AC: store-to-store transfer fulfilment exercised live between the pilot store and another store (no separate warehouse node exists — see blueprint §1).
 - Tests: same monitoring approach as B-221.
 
 **B-223 Click-and-collect pilot** — deps: B-222, B-145
@@ -590,7 +590,7 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 - Tests: none beyond live monitoring.
 
 **B-225 Full rollout to remaining stores** — deps: B-224
-- AC: all 10 stores activated; blueprint §23 explicitly forbids activating all stores on day one, so this is the final step, not a parallelizable one.
+- AC: all 4 stores activated; blueprint §23 explicitly forbids activating all stores on day one, so this is the final step, not a parallelizable one.
 - Tests: post-rollout smoke test across all stores.
 
 ---
