@@ -1,89 +1,156 @@
 -- pgTAP tests for pricing review queue (backlog B-163). Core AC: staff with
--- pricing.approve/pricing.override can review/override prices; scoped by permission.
--- RLS must prevent unauthorized access; functions emit integration events.
+-- pricing.approve/pricing.override can review/override prices; a user
+-- without that permission cannot via a direct API call; functions emit
+-- integration events.
 --
 -- Run via `supabase test db` once the local Supabase CLI/Docker stack is
--- available. Verified directly against the remote project (wrapped in
--- BEGIN/ROLLBACK so no fixture data was left behind).
+-- available -- wrapped in BEGIN/ROLLBACK so no fixture data is left behind.
+-- Rewritten from the original: every fixture insert here used string
+-- literals ('test-org-id', 'test-printing-id', 'en', 'nonfoil', 'nm') for
+-- uuid foreign-key columns, which would fail at insert time (invalid input
+-- syntax for type uuid) -- this version follows the same real-fixture
+-- chain (games -> sets -> oracle_cards -> card_printings -> sellable_skus)
+-- used by allocate_and_pick_inventory.test.sql and others.
 begin;
 
-select plan(12);
+select plan(13);
 
--- Setup: create a test pricing rule and SKU so we have something to calculate.
-insert into pricing_rules (organisation_id, source_price_type, target_currency, margin_type, margin_value)
-values ('test-org-id', 'tcgplayer', 'AUD', 'percentage', 30);
+create temp table test_ids_prq (key text primary key, id uuid);
+grant select, insert on test_ids_prq to authenticated;
 
-insert into sellable_skus (card_printing_id, language_id, finish_id, condition_id)
-values ('test-printing-id', 'en', 'nonfoil', 'nm');
+insert into test_ids_prq (key, id) select 'org', id from organisations limit 1;
 
--- Insert a calculated price in 'suggested' status.
-insert into calculated_prices (
-  pricing_rule_id, sellable_sku_id, base_amount, base_currency, exchange_rate,
-  margin_amount, final_amount, currency, status
+with pr as (
+  insert into pricing_rules (organisation_id, name, source_price_type, target_currency, margin_type, margin_value)
+  select (select id from test_ids_prq where key = 'org'), 'PRQ Test Rule', 'tcgplayer', 'AUD', 'percentage', 30
+  returning id
 )
-select pr.id, sk.id, 10, 'USD', 1.55, 4.65, 20.15, 'AUD', 'suggested'
-from pricing_rules pr, sellable_skus sk
-where pr.source_price_type = 'tcgplayer' and sk.card_printing_id = 'test-printing-id'
-limit 1;
+insert into test_ids_prq (key, id) select 'rule', id from pr;
 
--- Test 1: approve_suggested_price transitions status from suggested to approved.
-select ok(
-  (
-    with calc_price as (
-      select id from calculated_prices where final_amount = 20.15 limit 1
-    ),
-    approved as (
-      select approve_suggested_price(calc_price.id) from calc_price
-    )
-    select exists(
-      select 1 from calculated_prices where final_amount = 20.15 and status = 'approved'
-    )
-  ),
-  'approve_suggested_price() transitions status to approved'
+with g as (select id from games where code = 'mtg'),
+     s as (
+       insert into sets (game_id, code, name)
+       select id, 'prqt', 'Pricing Review Test Set' from g
+       returning id
+     ),
+     oc as (
+       insert into oracle_cards (game_id, scryfall_oracle_id, name, type_line)
+       select id, '00000000-0000-0000-0000-000000001001', 'Pricing Review Test Card', 'Instant' from g
+       returning id
+     ),
+     cp as (
+       insert into card_printings (oracle_card_id, set_id, collector_number, rarity, finishes)
+       select oc.id, s.id, '1', 'common', array['nonfoil']
+       from oc, s
+       returning id
+     ),
+     sku as (
+       insert into sellable_skus (card_printing_id, language_id, finish_id, condition_id, product_status_id)
+       select cp.id, (select id from languages where code='en'), (select id from finishes where code='nonfoil'), (select id from conditions where code='nm'), (select id from product_statuses where code='active')
+       from cp returning id
+     )
+insert into test_ids_prq (key, id) select 'sku', id from sku;
+
+-- A staff user WITH pricing.approve/pricing.override (role_permissions was
+-- seeded for pricing_manager by 20260724221000_seed_pricing_role_permissions.sql).
+insert into auth.users (id, instance_id, aud, role, email)
+values ('00000000-0000-0000-0000-000000001002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'prq-manager@test.local');
+insert into staff_memberships (organisation_id, user_id, role_code, scope_type)
+select (select id from test_ids_prq where key = 'org'), '00000000-0000-0000-0000-000000001002', 'pricing_manager', 'organisation';
+
+-- A staff user WITHOUT any pricing permission (store_assistant has none of
+-- pricing.view/approve/override) -- proves the permission check actually
+-- denies, not just that a policy row exists.
+insert into auth.users (id, instance_id, aud, role, email)
+values ('00000000-0000-0000-0000-000000001003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'prq-assistant@test.local');
+insert into staff_memberships (organisation_id, user_id, role_code, scope_type)
+select (select id from test_ids_prq where key = 'org'), '00000000-0000-0000-0000-000000001003', 'store_assistant', 'organisation';
+
+with cp as (
+  insert into calculated_prices (
+    pricing_rule_id, sellable_sku_id, base_amount, base_currency, exchange_rate,
+    margin_amount, final_amount, currency, status
+  )
+  select (select id from test_ids_prq where key = 'rule'), (select id from test_ids_prq where key = 'sku'),
+    10, 'USD', 1.55, 4.65, 20.15, 'AUD', 'suggested'
+  returning id
+)
+insert into test_ids_prq (key, id) select 'calc_1', id from cp;
+
+-- Test: a user without pricing.approve cannot approve via a direct API call.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001003', true);
+set local role authenticated;
+
+select throws_ok(
+  format($$select approve_suggested_price('%s')$$, (select id from test_ids_prq where key = 'calc_1')),
+  '42501',
+  null,
+  'a user without pricing.approve cannot approve a suggested price'
 );
 
--- Test 2: approve_suggested_price emits a pricing_approved event.
+select throws_ok(
+  format($$select override_suggested_price('%s', 15.00)$$, (select id from test_ids_prq where key = 'calc_1')),
+  '42501',
+  null,
+  'a user without pricing.override cannot override a suggested price'
+);
+
 select ok(
-  exists(
-    select 1 from integration_events
-    where event_type = 'pricing_approved'
+  (select status = 'suggested' from calculated_prices where id = (select id from test_ids_prq where key = 'calc_1')),
+  'the denied calls above left the price untouched, still suggested'
+);
+
+reset role;
+
+-- Switch to the pricing manager for the remaining, permitted actions.
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001002', true);
+set local role authenticated;
+
+-- Test: approve_suggested_price transitions status from suggested to approved.
+select ok(
+  (
+    with approved as (
+      select approve_suggested_price((select id from test_ids_prq where key = 'calc_1'))
+    )
+    select exists(
+      select 1 from calculated_prices
+      where id = (select id from test_ids_prq where key = 'calc_1') and status = 'approved'
+    )
   ),
+  'approve_suggested_price() transitions status to approved for a permitted user'
+);
+
+select ok(
+  exists(select 1 from integration_events where event_type = 'pricing_approved'),
   'approve_suggested_price() emits a pricing_approved integration event'
 );
 
--- Test 3: Cannot approve an already-approved price.
 select throws_ok(
-  (
-    select approve_suggested_price(
-      (select id from calculated_prices where status = 'approved' limit 1)
-    )
-  ),
+  format($$select approve_suggested_price('%s')$$, (select id from test_ids_prq where key = 'calc_1')),
   null, null,
   'cannot approve an already-approved price'
 );
 
--- Test 4: Insert another suggested price for override testing.
-insert into calculated_prices (
-  pricing_rule_id, sellable_sku_id, base_amount, base_currency, exchange_rate,
-  margin_amount, final_amount, currency, status
+with cp as (
+  insert into calculated_prices (
+    pricing_rule_id, sellable_sku_id, base_amount, base_currency, exchange_rate,
+    margin_amount, final_amount, currency, status
+  )
+  select (select id from test_ids_prq where key = 'rule'), (select id from test_ids_prq where key = 'sku'),
+    15, 'USD', 1.55, 6.98, 30.23, 'AUD', 'suggested'
+  returning id
 )
-select pr.id, sk.id, 15, 'USD', 1.55, 6.98, 30.23, 'AUD', 'suggested'
-from pricing_rules pr, sellable_skus sk
-where pr.source_price_type = 'tcgplayer' and sk.card_printing_id = 'test-printing-id'
-limit 1;
+insert into test_ids_prq (key, id) select 'calc_2', id from cp;
 
--- Test 5: override_suggested_price updates final_amount and stores original in metadata.
 select ok(
   (
-    with calc_price as (
-      select id from calculated_prices where final_amount = 30.23 limit 1
-    ),
-    overridden as (
-      select override_suggested_price(calc_price.id, 25.00) from calc_price
+    with overridden as (
+      select override_suggested_price((select id from test_ids_prq where key = 'calc_2'), 25.00)
     )
     select exists(
       select 1 from calculated_prices
-      where final_amount = 25.00
+      where id = (select id from test_ids_prq where key = 'calc_2')
+        and final_amount = 25.00
         and status = 'approved'
         and metadata->>'original_final_amount' = '30.23'
     )
@@ -91,83 +158,53 @@ select ok(
   'override_suggested_price() updates amount, status, and stores original in metadata'
 );
 
--- Test 6: override_suggested_price emits a pricing_overridden event.
 select ok(
-  exists(
-    select 1 from integration_events
-    where event_type = 'pricing_overridden'
-  ),
+  exists(select 1 from integration_events where event_type = 'pricing_overridden'),
   'override_suggested_price() emits a pricing_overridden integration event'
 );
 
--- Test 7: Cannot override with negative amount.
 select throws_ok(
-  (
-    select override_suggested_price(
-      (select id from calculated_prices where status = 'suggested' limit 1),
-      -5.00
-    )
-  ),
+  format($$select override_suggested_price('%s', -5.00)$$, (select id from test_ids_prq where key = 'calc_2')),
   null, null,
   'cannot override with negative amount'
 );
 
--- Test 8: Insert third price for reject testing.
-insert into calculated_prices (
-  pricing_rule_id, sellable_sku_id, base_amount, base_currency, exchange_rate,
-  margin_amount, final_amount, currency, status
+with cp as (
+  insert into calculated_prices (
+    pricing_rule_id, sellable_sku_id, base_amount, base_currency, exchange_rate,
+    margin_amount, final_amount, currency, status
+  )
+  select (select id from test_ids_prq where key = 'rule'), (select id from test_ids_prq where key = 'sku'),
+    20, 'USD', 1.55, 9.30, 40.30, 'AUD', 'suggested'
+  returning id
 )
-select pr.id, sk.id, 20, 'USD', 1.55, 9.30, 40.30, 'AUD', 'suggested'
-from pricing_rules pr, sellable_skus sk
-where pr.source_price_type = 'tcgplayer' and sk.card_printing_id = 'test-printing-id'
-limit 1;
+insert into test_ids_prq (key, id) select 'calc_3', id from cp;
 
--- Test 9: reject_suggested_price transitions status to rejected.
 select ok(
   (
-    with calc_price as (
-      select id from calculated_prices where final_amount = 40.30 limit 1
-    ),
-    rejected as (
-      select reject_suggested_price(calc_price.id) from calc_price
+    with rejected as (
+      select reject_suggested_price((select id from test_ids_prq where key = 'calc_3'))
     )
     select exists(
-      select 1 from calculated_prices where final_amount = 40.30 and status = 'rejected'
+      select 1 from calculated_prices
+      where id = (select id from test_ids_prq where key = 'calc_3') and status = 'rejected'
     )
   ),
   'reject_suggested_price() transitions status to rejected'
 );
 
--- Test 10: reject_suggested_price emits a pricing_rejected event.
 select ok(
-  exists(
-    select 1 from integration_events
-    where event_type = 'pricing_rejected'
-  ),
+  exists(select 1 from integration_events where event_type = 'pricing_rejected'),
   'reject_suggested_price() emits a pricing_rejected integration event'
 );
 
--- Test 11: Cannot reject an already-approved price.
 select throws_ok(
-  (
-    select reject_suggested_price(
-      (select id from calculated_prices where status = 'approved' limit 1)
-    )
-  ),
+  format($$select reject_suggested_price('%s')$$, (select id from test_ids_prq where key = 'calc_1')),
   null, null,
   'cannot reject an already-approved price'
 );
 
--- Test 12: Verify RLS policy prevents unauthorized updates to calculated_prices.
--- Set role to 'authenticated' without pricing.approve permission (this would normally be enforced via staff_has_permission).
--- Since we can't easily inject a different permission context in pgTAP, we verify the policy exists.
-select ok(
-  exists(
-    select 1 from pg_policies
-    where tablename = 'calculated_prices' and policyname = 'calculated_prices_update'
-  ),
-  'RLS update policy exists on calculated_prices'
-);
+reset role;
 
 select finish();
 
