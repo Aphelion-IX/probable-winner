@@ -1,10 +1,17 @@
 -- Surfaces the set's Scryfall-hosted expansion-icon URL (backfilled by
 -- apps/worker's import-set-symbols job into sets.icon_url, a column that
 -- already existed but was never populated) on the browse grid, alongside
--- the card image added in 20260725010000. A trailing column addition via
--- create or replace view is safe -- it doesn't reposition or retype any
--- existing column.
-create or replace view card_browse
+-- the card image added in 20260725010000.
+--
+-- This inserts set_icon_url before the trailing image_url column added by
+-- 20260725010000_card_browse_image_url.sql -- not a pure trailing append,
+-- so `create or replace view` is rejected ("cannot change name of view
+-- column 'image_url' to 'set_icon_url'"); Postgres only allows appending
+-- new columns at the end. Drop and recreate instead (verified no
+-- dependents via pg_depend before this was first applied).
+drop view if exists card_browse;
+
+create view card_browse
   with (security_invoker = true)
   as
   select

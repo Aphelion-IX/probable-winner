@@ -1140,6 +1140,18 @@ begin
 end;
 $$ language plpgsql security definer;
 
+-- Postgres rejects CREATE OR REPLACE FUNCTION when a parameter's name
+-- changes, even with an identical argument-type signature -- and this
+-- redefinition renames every parameter (published_price_id -> p_published_price_id,
+-- etc.) versus the version created by 20260723082400_published_prices_and_overrides.sql.
+-- Explicit drops make this migration replay cleanly on a fresh database
+-- (verified via `supabase start`); harmless against an environment where
+-- these functions already carry this migration's signature, since dropping
+-- and immediately recreating the same signature is a no-op from the
+-- caller's perspective.
+drop function if exists set_price_override(uuid, uuid, numeric, text);
+drop function if exists clear_price_override(uuid, uuid);
+
 create or replace function set_price_override(
   p_published_price_id uuid,
   p_fulfilment_node_id uuid,

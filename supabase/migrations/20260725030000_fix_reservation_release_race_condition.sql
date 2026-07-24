@@ -18,6 +18,17 @@
 -- Fix: lock the reservation row itself first (`SELECT ... FOR UPDATE`) so a
 -- second concurrent caller blocks until the first commits, then re-reads the
 -- row and sees the now-terminal status instead of a stale 'active' one.
+--
+-- Both function bodies below are based on the versions in
+-- 20260724140000_audit_events.sql (the latest prior redefinition, which
+-- added emit_integration_event()/record_audit_event() calls) with only the
+-- FOR UPDATE addition layered on top -- not the older, audit-events-less
+-- bodies from 20260723055815_reserve_and_release_inventory.sql/
+-- 20260723060956_allocate_and_pick_inventory.sql. (An earlier version of
+-- this migration got that backwards and briefly regressed the audit/
+-- integration-event calls on the live project; caught by
+-- supabase/tests/database/audit_events.test.sql when the local pgTAP suite
+-- was run for the first time.)
 
 create or replace function release_inventory_reservation(
   p_reservation_id uuid
@@ -63,6 +74,19 @@ begin
   ) values (
     v_reservation.organisation_id, v_reservation.fulfilment_node_id, v_reservation.sellable_sku_id,
     'release_reservation', -v_reservation.quantity, 'inventory_reservation', v_reservation.id, auth.uid()
+  );
+
+  perform emit_integration_event(
+    v_reservation.organisation_id, 'inventory_balance_changed', 'inventory_balance', null,
+    jsonb_build_object('fulfilmentNodeId', v_reservation.fulfilment_node_id, 'sellableSkuId', v_reservation.sellable_sku_id)
+  );
+
+  perform record_audit_event(
+    v_reservation.organisation_id, 'inventory.release_reservation', 'inventory_reservation', v_reservation.id,
+    jsonb_build_object(
+      'fulfilmentNodeId', v_reservation.fulfilment_node_id, 'sellableSkuId', v_reservation.sellable_sku_id,
+      'quantity', v_reservation.quantity
+    )
   );
 
   return v_reservation;
@@ -122,6 +146,19 @@ begin
   ) values (
     v_reservation.organisation_id, v_reservation.fulfilment_node_id, v_reservation.sellable_sku_id,
     'allocate', v_reservation.quantity, 'inventory_allocation', v_allocation.id, auth.uid()
+  );
+
+  perform emit_integration_event(
+    v_reservation.organisation_id, 'inventory_balance_changed', 'inventory_balance', null,
+    jsonb_build_object('fulfilmentNodeId', v_reservation.fulfilment_node_id, 'sellableSkuId', v_reservation.sellable_sku_id)
+  );
+
+  perform record_audit_event(
+    v_reservation.organisation_id, 'inventory.allocate', 'inventory_allocation', v_allocation.id,
+    jsonb_build_object(
+      'fulfilmentNodeId', v_reservation.fulfilment_node_id, 'sellableSkuId', v_reservation.sellable_sku_id,
+      'quantity', v_reservation.quantity, 'orderLineId', p_order_line_id, 'reservationId', p_reservation_id
+    )
   );
 
   return v_allocation;
