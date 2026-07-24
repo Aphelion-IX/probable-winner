@@ -1,0 +1,54 @@
+-- Performance advisor cleanup: covering indexes for foreign keys that had
+-- none, flagged as unindexed_foreign_keys. These matter most for FK
+-- ON DELETE CASCADE lookups and join performance as data volume grows;
+-- `if not exists` keeps this safe to rerun.
+
+create index if not exists calculated_price_inputs_price_snapshot_id_idx on calculated_price_inputs (price_snapshot_id);
+create index if not exists card_legalities_format_id_idx on card_legalities (format_id);
+create index if not exists card_printings_artist_id_idx on card_printings (artist_id);
+create index if not exists cart_lines_fulfilment_node_id_idx on cart_lines (fulfilment_node_id);
+create index if not exists cart_lines_inventory_reservation_id_idx on cart_lines (inventory_reservation_id);
+create index if not exists cart_lines_sellable_sku_id_idx on cart_lines (sellable_sku_id);
+create index if not exists carts_organisation_id_idx on carts (organisation_id);
+create index if not exists inventory_allocations_organisation_id_idx on inventory_allocations (organisation_id);
+create index if not exists inventory_allocations_sellable_sku_id_idx on inventory_allocations (sellable_sku_id);
+create index if not exists inventory_balances_sellable_sku_id_idx on inventory_balances (sellable_sku_id);
+create index if not exists inventory_movements_sellable_sku_id_idx on inventory_movements (sellable_sku_id);
+create index if not exists inventory_movements_staff_user_id_idx on inventory_movements (staff_user_id);
+create index if not exists inventory_reservations_organisation_id_idx on inventory_reservations (organisation_id);
+create index if not exists inventory_reservations_sellable_sku_id_idx on inventory_reservations (sellable_sku_id);
+create index if not exists order_handovers_handed_over_by_user_id_idx on order_handovers (handed_over_by_user_id);
+create index if not exists orders_collection_store_id_idx on orders (collection_store_id);
+create index if not exists orders_shipping_address_id_idx on orders (shipping_address_id);
+create index if not exists packing_shipments_packed_by_user_id_idx on packing_shipments (packed_by_user_id);
+create index if not exists pick_batches_completed_by_user_id_idx on pick_batches (completed_by_user_id);
+create index if not exists pick_batches_created_by_user_id_idx on pick_batches (created_by_user_id);
+create index if not exists pick_batches_organisation_id_idx on pick_batches (organisation_id);
+create index if not exists pick_exceptions_created_by_user_id_idx on pick_exceptions (created_by_user_id);
+create index if not exists pick_exceptions_exception_type_id_idx on pick_exceptions (exception_type_id);
+create index if not exists pick_exceptions_resolved_by_user_id_idx on pick_exceptions (resolved_by_user_id);
+create index if not exists pick_lines_allocation_id_idx on pick_lines (allocation_id);
+create index if not exists pick_lines_sku_id_idx on pick_lines (sku_id);
+create index if not exists price_snapshots_price_source_id_idx on price_snapshots (price_source_id);
+create index if not exists profiles_preferred_fulfilment_node_id_idx on profiles (preferred_fulfilment_node_id);
+create index if not exists published_prices_calculated_price_id_idx on published_prices (calculated_price_id);
+create index if not exists quarantined_inventory_organisation_id_idx on quarantined_inventory (organisation_id);
+create index if not exists quarantined_inventory_sellable_sku_id_idx on quarantined_inventory (sellable_sku_id);
+create index if not exists role_permissions_permission_code_idx on role_permissions (permission_code);
+create index if not exists sellable_skus_condition_id_idx on sellable_skus (condition_id);
+create index if not exists sellable_skus_finish_id_idx on sellable_skus (finish_id);
+create index if not exists sellable_skus_language_id_idx on sellable_skus (language_id);
+create index if not exists sellable_skus_product_status_id_idx on sellable_skus (product_status_id);
+create index if not exists staff_memberships_fulfilment_node_id_idx on staff_memberships (fulfilment_node_id);
+create index if not exists staff_memberships_role_code_idx on staff_memberships (role_code);
+create index if not exists stocktake_lines_adjustment_movement_id_idx on stocktake_lines (adjustment_movement_id);
+create index if not exists stocktake_lines_fulfilment_node_id_idx on stocktake_lines (fulfilment_node_id);
+create index if not exists stocktake_lines_sellable_sku_id_idx on stocktake_lines (sellable_sku_id);
+create index if not exists stocktakes_created_by_idx on stocktakes (created_by);
+create index if not exists stocktakes_organisation_id_idx on stocktakes (organisation_id);
+create index if not exists transfer_order_lines_sellable_sku_id_idx on transfer_order_lines (sellable_sku_id);
+create index if not exists transfer_orders_organisation_id_idx on transfer_orders (organisation_id);
+create index if not exists transfer_orders_requested_by_idx on transfer_orders (requested_by);
+create index if not exists transfer_receipts_received_by_idx on transfer_receipts (received_by);
+create index if not exists transfer_receipts_sellable_sku_id_idx on transfer_receipts (sellable_sku_id);
+create index if not exists transfer_shipments_dispatched_by_idx on transfer_shipments (dispatched_by);
