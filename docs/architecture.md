@@ -613,8 +613,15 @@ deliberate change, not attempted as part of this pass.
 does have a genuine live-decision use case: choosing which node
 `reserve_inventory()` reserves *from* when a customer adds an online-
 shipping item to their cart, rather than committing to whatever node the
-storefront happens to be browsing. That integration point is not wired up
-yet — `addToCart()` still takes an explicit `nodeId` from its caller.
+storefront happens to be browsing. That integration point is still not
+wired up: `addToCart()` (`apps/web/src/app/actions/add-to-cart.ts`) is now
+reachable from the storefront UI (the card identity page's SKU selector)
+and resolves a real cart/store/reservation via `get_or_create_cart()` and
+`add_to_cart()`, but its store choice is a placeholder — the first active
+store with `allows_online_fulfilment`, not `route_order()`'s scoring — and
+there's still no durable "customer's preferred store" mechanism (the
+navbar's store selector is local UI state only, not persisted or wired
+into any write path) to feed a real choice in.
 
 ## 12. Store transfer support
 

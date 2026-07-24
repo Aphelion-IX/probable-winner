@@ -8,32 +8,36 @@ import { expect, test } from "@playwright/test";
  * isn't actually connected end-to-end yet, well beyond what a test alone
  * can paper over:
  *
- *   1. No page anywhere renders an "Add to cart" button — the addToCart
- *      Server Action (apps/web/src/app/actions/add-to-cart.ts) is never
- *      called from any component. A customer cannot add an item to their
- *      cart through the real UI at all today (a Step 12/B-111 gap).
- *   2. The picking detail page's "Mark as Picked" scan flow
+ *   1. The picking detail page's "Mark as Picked" scan flow
  *      (apps/web/src/app/staff/picking/[id]/page.tsx) only updates local
  *      React state — it never calls begin_inventory_pick()/
  *      complete_inventory_pick() or updates pick_lines.quantity_picked.
- *   3. There is no apps/web/src/app/staff/packing/[id]/page.tsx at all —
+ *   2. There is no apps/web/src/app/staff/packing/[id]/page.tsx at all —
  *      the packing list page links to a route that 404s. Nothing creates
  *      a packing_shipments row or transitions an order past "picking".
+ *   3. Checkout (apps/web/src/components/checkout/order-review.tsx) still
+ *      defaults to a hardcoded "demo_cart" id and mock line-item/subtotal
+ *      data instead of the real cart resolved on /cart — so while a
+ *      customer can now add real items to a real cart and see them on the
+ *      cart page, checkout itself doesn't yet pick that cart up.
  *
  * What *is* real and wired: confirm_order_payment() (Stripe webhook →
  * reservation-to-allocation conversion, fixed in
- * 20260724160000_fix_checkout_payment_confirmation.sql) and, as of this
- * pass, create_pick_batch() being reachable from the picking page via the
- * new "Generate pick batch" button (previously nothing called it either).
+ * 20260724160000_fix_checkout_payment_confirmation.sql), create_pick_batch()
+ * being reachable from the picking page via the "Generate pick batch"
+ * button, and — as of this pass — a real "Add to cart" control on the card
+ * identity page's SKU selector plus a real /cart page, both backed by the
+ * atomic get_or_create_cart()/add_to_cart()/get_cart_contents() database
+ * functions rather than any client-side mock state.
  *
- * Given (1), this spec can't drive a real order through checkout via the
- * UI — there's no button to click. It instead documents and probes each
- * stage's real availability, skipping precisely at the point the pipeline
- * actually breaks, so the exact scope of what's left is visible here
- * rather than hidden behind a passing-looking test. Completing B-146
- * for real needs the add-to-cart UI (Step 12) and the picking-confirm/
- * packing/shipment write-paths (B-142/B-144) built first — substantially
- * more than this task's own scope.
+ * Given (3), this spec still can't drive a real order all the way through
+ * checkout via the UI. It instead documents and probes each stage's real
+ * availability, skipping precisely at the point the pipeline actually
+ * breaks, so the exact scope of what's left is visible here rather than
+ * hidden behind a passing-looking test. Completing B-146 for real needs
+ * checkout wired to the real cart and the picking-confirm/packing/shipment
+ * write-paths (B-142/B-144) built — substantially more than this task's
+ * own scope.
  */
 
 test.describe("Staff Fulfillment Workflow", () => {

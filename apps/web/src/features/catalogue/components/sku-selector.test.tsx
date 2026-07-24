@@ -4,6 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SkuSelector } from "./sku-selector";
 import type { SkuOption } from "@/features/catalogue/queries/list-sku-options";
 
+const mockAddToCart = vi.fn();
+
+vi.mock("@/app/actions/add-to-cart", () => ({
+  addToCart: (skuId: string, quantity: number) => mockAddToCart(skuId, quantity),
+}));
+
 const OPTIONS: SkuOption[] = [
   {
     skuId: "sku-en-nonfoil-nm",
@@ -52,6 +58,7 @@ function mockLiveDataFor(skuId: string) {
 
 describe("SkuSelector", () => {
   beforeEach(() => {
+    mockAddToCart.mockReset();
     vi.stubGlobal(
       "fetch",
       vi.fn((input: string | URL) => {
@@ -146,5 +153,39 @@ describe("SkuSelector", () => {
     render(<SkuSelector printingId="printing-1" options={[]} />);
 
     expect(screen.getByText("This printing isn't available for sale yet.")).toBeInTheDocument();
+  });
+
+  it("adds the selected SKU and quantity to the cart, showing a success message", async () => {
+    mockAddToCart.mockResolvedValue({ success: true, cartLineId: "line-1" });
+    render(<SkuSelector printingId="printing-1" options={OPTIONS} />);
+
+    await waitFor(() => expect(screen.getByText("$12.50")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+
+    await waitFor(() => expect(mockAddToCart).toHaveBeenCalledWith("sku-en-nonfoil-nm", 3));
+    await waitFor(() => expect(screen.getByText("Added to cart.")).toBeInTheDocument());
+  });
+
+  it("shows an error message when adding to cart fails", async () => {
+    mockAddToCart.mockResolvedValue({ success: false, error: "Insufficient stock" });
+    render(<SkuSelector printingId="printing-1" options={OPTIONS} />);
+
+    await waitFor(() => expect(screen.getByText("$12.50")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Add to cart" }));
+
+    await waitFor(() => expect(screen.getByText("Insufficient stock")).toBeInTheDocument());
+  });
+
+  it("does not show an add-to-cart control for an out-of-stock SKU", async () => {
+    render(<SkuSelector printingId="printing-1" options={OPTIONS} />);
+
+    await waitFor(() => expect(screen.getByText("$12.50")).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("Finish"), { target: { value: "foil" } });
+
+    await waitFor(() => expect(screen.getByText("Out of stock")).toBeInTheDocument());
+    expect(screen.queryByTestId("add-to-cart")).not.toBeInTheDocument();
   });
 });

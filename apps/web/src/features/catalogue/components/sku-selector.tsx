@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { SkuOption } from "@/features/catalogue/queries/list-sku-options";
 import { RestockAlertButton } from "@/features/catalogue/components/restock-alert-button";
+import { addToCart } from "@/app/actions/add-to-cart";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type SkuSelectorProps = {
   printingId: string;
@@ -55,6 +58,25 @@ export function SkuSelector({ printingId, options }: SkuSelectorProps) {
   const [liveData, setLiveData] = useState<LiveData | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [quantity, setQuantity] = useState(1);
+  const [addState, setAddState] = useState<
+    | { status: "idle" }
+    | { status: "pending" }
+    | { status: "error"; message: string }
+    | { status: "added" }
+  >({ status: "idle" });
+
+  // Reset the quantity/add-state whenever the selected SKU changes. Setting
+  // state directly during render (rather than in the effect below) when a
+  // derived value changes is the documented escape hatch for this --
+  // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes.
+  const [resetForSkuId, setResetForSkuId] = useState(selected?.skuId);
+  if (selected?.skuId !== resetForSkuId) {
+    setResetForSkuId(selected?.skuId);
+    setQuantity(1);
+    setAddState({ status: "idle" });
+  }
+
   useEffect(() => {
     if (!selected) {
       return;
@@ -83,6 +105,25 @@ export function SkuSelector({ printingId, options }: SkuSelectorProps) {
       cancelled = true;
     };
   }, [selected]);
+
+  async function handleAddToCart() {
+    if (!selected) return;
+
+    setAddState({ status: "pending" });
+    try {
+      const result = await addToCart(selected.skuId, quantity);
+      if (result.success) {
+        setAddState({ status: "added" });
+      } else {
+        setAddState({ status: "error", message: result.error ?? "Failed to add to cart" });
+      }
+    } catch (error) {
+      setAddState({
+        status: "error",
+        message: error instanceof Error ? error.message : "Failed to add to cart",
+      });
+    }
+  }
 
   if (options.length === 0) {
     return (
@@ -175,6 +216,43 @@ export function SkuSelector({ printingId, options }: SkuSelectorProps) {
               finishCode={selected.finishCode}
               conditionCode={selected.conditionCode}
             />
+          )}
+
+          {liveData && liveData.availableQuantity > 0 && (
+            <div className="flex flex-col gap-2" data-testid="add-to-cart">
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={liveData.availableQuantity}
+                  value={quantity}
+                  onChange={(event) =>
+                    setQuantity(
+                      Math.max(
+                        1,
+                        Math.min(liveData.availableQuantity, Number(event.target.value) || 1),
+                      ),
+                    )
+                  }
+                  className="h-9 w-16 text-center"
+                  aria-label="Quantity"
+                />
+                <Button
+                  onClick={handleAddToCart}
+                  disabled={addState.status === "pending"}
+                  className="flex-1"
+                >
+                  {addState.status === "pending" ? "Adding…" : "Add to cart"}
+                </Button>
+              </div>
+
+              {addState.status === "added" && (
+                <p className="text-sm text-green-600 dark:text-green-400">Added to cart.</p>
+              )}
+              {addState.status === "error" && (
+                <p className="text-sm text-red-600 dark:text-red-400">{addState.message}</p>
+              )}
+            </div>
           )}
         </div>
       )}

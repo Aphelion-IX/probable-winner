@@ -1,86 +1,50 @@
 "use server";
 
-import { createClient } from "@supabase/supabase-js";
+import { revalidatePath } from "next/cache";
 
-interface AddToCartResult {
+import { createServerSupabaseClient } from "@/server/supabase";
+import { getOrCreateCart, resolveDefaultStore } from "@/lib/cart-session";
+
+export interface AddToCartResult {
   success: boolean;
   cartLineId?: string;
   error?: string;
 }
 
-export async function addToCart(
-  cartId: string,
-  sellableSkuId: string,
-  quantity: number,
-  nodeId: string,
-): Promise<AddToCartResult> {
+// Adds a single SKU to the current customer's (or guest's) cart via the
+// atomic add_to_cart() database function (backlog B-111) -- never manual
+// inventory arithmetic here, per AGENTS.md rule 2. Resolves the store and
+// cart the same way features/deck-builder/actions/add-all-to-cart.ts does,
+// so a single "Add to cart" button anywhere in the storefront only needs
+// the SKU id and a quantity.
+export async function addToCart(sellableSkuId: string, quantity: number): Promise<AddToCartResult> {
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    return { success: false, error: "Quantity must be a positive whole number" };
+  }
+
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    );
-
-    // Validate cart exists and belongs to user
-    const { data: cart, error: cartError } = await supabase
-      .from("carts")
-      .select("id, customer_id")
-      .eq("id", cartId)
-      .single();
-
-    if (cartError || !cart) {
-      return { success: false, error: "Cart not found" };
+    const store = await resolveDefaultStore();
+    if (!store) {
+      return { success: false, error: "No store currently accepts online orders" };
     }
 
-    // Validate SKU exists
-    const { data: sku, error: skuError } = await supabase
-      .from("sellable_skus")
-      .select("id")
-      .eq("id", sellableSkuId)
-      .single();
+    const cart = await getOrCreateCart(store.organisation_id);
 
-    if (skuError || !sku) {
-      return { success: false, error: "SKU not found" };
-    }
-
-    // Reserve inventory (atomic operation via database function). Price is
-    // looked up fresh at checkout time from published_prices, not stored
-    // on the cart line -- cart_lines has no price_at_add column.
-    const { data: reservation, error: reserveError } = await supabase.rpc("reserve_inventory", {
+    const supabase = createServerSupabaseClient();
+    const { data: line, error } = await supabase.rpc("add_to_cart", {
+      p_cart_id: cart.id,
+      p_fulfilment_node_id: store.id,
       p_sellable_sku_id: sellableSkuId,
-      p_fulfilment_node_id: nodeId,
       p_quantity: quantity,
     });
 
-    if (reserveError) {
-      return { success: false, error: reserveError.message || "Failed to reserve inventory" };
+    if (error || !line) {
+      return { success: false, error: error?.message ?? "Failed to add item to cart" };
     }
 
-    if (!reservation?.id) {
-      return { success: false, error: "Inventory unavailable" };
-    }
+    revalidatePath("/cart");
 
-    // Add line to cart
-    const { data: cartLine, error: insertError } = await supabase
-      .from("cart_lines")
-      .insert({
-        cart_id: cartId,
-        fulfilment_node_id: nodeId,
-        sellable_sku_id: sellableSkuId,
-        inventory_reservation_id: reservation.id,
-        quantity,
-      })
-      .select("id")
-      .single();
-
-    if (insertError) {
-      // If cart line insert fails, we should release the reservation
-      await supabase.rpc("release_inventory_reservation", {
-        p_reservation_id: reservation.id,
-      });
-      return { success: false, error: "Failed to add item to cart" };
-    }
-
-    return { success: true, cartLineId: cartLine.id };
+    return { success: true, cartLineId: line.id };
   } catch (error) {
     return {
       success: false,

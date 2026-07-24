@@ -1,40 +1,17 @@
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
 import { CartLineItem } from "@/components/commerce/cart-line-item";
+import { getCartContents } from "@/features/cart/queries/get-cart-contents";
 
-interface CartLine {
-  id: string;
-  sellableSkuId: string;
-  quantity: number;
-  priceAtAdd: number;
-  cardName: string;
-  setCode: string;
-  rarity: string;
-  condition: string;
-  finish: string;
-  reservationId: string;
-  reservationExpiresAt: string;
-  currentPrice?: number;
-  isAvailable: boolean;
-}
-
-interface CartData {
-  cartId: string;
-  lines: CartLine[];
-  totalPrice: number;
-  hasWarnings: boolean;
-}
-
-async function getCartData(): Promise<CartData | null> {
-  // Mock implementation - in production, fetch from API or server action
-  // For now, return null to show empty cart state
-  return null;
-}
+const priceFormatter = new Intl.NumberFormat("en-AU", {
+  style: "currency",
+  currency: "AUD",
+});
 
 export async function CartContent() {
-  const cartData = await getCartData();
+  const cart = await getCartContents();
 
-  if (!cartData || cartData.lines.length === 0) {
+  if (cart.lines.length === 0) {
     return (
       <div className="mt-12 space-y-6">
         <div className="rounded-lg border border-dashed p-12 text-center">
@@ -53,25 +30,12 @@ export async function CartContent() {
     );
   }
 
-  const priceFormatter = new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-  });
-
   return (
     <div className="mt-8 grid gap-8 lg:grid-cols-3">
       <div className="lg:col-span-2 space-y-6">
-        {cartData.hasWarnings && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-            <p className="text-sm text-amber-900">
-              ⚠️ Some items in your cart have changed. Please review the changes below.
-            </p>
-          </div>
-        )}
-
         <div className="space-y-4">
-          {cartData.lines.map((line) => (
-            <CartLineItem key={line.id} line={line} />
+          {cart.lines.map((line) => (
+            <CartLineItem key={line.cartLineId} line={line} />
           ))}
         </div>
       </div>
@@ -84,7 +48,7 @@ export async function CartContent() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>{priceFormatter.format(cartData.totalPrice)}</span>
+              <span>{priceFormatter.format(cart.subtotal)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Shipping</span>
@@ -100,7 +64,7 @@ export async function CartContent() {
 
           <div className="flex justify-between font-semibold">
             <span>Total</span>
-            <span>{priceFormatter.format(cartData.totalPrice)}</span>
+            <span>{priceFormatter.format(cart.subtotal)}</span>
           </div>
 
           <Link
