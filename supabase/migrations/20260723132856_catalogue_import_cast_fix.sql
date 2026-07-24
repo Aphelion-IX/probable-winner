@@ -1,3 +1,6 @@
+-- RECONCILIATION NOTE: pulled verbatim from the live project's migration
+-- history (see 20260723064823_fix_transfer_status_transitions.sql for why).
+
 -- Fix: several columns are typed uuid/bigint/numeric but the JSONB text
 -- extraction (->>) always yields text, and PL/pgSQL does not auto-cast
 -- text into uuid/bigint for an INSERT target. Add explicit casts, and

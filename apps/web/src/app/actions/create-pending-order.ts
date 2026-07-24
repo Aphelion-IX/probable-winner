@@ -20,10 +20,8 @@ interface CartData {
     id: string;
     sellable_sku_id: string;
     quantity: number;
-    price_at_add: number;
-    reservation_id: string;
-    reservations: { id: string; expires_at: string } | null;
-    published_prices: { final_amount: number } | null;
+    inventory_reservation_id: string;
+    inventory_reservations: { id: string; expires_at: string } | null;
   }>;
 }
 
@@ -86,7 +84,10 @@ export async function createPendingOrder(
     });
   }
 
-  // Fetch cart with organisation and items
+  // Fetch cart with organisation and items. cart_lines has no stored
+  // price -- unlike order_lines (fixed at order time), a cart line's
+  // price is always looked up fresh from published_prices at checkout,
+  // so there's no "price at add" to detect drift against.
   const { data: cart, error: cartError } = await supabase
     .from('carts')
     .select(
@@ -97,13 +98,11 @@ export async function createPendingOrder(
         id,
         sellable_sku_id,
         quantity,
-        price_at_add,
-        reservation_id,
-        reservations!cart_lines_reservation_id_fkey(
+        inventory_reservation_id,
+        inventory_reservations(
           id,
           expires_at
-        ),
-        published_prices(final_amount)
+        )
       )
     `
     )
@@ -130,13 +129,29 @@ export async function createPendingOrder(
     });
   }
 
+  // Fetch current published prices for every line's SKU (fresh lookup,
+  // not a stored value on the cart line).
+  const priceBySkuId = new Map<string, number>();
+  if (cartData?.cart_lines?.length) {
+    const skuIds = cartData.cart_lines.map((line) => line.sellable_sku_id);
+    const { data: prices } = await supabase
+      .from('published_prices')
+      .select('sellable_sku_id, final_amount')
+      .in('sellable_sku_id', skuIds)
+      .eq('status', 'active');
+
+    for (const price of prices ?? []) {
+      priceBySkuId.set(price.sellable_sku_id, price.final_amount);
+    }
+  }
+
   // Validate cart contents
   if (cartData?.id) {
     const now = new Date();
     for (const line of cartData.cart_lines) {
-      const reservation = Array.isArray(line.reservations)
-        ? line.reservations[0]
-        : line.reservations;
+      const reservation = Array.isArray(line.inventory_reservations)
+        ? line.inventory_reservations[0]
+        : line.inventory_reservations;
 
       if (
         !reservation ||
@@ -148,21 +163,11 @@ export async function createPendingOrder(
         });
       }
 
-      const prices = Array.isArray(line.published_prices)
-        ? line.published_prices
-        : [line.published_prices];
-      const currentPrice = prices?.[0]?.final_amount;
-
-      if (currentPrice !== undefined && currentPrice !== null) {
-        const priceDifference = Math.abs(currentPrice - line.price_at_add);
-        const percentChange = (priceDifference / line.price_at_add) * 100;
-
-        if (percentChange > 10) {
-          errors.push({
-            field: `cartLine_${line.id}_price`,
-            message: `Price changed by ${percentChange.toFixed(1)}%. Please review and reconfirm.`,
-          });
-        }
+      if (!priceBySkuId.has(line.sellable_sku_id)) {
+        errors.push({
+          field: `cartLine_${line.id}_price`,
+          message: 'This item is no longer available for sale. Please remove it and try again.',
+        });
       }
     }
   }
@@ -201,12 +206,17 @@ export async function createPendingOrder(
         .from('addresses')
         .insert({
           organisation_id: cartData.organisation_id,
-          line1: address.line1,
-          line2: address.line2 || null,
-          suburb: address.suburb,
-          state: address.state,
-          postcode: address.postcode,
-          country: 'AU',
+          // The checkout address form doesn't collect a recipient name yet
+          // (a pre-existing gap in this UI, not something this fix adds) --
+          // recipient_name is NOT NULL with no default, so fall back rather
+          // than fail the insert outright.
+          recipient_name: 'Customer',
+          line_1: address.line1,
+          line_2: address.line2 || null,
+          suburb_city: address.suburb,
+          state_province: address.state,
+          postcode_zip: address.postcode,
+          country_code: 'AU',
         })
         .select('id')
         .single();
@@ -264,14 +274,17 @@ export async function createPendingOrder(
       };
     }
 
-    // Create order lines from cart lines
-    const orderLines = cartData.cart_lines.map((line) => ({
-      order_id: order.id,
-      sellable_sku_id: line.sellable_sku_id,
-      quantity: line.quantity,
-      unit_price: line.price_at_add,
-      line_total: line.price_at_add * line.quantity,
-    }));
+    // Create order lines from cart lines, at the price validated above.
+    const orderLines = cartData.cart_lines.map((line) => {
+      const unitPrice = priceBySkuId.get(line.sellable_sku_id) ?? 0;
+      return {
+        order_id: order.id,
+        sellable_sku_id: line.sellable_sku_id,
+        quantity: line.quantity,
+        unit_price: unitPrice,
+        line_total: Math.round(unitPrice * line.quantity * 100) / 100,
+      };
+    });
 
     const { error: linesError } = await supabase
       .from('order_lines')
@@ -288,6 +301,12 @@ export async function createPendingOrder(
         ],
       };
     }
+
+    // Roll up the lines just inserted into the order's total (created
+    // with a 0 placeholder above since the total depends on them).
+    const totalAmount =
+      Math.round(orderLines.reduce((sum, line) => sum + line.line_total, 0) * 100) / 100;
+    await supabase.from('orders').update({ total_amount: totalAmount }).eq('id', order.id);
 
     return { success: true, orderId: order.id };
   } catch (error) {

@@ -1,3 +1,6 @@
+-- RECONCILIATION NOTE: pulled verbatim from the live project's migration
+-- history (see 20260723064823_fix_transfer_status_transitions.sql for why).
+
 -- Fix: the run-tracking insert and the card-processing work were in the
 -- same PL/pgSQL block. PL/pgSQL takes an implicit savepoint at block entry,
 -- so any exception in card processing rolled back to before the run insert

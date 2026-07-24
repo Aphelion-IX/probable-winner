@@ -1,6 +1,7 @@
 import type { Sql } from "postgres";
 
 import { reconcileStocktake } from "../jobs/reconcile-stocktake.js";
+import { logger } from "../logger.js";
 
 const QUEUE_NAME = "stock_reconciliation";
 const VISIBILITY_TIMEOUT_SECONDS = 60;
@@ -25,25 +26,32 @@ export async function pollStockReconciliationQueue(sql: Sql): Promise<boolean> {
 
   const stocktakeId = msg.message.stocktakeId;
   if (!stocktakeId) {
-    console.error(
-      `stock_reconciliation message ${msg.msg_id} is missing "stocktakeId" — archiving without retry`,
-    );
+    logger.error("stock_reconciliation message missing stocktakeId — archiving without retry", {
+      queue: QUEUE_NAME,
+      msgId: msg.msg_id,
+    });
     await sql`select pgmq.archive(${QUEUE_NAME}, ${msg.msg_id}::bigint)`;
     return true;
   }
 
   try {
     const result = await reconcileStocktake(sql, stocktakeId);
-    console.log(
-      `stock_reconciliation ${stocktakeId}: reconciled ${result.linesReconciled} lines, wrote ${result.adjustmentsWritten} adjustments`,
-    );
+    logger.info("stock_reconciliation completed", {
+      queue: QUEUE_NAME,
+      msgId: msg.msg_id,
+      stocktakeId,
+      linesReconciled: result.linesReconciled,
+      adjustmentsWritten: result.adjustmentsWritten,
+    });
   } catch (error) {
     // Left in the queue: pgmq's visibility timeout will make it re-readable
     // for a natural retry, per the failure behaviour in blueprint §17.
-    console.error(
-      `stock_reconciliation ${stocktakeId} failed, will retry after visibility timeout:`,
-      error,
-    );
+    logger.error("stock_reconciliation failed, will retry after visibility timeout", {
+      queue: QUEUE_NAME,
+      msgId: msg.msg_id,
+      stocktakeId,
+      error: logger.serializeError(error),
+    });
     return true;
   }
 

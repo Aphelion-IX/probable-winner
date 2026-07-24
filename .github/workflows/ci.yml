@@ -36,6 +36,9 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      - name: Check for leaked secrets in client bundle
+        run: pnpm --filter web run check:secrets
+
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 

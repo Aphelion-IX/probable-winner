@@ -10,10 +10,12 @@
     "enqueue-catalogue-import": "tsx src/scripts/enqueue-catalogue-import.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "load-test": "tsx src/load-test/index.ts"
   },
   "dependencies": {
     "@probable-winner/search": "workspace:*",
+    "@sentry/node": "^10.67.0",
     "@supabase/supabase-js": "^2.110.8",
     "justtcg-js": "^0.2.1",
     "mtggraphql": "^1.0.2",

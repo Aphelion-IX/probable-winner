@@ -4,6 +4,7 @@ import {
   fetchAllPricesToday,
   mapAllPricesTodayToImportedPrices,
   MtgJsonPriceValidationError,
+  MtgJsonPriceProvider,
 } from "../integrations/mtgjson/prices.js";
 import type { ImportedPrice } from "../integrations/pricing/types.js";
 
@@ -50,6 +51,10 @@ export function groupImportedPricesByProduct(
 export async function importMtgJsonPrices(sql: Sql): Promise<ImportPricesResult> {
   const sourceRef = `daily:${new Date().toISOString().slice(0, 10)}`;
 
+  // Check provider health before starting import (B-154)
+  const provider = new MtgJsonPriceProvider();
+  const health = await provider.healthCheck();
+
   const [source] = await sql<{ id: string }[]>`
     insert into price_sources (code, name)
     values (${SOURCE_CODE}, ${SOURCE_NAME})
@@ -58,9 +63,9 @@ export async function importMtgJsonPrices(sql: Sql): Promise<ImportPricesResult>
   `;
 
   const [run] = await sql<{ id: string; status: string }[]>`
-    insert into price_import_runs (price_source_id, source_ref)
-    values (${source.id}, ${sourceRef})
-    on conflict (price_source_id, source_ref) do update set source_ref = excluded.source_ref
+    insert into price_import_runs (price_source_id, source_ref, provider_healthy, provider_health_message)
+    values (${source.id}, ${sourceRef}, ${health.healthy}, ${health.message ?? null})
+    on conflict (price_source_id, source_ref) do update set provider_healthy = excluded.provider_healthy, provider_health_message = excluded.provider_health_message
     returning id, status
   `;
 

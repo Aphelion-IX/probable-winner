@@ -3,10 +3,15 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy: constructing the client at module scope means importing this file
+// (e.g. in a test) throws immediately if the env vars aren't set, before
+// any test gets a chance to mock them.
+function getSupabaseClient() {
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 interface PopularityMetrics {
   total_orders: number;
@@ -35,6 +40,8 @@ export async function updateAllPopularityScores(): Promise<{
   error?: string;
 }> {
   try {
+    const supabase = getSupabaseClient();
+
     // Fetch all SKUs with their sales metrics
     const { data: skus, error: fetchError } = await supabase
       .from('sellable_skus')

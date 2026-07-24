@@ -1,3 +1,17 @@
+-- RECONCILIATION NOTE: pulled verbatim from the live project's migration
+-- history (see 20260723064823_fix_transfer_status_transitions.sql for why).
+-- This is a SEPARATE catalogue import implementation from
+-- apps/worker/src/jobs/catalogue-import.ts + generate-skus.ts +
+-- promote-catalogue.ts (the worker consumer this repo's local Phase 1-3
+-- work built and this session's B-201 wired structured logging into) --
+-- live catalogue import runs as a Supabase Edge Function
+-- (process-catalogue-import) invoked by pg_cron every minute
+-- (20260723133205_catalogue_import_edge_function_cron.sql), calling this
+-- SQL function directly, not through the pgmq catalogue_import queue the
+-- worker polls. Reconciling these two parallel implementations into one
+-- is a separate, larger follow-up -- out of scope for this reconciliation,
+-- which only brings local history in sync with what's actually live.
+
 -- Stored procedure to handle catalogue import from Edge Function
 -- Receives MTGJSON set data and performs full import+promote+SKU generation
 

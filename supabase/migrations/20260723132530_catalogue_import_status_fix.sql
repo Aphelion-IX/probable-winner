@@ -1,3 +1,6 @@
+-- RECONCILIATION NOTE: pulled verbatim from the live project's migration
+-- history (see 20260723064823_fix_transfer_status_transitions.sql for why).
+
 -- Fix: catalogue_import_runs.status CHECK constraint only allows
 -- 'running' | 'succeeded' | 'failed' | 'partial' — not 'in_progress'.
 -- The original in_progress value caused the initial insert to fail the
@@ -72,13 +75,20 @@ begin
   );
 
 exception when others then
-  update catalogue_import_runs
-  set status = 'failed', completed_at = now()
-  where id = v_run_id;
+  -- v_run_id can still be null here if the INSERT itself raised (e.g. an
+  -- earlier CHECK-constraint violation on `status`) before it was ever
+  -- assigned -- guard against a NOT NULL violation in this handler
+  -- masking the real error. Verified against live: this guard is what's
+  -- actually applied to the project's catalogue_import_runs history.
+  if v_run_id is not null then
+    update catalogue_import_runs
+    set status = 'failed', completed_at = now()
+    where id = v_run_id;
 
-  insert into catalogue_import_errors (
-    catalogue_import_run_id, severity, message, context
-  ) values (v_run_id, 'error', sqlerrm, jsonb_build_object('setCode', p_set_code));
+    insert into catalogue_import_errors (
+      catalogue_import_run_id, severity, message, context
+    ) values (v_run_id, 'error', sqlerrm, jsonb_build_object('setCode', p_set_code));
+  end if;
 
   raise;
 end;

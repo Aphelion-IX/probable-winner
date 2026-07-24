@@ -4,6 +4,7 @@ import { importSet } from "../jobs/catalogue-import.js";
 import { discoverAndEnqueueSets } from "../jobs/discover-catalogue-sets.js";
 import { generateSkusForPrintings } from "../jobs/generate-skus.js";
 import { promoteRun } from "../jobs/promote-catalogue.js";
+import { logger } from "../logger.js";
 
 const QUEUE_NAME = "catalogue_import";
 const VISIBILITY_TIMEOUT_SECONDS = 60;
@@ -46,33 +47,51 @@ export async function pollCatalogueImportQueue(sql: Sql): Promise<boolean> {
 
   const setCode = msg.message.setCode;
   if (!setCode) {
-    console.error(
-      `catalogue_import message ${msg.msg_id} is missing "setCode" — archiving without retry`,
-    );
+    logger.error("catalogue_import message missing setCode — archiving without retry", {
+      queue: QUEUE_NAME,
+      msgId: msg.msg_id,
+    });
     await sql`select pgmq.archive(${QUEUE_NAME}, ${msg.msg_id}::bigint)`;
     return true;
   }
 
   try {
     const result = await importSet(sql, setCode);
-    console.log(`catalogue_import ${setCode}: ${result.status} (${result.cardsProcessed} cards)`);
+    logger.info("catalogue_import set processed", {
+      queue: QUEUE_NAME,
+      msgId: msg.msg_id,
+      setCode,
+      status: result.status,
+      cardsProcessed: result.cardsProcessed,
+    });
 
     if (result.status === "succeeded") {
       const promoted = await promoteRun(sql, result.runId);
-      console.log(
-        `catalogue_import ${setCode}: promoted ${promoted.oracleCardsUpserted} oracle cards, ${promoted.printingsUpserted} printings`,
-      );
+      logger.info("catalogue_import run promoted", {
+        queue: QUEUE_NAME,
+        msgId: msg.msg_id,
+        setCode,
+        oracleCardsUpserted: promoted.oracleCardsUpserted,
+        printingsUpserted: promoted.printingsUpserted,
+      });
 
       const skus = await generateSkusForPrintings(sql, promoted.printingIds);
-      console.log(`catalogue_import ${setCode}: generated ${skus.skusInserted} sellable SKUs`);
+      logger.info("catalogue_import SKUs generated", {
+        queue: QUEUE_NAME,
+        msgId: msg.msg_id,
+        setCode,
+        skusInserted: skus.skusInserted,
+      });
     }
   } catch (error) {
     // Left in the queue: pgmq's visibility timeout will make it re-readable
     // for a natural retry, per the failure behaviour in blueprint §17.
-    console.error(
-      `catalogue_import ${setCode} failed, will retry after visibility timeout:`,
-      error,
-    );
+    logger.error("catalogue_import failed, will retry after visibility timeout", {
+      queue: QUEUE_NAME,
+      msgId: msg.msg_id,
+      setCode,
+      error: logger.serializeError(error),
+    });
     return true;
   }
 

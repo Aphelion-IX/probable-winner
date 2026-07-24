@@ -1,8 +1,17 @@
+-- RECONCILIATION NOTE: pulled verbatim from the live project's migration
+-- history (see 20260723064823_fix_transfer_status_transitions.sql for why).
+-- validate_checkout() references published_prices, which does not exist
+-- until 20260723082400_published_prices_and_overrides.sql (a migration
+-- this reconciliation also brings into the local chain, positioned after
+-- this one) -- fine at CREATE FUNCTION time since plpgsql bodies aren't
+-- validated against schema until executed, and matches how this actually
+-- applied live.
+
 -- Orders and shipments schema (Phase 2, Step 13: Checkout and Payments).
 -- Core order lifecycle from pending → paid → picking → packed → dispatched → shipped → delivered.
 -- See docs/business-rules.md for full status diagram and allowed transitions.
 
-create table orders (
+create table if not exists orders (
   id uuid primary key default gen_random_uuid(),
   organisation_id uuid not null references organisations(id) on delete cascade,
   customer_id uuid references auth.users(id) on delete cascade,
@@ -19,14 +28,14 @@ create table orders (
   unique (organisation_id, order_number)
 );
 
-create index orders_customer_idx on orders (customer_id);
-create index orders_org_idx on orders (organisation_id);
-create index orders_node_idx on orders (fulfilment_node_id);
-create index orders_status_idx on orders (status);
-create index orders_created_idx on orders (created_at desc);
+create index if not exists orders_customer_idx on orders (customer_id);
+create index if not exists orders_org_idx on orders (organisation_id);
+create index if not exists orders_node_idx on orders (fulfilment_node_id);
+create index if not exists orders_status_idx on orders (status);
+create index if not exists orders_created_idx on orders (created_at desc);
 
 -- Order lines: immutable once created, link to SKUs at the time of order.
-create table order_lines (
+create table if not exists order_lines (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references orders(id) on delete cascade,
   sellable_sku_id uuid not null references sellable_skus(id) on delete restrict,
@@ -36,12 +45,12 @@ create table order_lines (
   created_at timestamptz not null default now()
 );
 
-create index order_lines_order_idx on order_lines (order_id);
-create index order_lines_sku_idx on order_lines (sellable_sku_id);
+create index if not exists order_lines_order_idx on order_lines (order_id);
+create index if not exists order_lines_sku_idx on order_lines (sellable_sku_id);
 
 -- Shipments: one per order (or one per group if split later).
 -- Initially created as 'pending', transitions through carrier statuses to 'delivered'.
-create table shipments (
+create table if not exists shipments (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references orders(id) on delete cascade,
   tracking_number text,
@@ -53,11 +62,11 @@ create table shipments (
   updated_at timestamptz not null default now()
 );
 
-create index shipments_order_idx on shipments (order_id);
+create index if not exists shipments_order_idx on shipments (order_id);
 
 -- Stripe webhook events: store by event_id to ensure idempotency.
 -- Per blueprint §16: "every Stripe webhook event must be stored using its unique event ID."
-create table stripe_events (
+create table if not exists stripe_events (
   id text primary key,
   event_type text not null,
   event_data jsonb not null,
@@ -65,7 +74,7 @@ create table stripe_events (
   order_id uuid references orders(id) on delete set null
 );
 
-create index stripe_events_order_idx on stripe_events (order_id);
+create index if not exists stripe_events_order_idx on stripe_events (order_id);
 
 -- RLS: customer can see only their own orders; staff can see by store scope.
 alter table orders enable row level security;
@@ -73,48 +82,66 @@ alter table order_lines enable row level security;
 alter table shipments enable row level security;
 alter table stripe_events enable row level security;
 
--- Customer: see own orders
-create policy orders_select_customer on orders
-  for select to authenticated
-  using (customer_id = auth.uid());
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where tablename = 'orders' and policyname = 'orders_select_customer'
+  ) then
+    create policy orders_select_customer on orders
+      for select to authenticated
+      using (customer_id = auth.uid());
+  end if;
 
--- Staff: see by store (using existing staff_has_node_access helper)
-create policy orders_select_staff on orders
-  for select to authenticated
-  using (staff_has_node_access(fulfilment_node_id));
+  if not exists (
+    select 1 from pg_policies where tablename = 'orders' and policyname = 'orders_select_staff'
+  ) then
+    create policy orders_select_staff on orders
+      for select to authenticated
+      using (staff_has_node_access(fulfilment_node_id));
+  end if;
 
--- Order lines inherit security from parent order
-create policy order_lines_select on order_lines
-  for select to authenticated
-  using (
-    exists (
-      select 1 from orders o
-      where o.id = order_lines.order_id
-        and (o.customer_id = auth.uid() or staff_has_node_access(o.fulfilment_node_id))
-    )
-  );
+  if not exists (
+    select 1 from pg_policies where tablename = 'order_lines' and policyname = 'order_lines_select'
+  ) then
+    create policy order_lines_select on order_lines
+      for select to authenticated
+      using (
+        exists (
+          select 1 from orders o
+          where o.id = order_lines.order_id
+            and (o.customer_id = auth.uid() or staff_has_node_access(o.fulfilment_node_id))
+        )
+      );
+  end if;
 
--- Shipments inherit from parent order
-create policy shipments_select on shipments
-  for select to authenticated
-  using (
-    exists (
-      select 1 from orders o
-      where o.id = shipments.order_id
-        and (o.customer_id = auth.uid() or staff_has_node_access(o.fulfilment_node_id))
-    )
-  );
+  if not exists (
+    select 1 from pg_policies where tablename = 'shipments' and policyname = 'shipments_select'
+  ) then
+    create policy shipments_select on shipments
+      for select to authenticated
+      using (
+        exists (
+          select 1 from orders o
+          where o.id = shipments.order_id
+            and (o.customer_id = auth.uid() or staff_has_node_access(o.fulfilment_node_id))
+        )
+      );
+  end if;
 
--- Stripe events: staff only (not customer-facing)
-create policy stripe_events_select on stripe_events
-  for select to authenticated
-  using (
-    exists (
-      select 1 from organisations o
-      join staff_memberships sm on sm.organisation_id = o.id
-      where sm.user_id = auth.uid() and sm.active
-    )
-  );
+  if not exists (
+    select 1 from pg_policies where tablename = 'stripe_events' and policyname = 'stripe_events_select'
+  ) then
+    create policy stripe_events_select on stripe_events
+      for select to authenticated
+      using (
+        exists (
+          select 1 from organisations o
+          join staff_memberships sm on sm.organisation_id = o.id
+          where sm.user_id = auth.uid() and sm.active
+        )
+      );
+  end if;
+end $$;
 
 -- Helper: has this customer made an order yet? (used for guest → customer account migration)
 create or replace function customer_has_orders(customer_id uuid)

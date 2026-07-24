@@ -1,3 +1,6 @@
+-- RECONCILIATION NOTE: pulled verbatim from the live project's migration
+-- history (see 20260723064823_fix_transfer_status_transitions.sql for why).
+
 -- Fix: array_agg() over zero rows returns NULL, not an empty array.
 -- Colorless cards have an empty colors/colorIdentity JSON array, which
 -- produced NULL and violated the NOT NULL constraint on those columns.

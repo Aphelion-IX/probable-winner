@@ -15,6 +15,8 @@ const STAFF_NAV_LINKS = [
   { href: "/staff/shipping", label: "Shipping" },
   { href: "/staff/stores", label: "Stores" },
   { href: "/staff/customers", label: "Customers" },
+  { href: "/staff/analytics", label: "Analytics" },
+  { href: "/staff/monitoring", label: "Monitoring" },
   { href: "/staff/settings", label: "Settings" },
 ];
 

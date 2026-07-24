@@ -1,3 +1,9 @@
+-- RECONCILIATION NOTE: pulled verbatim from the live project's migration
+-- history (see 20260723064823_fix_transfer_status_transitions.sql for why).
+-- The bearer token below is the project's anon key (safe to be public by
+-- design -- RLS enforces access control, not key secrecy; see
+-- docs/security.md), not a service-role or other secret key.
+--
 -- Schedule automatic processing of the catalogue_import queue.
 -- pg_net lets Postgres make outbound HTTP calls; pg_cron invokes the
 -- process-catalogue-import Edge Function every minute so the queue drains

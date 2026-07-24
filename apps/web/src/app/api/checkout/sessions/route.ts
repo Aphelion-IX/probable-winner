@@ -32,33 +32,12 @@ export async function POST(request: Request): Promise<Response> {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Fetch order with cart lines
+    // Fetch order lines directly -- orders has no cart_id (an order isn't
+    // linked back to the cart it was created from), so line items come
+    // from order_lines (fixed at order-creation time), not the cart.
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select(`
-        id,
-        status,
-        cart_id,
-        carts(
-          id,
-          cart_lines(
-            id,
-            sellable_sku_id,
-            quantity,
-            price_at_add,
-            sellable_skus(
-              id,
-              card_printings(
-                id,
-                card_identities(
-                  id,
-                  name
-                )
-              )
-            )
-          )
-        )
-      `)
+      .select('id, status')
       .eq('id', orderId)
       .single();
 
@@ -69,38 +48,63 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
+    const { data: orderLines, error: linesError } = await supabase
+      .from('order_lines')
+      .select(
+        `
+        id,
+        sellable_sku_id,
+        quantity,
+        unit_price,
+        sellable_skus(
+          id,
+          card_printings(
+            id,
+            oracle_cards(
+              id,
+              name
+            )
+          )
+        )
+      `
+      )
+      .eq('order_id', orderId);
+
+    if (linesError) {
+      return Response.json(
+        { success: false, error: 'Failed to load order lines' },
+        { status: 500 }
+      );
+    }
+
     // Build line items for Stripe
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cart = Array.isArray(order.carts) ? order.carts[0] : order.carts as any;
+    for (const line of orderLines ?? []) {
+      const sku = Array.isArray(line.sellable_skus)
+        ? line.sellable_skus[0]
+        : line.sellable_skus;
+      const cardPrinting = Array.isArray(sku?.card_printings)
+        ? sku.card_printings[0]
+        : sku?.card_printings;
+      const oracleCard = Array.isArray(cardPrinting?.oracle_cards)
+        ? cardPrinting.oracle_cards[0]
+        : cardPrinting?.oracle_cards;
 
-    if (cart?.cart_lines) {
-      for (const line of cart.cart_lines) {
-        const sku = Array.isArray(line.sellable_skus)
-          ? line.sellable_skus[0]
-          : line.sellable_skus;
-        const cardPrinting = Array.isArray(sku?.card_printings)
-          ? sku.card_printings[0]
-          : sku?.card_printings;
-        const cardIdentity = Array.isArray(cardPrinting?.card_identities)
-          ? cardPrinting.card_identities[0]
-          : cardPrinting?.card_identities;
-
-        lineItems.push({
-          price_data: {
-            currency: 'aud',
-            product_data: {
-              name: cardIdentity?.name || 'Trading Card',
-              metadata: {
-                skuId: line.sellable_sku_id,
-              },
+      lineItems.push({
+        price_data: {
+          currency: 'aud',
+          product_data: {
+            name: oracleCard?.name || 'Trading Card',
+            metadata: {
+              skuId: line.sellable_sku_id,
             },
-            unit_amount: Math.round(line.price_at_add * 100),
           },
-          quantity: line.quantity,
-        });
-      }
+          // Stripe wants integer cents; the DB stores dollar amounts.
+          unit_amount: Math.round(line.unit_price * 100),
+        },
+        quantity: line.quantity,
+      });
     }
 
     if (lineItems.length === 0) {
