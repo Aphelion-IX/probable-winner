@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/server/supabase";
 import { logger, getRequestId } from "@/lib/logger";
+import { GeneratePickBatchButton } from "@/features/staff/components/generate-pick-batch-button";
 
 // Requires an authenticated staff session at request time — cannot be
 // statically prerendered.
@@ -60,11 +61,14 @@ export default async function StaffPickingPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Picking</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Select a batch to begin picking items for fulfillment.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Picking</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Select a batch to begin picking items for fulfillment.
+          </p>
+        </div>
+        <GeneratePickBatchButton />
       </div>
 
       {error ? (
@@ -73,7 +77,8 @@ export default async function StaffPickingPage() {
         </div>
       ) : batches.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No active pick batches. Generate a batch from the Orders dashboard.
+          No active pick batches. Use &ldquo;Generate pick batch&rdquo; above to create one from
+          pending allocations at your store.
         </div>
       ) : (
         <div className="space-y-3">
