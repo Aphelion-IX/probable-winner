@@ -90,7 +90,7 @@ export default async function CardIdentityPage({ params }: CardIdentityPageProps
             {card.artistName && <span>Illustrated by {card.artistName}</span>}
           </div>
 
-          <SkuSelector options={skuOptions} />
+          <SkuSelector printingId={card.printingId} options={skuOptions} />
 
           {card.oracleText && (
             <p className="whitespace-pre-line text-sm leading-relaxed">{card.oracleText}</p>

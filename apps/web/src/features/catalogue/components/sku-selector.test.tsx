@@ -73,7 +73,7 @@ describe("SkuSelector", () => {
   });
 
   it("fetches and displays live price/availability for the default selection on mount", async () => {
-    render(<SkuSelector options={OPTIONS} />);
+    render(<SkuSelector printingId="printing-1" options={OPTIONS} />);
 
     expect(fetch).toHaveBeenCalledWith("/api/sellable-skus/sku-en-nonfoil-nm", {
       cache: "no-store",
@@ -86,7 +86,7 @@ describe("SkuSelector", () => {
   });
 
   it("updates price and availability when the finish selection changes", async () => {
-    render(<SkuSelector options={OPTIONS} />);
+    render(<SkuSelector printingId="printing-1" options={OPTIONS} />);
 
     await waitFor(() => expect(screen.getByText("$12.50")).toBeInTheDocument());
 
@@ -100,10 +100,11 @@ describe("SkuSelector", () => {
       expect(screen.getByText("$25.00")).toBeInTheDocument();
     });
     expect(screen.getByText("Out of stock")).toBeInTheDocument();
+    expect(screen.getByTestId("restock-alert-button")).toBeInTheDocument();
   });
 
   it("updates price and availability when the condition selection changes", async () => {
-    render(<SkuSelector options={OPTIONS} />);
+    render(<SkuSelector printingId="printing-1" options={OPTIONS} />);
 
     await waitFor(() => expect(screen.getByText("$12.50")).toBeInTheDocument());
 
@@ -123,6 +124,7 @@ describe("SkuSelector", () => {
     const sparseOptions = OPTIONS.filter((option) => option.finishCode !== "foil");
     render(
       <SkuSelector
+        printingId="printing-1"
         options={[
           ...sparseOptions,
           { ...OPTIONS[1], finishCode: "etched", finishName: "Etched Foil" },
@@ -141,7 +143,7 @@ describe("SkuSelector", () => {
   });
 
   it("renders a fallback message when there are no SKU options at all", () => {
-    render(<SkuSelector options={[]} />);
+    render(<SkuSelector printingId="printing-1" options={[]} />);
 
     expect(screen.getByText("This printing isn't available for sale yet.")).toBeInTheDocument();
   });

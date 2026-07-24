@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { SkuOption } from "@/features/catalogue/queries/list-sku-options";
+import { RestockAlertButton } from "@/features/catalogue/components/restock-alert-button";
 
 type SkuSelectorProps = {
+  printingId: string;
   options: SkuOption[];
 };
 
@@ -30,7 +32,7 @@ function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
 const selectClassName =
   "rounded-md border bg-background px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-export function SkuSelector({ options }: SkuSelectorProps) {
+export function SkuSelector({ printingId, options }: SkuSelectorProps) {
   const languages = useMemo(() => uniqueBy(options, (option) => option.languageCode), [options]);
   const finishes = useMemo(() => uniqueBy(options, (option) => option.finishCode), [options]);
   const conditions = useMemo(() => uniqueBy(options, (option) => option.conditionCode), [options]);
@@ -149,23 +151,31 @@ export function SkuSelector({ options }: SkuSelectorProps) {
           This combination isn&apos;t available.
         </p>
       ) : (
-        <div
-          className="flex items-center justify-between"
-          data-testid="sku-live-data"
-          aria-busy={loading}
-        >
-          <span className="text-lg font-semibold">
-            {liveData?.price != null ? priceFormatter.format(liveData.price) : "Price unavailable"}
-          </span>
-          <span className="text-sm text-muted-foreground">
-            {liveData
-              ? liveData.availableQuantity > 0
-                ? `${liveData.availableQuantity} in stock`
-                : "Out of stock"
-              : loading
-                ? "Loading…"
-                : ""}
-          </span>
+        <div data-testid="sku-live-data" aria-busy={loading} className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-lg font-semibold">
+              {liveData?.price != null
+                ? priceFormatter.format(liveData.price)
+                : "Price unavailable"}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              {liveData
+                ? liveData.availableQuantity > 0
+                  ? `${liveData.availableQuantity} in stock`
+                  : "Out of stock"
+                : loading
+                  ? "Loading…"
+                  : ""}
+            </span>
+          </div>
+
+          {liveData && liveData.availableQuantity === 0 && (
+            <RestockAlertButton
+              printingId={printingId}
+              finishCode={selected.finishCode}
+              conditionCode={selected.conditionCode}
+            />
+          )}
         </div>
       )}
     </div>
