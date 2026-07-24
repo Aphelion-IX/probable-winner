@@ -83,6 +83,44 @@ describe("pollSearchIndexQueue", () => {
     expect(calls[2].text).toContain("pgmq.archive");
   });
 
+  it("updates the affected SKU's document for a pricing_published event (B-165)", async () => {
+    // publish_suggested_price() emits exactly this event_type/payload shape
+    // (supabase/migrations/20260724190000_fix_pricing_integration_events.sql)
+    // -- this consumer is event-type-agnostic (extractSkuId only looks at
+    // payload.sellableSkuId), but this test pins down explicitly that a
+    // price publish reaches the same real reindex path as an inventory
+    // change, not a separate ad hoc sync (B-165's AC).
+    const { sql, calls } = createMockSql([
+      [
+        {
+          msg_id: 6,
+          message: { integrationEventId: "event-6", eventType: "pricing_published" },
+        },
+      ],
+      [
+        {
+          id: "event-6",
+          event_type: "pricing_published",
+          payload: {
+            publishedPriceId: "published-price-1",
+            sellableSkuId: "sku-6",
+            finalAmount: 20.15,
+            currency: "AUD",
+          },
+        },
+      ],
+      [],
+    ]);
+    mockUpdateSearchDocument.mockResolvedValue(true);
+    const { pollSearchIndexQueue } = await import("./search-index-consumer.js");
+
+    const result = await pollSearchIndexQueue(sql);
+
+    expect(result).toBe(true);
+    expect(mockUpdateSearchDocument).toHaveBeenCalledWith(sql, "sku-6");
+    expect(calls[2].text).toContain("pgmq.archive");
+  });
+
   it("archives without processing when the integration_event no longer exists", async () => {
     const { sql, calls } = createMockSql([
       [{ msg_id: 2, message: { integrationEventId: "missing-event" } }],

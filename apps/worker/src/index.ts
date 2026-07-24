@@ -5,7 +5,6 @@ import { logger } from "./logger.js";
 import { pollCatalogueImportQueue } from "./consumers/catalogue-import-consumer.js";
 import { pollStockReconciliationQueue } from "./consumers/stock-reconciliation-consumer.js";
 import { pollPricingImportQueue } from "./consumers/pricing-import-consumer.js";
-import { pollPricingPublishQueue } from "./consumers/pricing-publish-consumer.js";
 import { pollSearchIndexQueue } from "./consumers/search-index-consumer.js";
 import { checkQueueHealth } from "./monitoring/queue-health.js";
 import { checkImportFailures } from "./monitoring/import-health.js";
@@ -16,17 +15,23 @@ const POLL_INTERVAL_MS = 5_000;
 // enough to catch a >5min staleness threshold with room to spare.
 const HEALTH_CHECK_INTERVAL_MS = 60_000;
 
-// catalogue_import, stock_reconciliation, pricing_import, pricing_publish,
-// and search_index have consumers wired up. The other 4 queues from
-// blueprint §17 (email, restock_alerts, order_processing,
-// reservation_cleanup, report_generation) exist in Postgres (migration
-// 20260722120349) but have no consumer yet — future work for Phase 4 and
-// beyond.
+// catalogue_import, stock_reconciliation, pricing_import, and search_index
+// have consumers wired up. There is no separate "pricing_publish" queue or
+// consumer (B-165's AC is explicit: publishing a price must go through the
+// same outbox path as inventory changes, not a separate ad hoc sync) —
+// pricing_published/pricing_approved/pricing_overridden events are read
+// from the same search_index queue as every other integration event, via
+// search-index-consumer.js. A prior pricing-publish-consumer.ts existed
+// here polling pgmq.read("integration_events", ...), a table name, not an
+// actual pgmq queue — it never read a real message and never touched
+// Typesense; removed. The other 4 queues from blueprint §17 (email,
+// restock_alerts, order_processing, reservation_cleanup, report_generation)
+// exist in Postgres (migration 20260722120349) but have no consumer yet —
+// future work for Phase 4 and beyond.
 const queues = [
   { name: "catalogue_import", poll: pollCatalogueImportQueue },
   { name: "stock_reconciliation", poll: pollStockReconciliationQueue },
   { name: "pricing_import", poll: pollPricingImportQueue },
-  { name: "pricing_publish", poll: pollPricingPublishQueue },
   { name: "search_index", poll: pollSearchIndexQueue },
 ];
 
