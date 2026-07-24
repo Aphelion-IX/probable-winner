@@ -290,8 +290,17 @@ cart_line_seed as materialized (
     sp.id as sellable_sku_id,
     1 + floor(random() * 2)::int as qty,
     now() + interval '30 minutes' as expires_at
-  from (select cart_id, row_number() over (order by cart_id) as n from ins_carts) cs
-  cross join lateral generate_series(1, 1 + floor(random() * 3)::int) as gs(line_no)
+  from (
+    -- n_lines must be precomputed here, not inlined into generate_series()
+    -- below: a volatile expression passed directly as generate_series()'s
+    -- argument is evaluated once per function-scan node, not once per
+    -- LATERAL outer row, so every cart would silently get the same line
+    -- count. Computing it as an ordinary column first (evaluated per row of
+    -- this subquery) and referencing that column avoids the trap.
+    select cart_id, row_number() over (order by cart_id) as n, (1 + floor(random() * 3)::int) as n_lines
+    from ins_carts
+  ) cs
+  cross join lateral generate_series(1, cs.n_lines) as gs(line_no)
   join node nd on nd.rn = ((cs.n + gs.line_no) % (select cnt from node_total))
   cross join lateral (
     select floor(random() * (select cnt from sku_total))::bigint as pick_rn
