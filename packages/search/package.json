@@ -2,9 +2,11 @@
   "name": "@probable-winner/search",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "typesense": "^3.0.6"
   }
 }
