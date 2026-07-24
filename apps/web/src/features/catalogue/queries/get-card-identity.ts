@@ -46,6 +46,7 @@ export type RelatedPrinting = {
   printingId: string;
   setCode: string;
   setName: string;
+  setIconUrl: string | null;
   collectorNumber: string;
   rarity: string;
   releasedAt: string | null;
@@ -70,6 +71,7 @@ export type CardIdentity = {
   releasedAt: string | null;
   setCode: string;
   setName: string;
+  setIconUrl: string | null;
   artistName: string | null;
   imageUrl: string | null;
   legalities: CardLegality[];
@@ -95,7 +97,7 @@ type PrintingRow = {
     colors: string[];
     color_identity: string[];
   } | null;
-  sets: { code: string; name: string } | null;
+  sets: { code: string; name: string; icon_url: string | null } | null;
   artists: { name: string } | null;
   card_images: { image_type: string; url: string }[] | null;
 };
@@ -110,7 +112,7 @@ type RelatedPrintingRow = {
   collector_number: string;
   rarity: string;
   released_at: string | null;
-  sets: { code: string; name: string } | null;
+  sets: { code: string; name: string; icon_url: string | null } | null;
 };
 
 async function fetchCardIdentity(printingId: string): Promise<CardIdentity | null> {
@@ -127,7 +129,7 @@ async function fetchCardIdentity(printingId: string): Promise<CardIdentity | nul
       flavor_text,
       released_at,
       oracle_cards ( name, mana_cost, cmc, type_line, oracle_text, power, toughness, loyalty, colors, color_identity ),
-      sets ( code, name ),
+      sets ( code, name, icon_url ),
       artists ( name ),
       card_images ( image_type, url )
     `,
@@ -154,7 +156,7 @@ async function fetchCardIdentity(printingId: string): Promise<CardIdentity | nul
       .returns<LegalityRow[]>(),
     supabase
       .from("card_printings")
-      .select("id, collector_number, rarity, released_at, sets ( code, name )")
+      .select("id, collector_number, rarity, released_at, sets ( code, name, icon_url )")
       .eq("oracle_card_id", printing.oracle_card_id)
       .neq("id", printingId)
       .order("released_at", { ascending: false, nullsFirst: false })
@@ -187,6 +189,7 @@ async function fetchCardIdentity(printingId: string): Promise<CardIdentity | nul
     releasedAt: printing.released_at,
     setCode: printing.sets.code,
     setName: printing.sets.name,
+    setIconUrl: printing.sets.icon_url,
     artistName: printing.artists?.name ?? null,
     imageUrl: pickImageUrl(
       (printing.card_images ?? []).map((image) => ({
@@ -206,13 +209,17 @@ async function fetchCardIdentity(printingId: string): Promise<CardIdentity | nul
       })),
     relatedPrintings: (relatedRows ?? [])
       .filter(
-        (row): row is RelatedPrintingRow & { sets: { code: string; name: string } } =>
-          row.sets !== null,
+        (
+          row,
+        ): row is RelatedPrintingRow & {
+          sets: { code: string; name: string; icon_url: string | null };
+        } => row.sets !== null,
       )
       .map((row) => ({
         printingId: row.id,
         setCode: row.sets.code,
         setName: row.sets.name,
+        setIconUrl: row.sets.icon_url,
         collectorNumber: row.collector_number,
         rarity: row.rarity,
         releasedAt: row.released_at,

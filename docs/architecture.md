@@ -462,6 +462,46 @@ retrieve fresh objects instead."):
   list) -- intended to run daily once one exists, per the "Daily scheduled
   sync" architecture this backlog item calls for.
 
+#### 8.2.2 Set symbols (expansion icons)
+
+`sets.icon_url` and `sets.scryfall_id` existed on the schema from the
+start but were never populated (`promote-catalogue.ts`'s `mapSet` only
+ever wrote `code`/`name`/`set_type`/`released_at`/`card_count` from
+MTGJSON, which has no set-icon field at all).
+`apps/worker/src/jobs/import-set-symbols.ts`
+(`pnpm --filter worker import-set-symbols`) fills them in from Scryfall:
+unlike every other Scryfall endpoint used in this codebase, `GET /sets`
+is never paginated (verified directly -- it returns all ~1000 sets in one
+`has_more: false` response), so this is a single request, no batching or
+streaming needed. Matches by `code` (case-insensitive) against the local
+`sets` table and updates matched rows only -- it never creates a set,
+matching import-card-images.ts's own "enrich, don't discover" scope.
+
+**Hotlinked, not self-hosted -- a deliberate deviation from Scryfall's own
+guidance for this specific asset.** Scryfall's Set Objects docs
+(https://scryfall.com/docs/api/sets) say, for `icon_svg_uri`: "Hotlinking
+this image isn't recommended, because it may change slightly over time.
+You should download it and use it locally." This importer hotlinks anyway
+(stores the Scryfall URL directly in `icon_url`), for the same reason
+card images do: this repo has zero Supabase Storage usage anywhere, and
+the risk being warned about (an icon's appearance drifting slightly) is
+cosmetic. Self-hosting would also need a re-sync cadence of its own to
+actually honor "may change over time" -- a one-time mirror wouldn't
+fully satisfy Scryfall's own concern either. Revisit if Scryfall's CDN
+uptime or icon consistency ever becomes an actual problem in practice.
+
+Rendered via a small `<img>`-based `SetIcon` component
+(`apps/web/src/components/commerce/set-icon.tsx`), not `next/image`:
+these are small hotlinked SVGs where Next's resize/format pipeline adds
+nothing, and using it would require flipping
+`images.dangerouslyAllowSVG` repo-wide just for this one asset type.
+Wired into the browse grid (`card_browse.set_icon_url`, a new scalar
+column alongside `image_url`), the sets list page, the card identity
+page's set badge and related-printings list, and the all-printings page
+-- not into the cart/checkout line items, which read from the
+`get_cart_contents()` RPC rather than `card_browse`/a direct `sets`
+embed, a separate and lower-value change left out of this pass.
+
 ### 8.3 Sellable products
 
 `sellable_skus`, `conditions`, `languages`, `finishes`, `product_statuses`.

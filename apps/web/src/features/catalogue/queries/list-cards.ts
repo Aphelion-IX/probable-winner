@@ -48,6 +48,7 @@ export type CardBrowseItem = {
   releasedAt: string | null;
   setCode: string;
   setName: string;
+  setIconUrl: string | null;
   imageUrl: string | null;
 };
 
@@ -64,6 +65,7 @@ type CardBrowseRow = {
   released_at: string | null;
   set_code: string;
   set_name: string;
+  set_icon_url: string | null;
   image_url: string | null;
 };
 
@@ -166,6 +168,7 @@ export async function listCards(filters: ListCardsFilters = {}): Promise<CardBro
     releasedAt: row.released_at,
     setCode: row.set_code,
     setName: row.set_name,
+    setIconUrl: row.set_icon_url,
     imageUrl: row.image_url,
   }));
 }

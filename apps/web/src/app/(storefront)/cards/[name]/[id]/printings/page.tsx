@@ -7,6 +7,7 @@ import { ImageOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCardIdentity } from "@/features/catalogue/queries/get-card-identity";
 import { listPrintingsForOracleCard } from "@/features/catalogue/queries/list-printings-for-oracle-card";
+import { SetIcon } from "@/components/commerce/set-icon";
 
 type AllPrintingsPageProps = {
   params: Promise<{ name: string; id: string }>;
@@ -74,7 +75,10 @@ export default async function AllPrintingsPage({ params }: AllPrintingsPageProps
 
               <div className="flex flex-1 flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="font-medium">{printing.setName}</span>
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <SetIcon url={printing.setIconUrl} alt="" />
+                    {printing.setName}
+                  </span>
                   <span className="text-muted-foreground">#{printing.collectorNumber}</span>
                   {printing.printingId === id && (
                     <Badge variant="secondary">Currently viewing</Badge>

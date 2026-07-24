@@ -53,3 +53,17 @@ export type ScryfallBulkDataResponse = {
   object: "list";
   data: ScryfallBulkDataEntry[];
 };
+
+// https://scryfall.com/docs/api/sets
+export type ScryfallSet = {
+  id: string;
+  code: string;
+  name: string;
+  icon_svg_uri?: string;
+};
+
+export type ScryfallSetsResponse = {
+  object: "list";
+  has_more: boolean;
+  data: ScryfallSet[];
+};

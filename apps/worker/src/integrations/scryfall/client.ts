@@ -8,6 +8,8 @@ import type {
   ScryfallBulkDataType,
   ScryfallCard,
   ScryfallCollectionResponse,
+  ScryfallSet,
+  ScryfallSetsResponse,
 } from "./types.js";
 
 const SCRYFALL_BASE_URL = "https://api.scryfall.com";
@@ -127,4 +129,26 @@ export async function streamBulkDataCards(
     if (!trimmed) continue;
     await onCard(JSON.parse(trimmed) as ScryfallCard);
   }
+}
+
+// GET /sets (https://scryfall.com/docs/api/sets): unlike every other
+// Scryfall list endpoint used here, this one is never paginated -- as of
+// this writing it returns every set (~1000) in a single has_more: false
+// response, so there's no batching/streaming to do here (contrast
+// fetchCardsByScryfallIds' 75-id cap and streamBulkDataCards' JSONL
+// streaming, both driven by Scryfall's much larger card volume).
+export async function fetchAllSets(): Promise<ScryfallSet[]> {
+  const response = await fetch(`${SCRYFALL_BASE_URL}/sets`, { headers: REQUEST_HEADERS });
+
+  if (!response.ok) {
+    throw new ScryfallValidationError(`Scryfall /sets request failed with HTTP ${response.status}`);
+  }
+
+  const body = (await response.json()) as ScryfallSetsResponse;
+
+  if (body.object !== "list" || !Array.isArray(body.data)) {
+    throw new ScryfallValidationError("Scryfall /sets response is malformed");
+  }
+
+  return body.data;
 }

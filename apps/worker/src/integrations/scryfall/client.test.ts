@@ -2,6 +2,7 @@ import { gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  fetchAllSets,
   fetchBulkDataCatalog,
   fetchCardsByScryfallIds,
   findBulkDataEntry,
@@ -9,7 +10,7 @@ import {
   streamBulkDataCards,
   ScryfallValidationError,
 } from "./client.js";
-import type { ScryfallBulkDataEntry, ScryfallCard } from "./types.js";
+import type { ScryfallBulkDataEntry, ScryfallCard, ScryfallSet } from "./types.js";
 
 function mockFetchOnce(body: unknown, ok = true, status = 200) {
   const fetchMock = vi.fn().mockResolvedValue({
@@ -172,5 +173,36 @@ describe("streamBulkDataCards", () => {
     await expect(
       streamBulkDataCards("https://data.scryfall.io/default-cards.jsonl.gz", () => {}),
     ).rejects.toBeInstanceOf(ScryfallValidationError);
+  });
+});
+
+describe("fetchAllSets", () => {
+  it("returns every set from the unpaginated response", async () => {
+    const sets: ScryfallSet[] = [
+      {
+        id: "set-1",
+        code: "mh2",
+        name: "Modern Horizons 2",
+        icon_svg_uri: "https://svgs.scryfall.io/sets/mh2.svg",
+      },
+      { id: "set-2", code: "aer", name: "Aether Revolt" },
+    ];
+    mockFetchOnce({ object: "list", has_more: false, data: sets });
+
+    const result = await fetchAllSets();
+
+    expect(result).toEqual(sets);
+  });
+
+  it("rejects a non-OK HTTP response", async () => {
+    mockFetchOnce({}, false, 500);
+
+    await expect(fetchAllSets()).rejects.toBeInstanceOf(ScryfallValidationError);
+  });
+
+  it("rejects a malformed response body", async () => {
+    mockFetchOnce({ object: "error" });
+
+    await expect(fetchAllSets()).rejects.toBeInstanceOf(ScryfallValidationError);
   });
 });

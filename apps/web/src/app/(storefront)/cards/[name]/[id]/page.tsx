@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { getCardIdentity } from "@/features/catalogue/queries/get-card-identity";
 import { listSkuOptions } from "@/features/catalogue/queries/list-sku-options";
 import { SkuSelector } from "@/features/catalogue/components/sku-selector";
+import { SetIcon } from "@/components/commerce/set-icon";
 
 type CardIdentityPageProps = {
   params: Promise<{ name: string; id: string }>;
@@ -84,7 +85,10 @@ export default async function CardIdentityPage({ params }: CardIdentityPageProps
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <Badge variant="outline">{card.setName}</Badge>
+            <Badge variant="outline" className="gap-1">
+              <SetIcon url={card.setIconUrl} alt="" />
+              {card.setName}
+            </Badge>
             <span>#{card.collectorNumber}</span>
             <span className="capitalize">{card.rarity}</span>
             {card.artistName && <span>Illustrated by {card.artistName}</span>}
@@ -139,7 +143,8 @@ export default async function CardIdentityPage({ params }: CardIdentityPageProps
                   href={`/cards/${encodeURIComponent(card.name)}/${printing.printingId}`}
                   className="flex items-center justify-between rounded-lg border p-3 text-sm hover:bg-muted"
                 >
-                  <span>
+                  <span className="flex items-center gap-1.5">
+                    <SetIcon url={printing.setIconUrl} alt="" />
                     {printing.setName} · #{printing.collectorNumber}
                   </span>
                   <span className="capitalize text-muted-foreground">{printing.rarity}</span>
