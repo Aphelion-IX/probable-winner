@@ -19,7 +19,12 @@ test.describe("Decklist import (B-182)", () => {
     await expect(status).toBeVisible({ timeout: 10000 });
 
     const ambiguousLine = page.locator('[data-testid="ambiguous-line"]');
-    if (await ambiguousLine.first().isVisible().catch(() => false)) {
+    if (
+      await ambiguousLine
+        .first()
+        .isVisible()
+        .catch(() => false)
+    ) {
       const firstOption = ambiguousLine.first().locator('input[type="radio"]').first();
       await expect(firstOption).not.toBeChecked();
       await firstOption.check();

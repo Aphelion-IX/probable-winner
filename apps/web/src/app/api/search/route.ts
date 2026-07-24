@@ -4,9 +4,17 @@
 // explicit "querying PostgreSQL on every search keystroke" prohibition).
 
 import { NextRequest, NextResponse } from "next/server";
-import { createTypesenseClient, CARDS_COLLECTION_NAME, type CardSearchDocument } from "@probable-winner/search";
+import {
+  createTypesenseClient,
+  CARDS_COLLECTION_NAME,
+  type CardSearchDocument,
+} from "@probable-winner/search";
 
-import { buildFilterBy, buildSortBy, type SearchQueryParams } from "@/features/catalogue/lib/build-search-query";
+import {
+  buildFilterBy,
+  buildSortBy,
+  type SearchQueryParams,
+} from "@/features/catalogue/lib/build-search-query";
 
 function parseSearchParams(request: NextRequest): SearchQueryParams {
   const { searchParams } = new URL(request.url);
@@ -27,8 +35,7 @@ function parseSearchParams(request: NextRequest): SearchQueryParams {
     storeId: searchParams.get("storeId") || undefined,
     page: searchParams.get("page") ? Number(searchParams.get("page")) : 1,
     limit: Math.min(Number(searchParams.get("limit") || 20), 100),
-    sort:
-      (searchParams.get("sort") as SearchQueryParams["sort"] | null) ?? "relevance",
+    sort: (searchParams.get("sort") as SearchQueryParams["sort"] | null) ?? "relevance",
   };
 }
 

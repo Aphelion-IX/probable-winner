@@ -1,6 +1,6 @@
-import Typesense, { Client } from 'typesense';
+import Typesense, { Client } from "typesense";
 
-import { typesenseCollectionSchema } from './typesense-schema';
+import { typesenseCollectionSchema } from "./typesense-schema";
 
 export const CARDS_COLLECTION_NAME = typesenseCollectionSchema.name;
 
@@ -18,11 +18,11 @@ export type TypesenseClientOptions = {
 export function createTypesenseClient(options: TypesenseClientOptions = {}): Client {
   const host = options.host ?? process.env.TYPESENSE_HOST;
   const port = Number(options.port ?? process.env.TYPESENSE_PORT ?? 8108);
-  const protocol = options.protocol ?? process.env.TYPESENSE_PROTOCOL ?? 'http';
+  const protocol = options.protocol ?? process.env.TYPESENSE_PROTOCOL ?? "http";
   const apiKey = options.apiKey ?? process.env.TYPESENSE_API_KEY;
 
   if (!host || !apiKey) {
-    throw new Error('TYPESENSE_HOST and TYPESENSE_API_KEY must be set');
+    throw new Error("TYPESENSE_HOST and TYPESENSE_API_KEY must be set");
   }
 
   return new Typesense.Client({

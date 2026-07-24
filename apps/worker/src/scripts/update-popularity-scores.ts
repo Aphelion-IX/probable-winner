@@ -12,7 +12,9 @@ updateAllPopularityScores(sql)
       process.exitCode = 1;
       return;
     }
-    console.log(`popularity scoring complete: ${result.updated} updated, ${result.failed} not yet indexed`);
+    console.log(
+      `popularity scoring complete: ${result.updated} updated, ${result.failed} not yet indexed`,
+    );
   })
   .catch((error) => {
     console.error("popularity scoring failed:", error);

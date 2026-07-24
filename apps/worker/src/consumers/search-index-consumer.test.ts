@@ -57,8 +57,19 @@ describe("pollSearchIndexQueue", () => {
 
   it("updates the affected SKU's document and archives the message", async () => {
     const { sql, calls } = createMockSql([
-      [{ msg_id: 1, message: { integrationEventId: "event-1", eventType: "inventory_balance_changed" } }],
-      [{ id: "event-1", event_type: "inventory_balance_changed", payload: { sellableSkuId: "sku-1" } }],
+      [
+        {
+          msg_id: 1,
+          message: { integrationEventId: "event-1", eventType: "inventory_balance_changed" },
+        },
+      ],
+      [
+        {
+          id: "event-1",
+          event_type: "inventory_balance_changed",
+          payload: { sellableSkuId: "sku-1" },
+        },
+      ],
       [],
     ]);
     mockUpdateSearchDocument.mockResolvedValue(true);
@@ -115,7 +126,13 @@ describe("pollSearchIndexQueue", () => {
   it("leaves the message in the queue (no archive) when updateSearchDocument throws", async () => {
     const { sql, calls } = createMockSql([
       [{ msg_id: 5, message: { integrationEventId: "event-5" } }],
-      [{ id: "event-5", event_type: "inventory_balance_changed", payload: { sellableSkuId: "sku-5" } }],
+      [
+        {
+          id: "event-5",
+          event_type: "inventory_balance_changed",
+          payload: { sellableSkuId: "sku-5" },
+        },
+      ],
     ]);
     mockUpdateSearchDocument.mockRejectedValue(new Error("typesense unreachable"));
     const { pollSearchIndexQueue } = await import("./search-index-consumer.js");

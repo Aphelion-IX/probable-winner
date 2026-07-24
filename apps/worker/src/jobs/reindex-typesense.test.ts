@@ -66,10 +66,9 @@ describe("reindexTypesense", () => {
     const result = await reindexTypesense(sql);
 
     expect(mockEnsureCardsCollectionExists).toHaveBeenCalledTimes(1);
-    expect(mockImport).toHaveBeenCalledWith(
-      [{ id: "sku-1" }, { id: "sku-2" }],
-      { action: "upsert" },
-    );
+    expect(mockImport).toHaveBeenCalledWith([{ id: "sku-1" }, { id: "sku-2" }], {
+      action: "upsert",
+    });
     expect(result).toMatchObject({
       status: "completed",
       documentsIndexed: 2,
@@ -88,7 +87,11 @@ describe("reindexTypesense", () => {
     const result = await reindexTypesense(sql);
 
     expect(mockImport).toHaveBeenCalledTimes(2);
-    expect(result).toMatchObject({ status: "completed", documentsIndexed: 1500, documentsFailed: 0 });
+    expect(result).toMatchObject({
+      status: "completed",
+      documentsIndexed: 1500,
+      documentsFailed: 0,
+    });
   });
 
   it("counts per-document import failures separately from success", async () => {

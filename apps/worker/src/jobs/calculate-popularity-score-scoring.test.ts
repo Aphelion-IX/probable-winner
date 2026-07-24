@@ -79,7 +79,14 @@ describe("updateAllPopularityScores", () => {
 
   it("counts SKUs not yet present in Typesense as failed, not fatal", async () => {
     const sql = createMockSql([
-      { sku_id: "sku-1", total_orders: "0", total_quantity_sold: "0", last_sale_at: null, inventory_depth: "0", availability_stores: "0" },
+      {
+        sku_id: "sku-1",
+        total_orders: "0",
+        total_quantity_sold: "0",
+        last_sale_at: null,
+        inventory_depth: "0",
+        availability_stores: "0",
+      },
     ]);
     mockImport.mockResolvedValue([{ success: false, error: "Not Found" }]);
 

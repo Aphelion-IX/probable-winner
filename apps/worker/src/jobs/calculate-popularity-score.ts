@@ -25,11 +25,11 @@ export function calculatePopularityScore(metrics: PopularityMetrics): number {
   const inventoryFactor = Math.min(metrics.inventoryDepth / 50, 1) * 20; // Max 20 points
   const availabilityFactor = Math.min(metrics.availabilityStores / 10, 1) * 20; // Max 20 points
   const recencyFactor =
-    metrics.daysSinceLastSale === 0
-      ? 20
-      : Math.max(0, 20 * (1 - metrics.daysSinceLastSale / 30)); // Max 20 points, decays over 30 days
+    metrics.daysSinceLastSale === 0 ? 20 : Math.max(0, 20 * (1 - metrics.daysSinceLastSale / 30)); // Max 20 points, decays over 30 days
 
-  return Math.round(ordersFactor + volumeFactor + inventoryFactor + availabilityFactor + recencyFactor);
+  return Math.round(
+    ordersFactor + volumeFactor + inventoryFactor + availabilityFactor + recencyFactor,
+  );
 }
 
 type MetricsRow = {

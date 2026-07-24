@@ -39,7 +39,10 @@ async function tick(): Promise<boolean> {
       const processed = await queue.poll(sql);
       processedAny = processedAny || processed;
     } catch (error) {
-      logger.error("queue consumer failed", { queue: queue.name, error: logger.serializeError(error) });
+      logger.error("queue consumer failed", {
+        queue: queue.name,
+        error: logger.serializeError(error),
+      });
       Sentry.captureException(error, { tags: { queue: queue.name } });
     }
   }
