@@ -1180,3 +1180,25 @@ The defining competitive advantages should be: faster than MTG MATE; better
 search than MTG MATE; clearer condition-level stock; better deck-list
 purchasing; true multi-store availability; faster click and collect; better
 pricing intelligence; stronger warehouse operations.
+
+### 30.1 Why not a hosted platform (Shopify, etc.)
+
+A hosted e-commerce platform's product/variant model is built for goods with
+a handful of simple variants (size, colour) — it does not natively express
+this platform's actual unit of sale: printing + language + finish +
+condition (§8.3), nor the inventory ledger states a sale must respect
+(reserved/allocated/quarantined/safety-stock, §9), nor store-to-store
+transfer logistics (§12), nor order routing that prefers one store fulfilling
+a whole order over splitting it with a warehouse (§11). These aren't
+presentation details a plugin or app layer bolts on; they're the data model
+the rest of this platform is built around, and forcing them onto a platform
+designed for simpler variants means fighting its assumptions rather than
+using them.
+
+The honest tradeoff: a hosted platform gives you PCI compliance surface,
+checkout hardening, and uptime for free. Building custom means this backlog
+is the cost of owning all of that ourselves. That cost is only worth paying
+because the competitive advantages listed above — better search, clearer
+condition-level stock, true multi-store availability, better deck-list
+purchasing — are specifically the things a generic platform doesn't give you
+out of the box.
