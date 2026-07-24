@@ -4,17 +4,9 @@
 // explicit "querying PostgreSQL on every search keystroke" prohibition).
 
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createTypesenseClient,
-  CARDS_COLLECTION_NAME,
-  type CardSearchDocument,
-} from "@probable-winner/search";
 
-import {
-  buildFilterBy,
-  buildSortBy,
-  type SearchQueryParams,
-} from "@/features/catalogue/lib/build-search-query";
+import { type SearchQueryParams } from "@/features/catalogue/lib/build-search-query";
+import { searchCards } from "@/features/catalogue/queries/search-cards";
 
 function parseSearchParams(request: NextRequest): SearchQueryParams {
   const { searchParams } = new URL(request.url);
@@ -42,44 +34,9 @@ function parseSearchParams(request: NextRequest): SearchQueryParams {
 export async function GET(request: NextRequest) {
   try {
     const params = parseSearchParams(request);
-    const page = params.page || 1;
-    const perPage = params.limit || 20;
+    const result = await searchCards(params);
 
-    const client = createTypesenseClient();
-    const filterBy = buildFilterBy(params);
-    const sortBy = buildSortBy(params.sort);
-
-    const response = await client
-      .collections<CardSearchDocument>(CARDS_COLLECTION_NAME)
-      .documents()
-      .search({
-        q: params.q?.trim() || "*",
-        query_by: "name",
-        ...(filterBy ? { filter_by: filterBy } : {}),
-        ...(sortBy ? { sort_by: sortBy } : {}),
-        page,
-        per_page: perPage,
-      });
-
-    const hits = (response.hits ?? []).map((hit) => ({
-      id: hit.document.id,
-      name: hit.document.name,
-      set: hit.document.set_code,
-      rarity: hit.document.rarity,
-      artist: hit.document.artist,
-      condition: hit.document.condition,
-      finish: hit.document.finish,
-      price: hit.document.price_amount,
-    }));
-
-    return NextResponse.json({
-      hits,
-      page,
-      pageSize: perPage,
-      totalHits: response.found,
-      totalPages: Math.ceil(response.found / perPage),
-      processingTimeMs: response.search_time_ms,
-    });
+    return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Search failed" },
