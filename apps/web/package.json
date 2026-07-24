@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@probable-winner/routing": "workspace:*",
     "@probable-winner/search": "workspace:*",
     "@sentry/nextjs": "^10.67.0",
     "@supabase/supabase-js": "^2.110.8",

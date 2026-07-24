@@ -2,6 +2,8 @@
 
 import { createClient } from "@supabase/supabase-js";
 
+import { classify_allocation_reason } from "@probable-winner/routing";
+
 interface CheckoutValidationError {
   field: string;
   message: string;
@@ -20,6 +22,7 @@ interface CartData {
     id: string;
     sellable_sku_id: string;
     quantity: number;
+    fulfilment_node_id: string;
     inventory_reservation_id: string;
     inventory_reservations: { id: string; expires_at: string } | null;
   }>;
@@ -98,6 +101,7 @@ export async function createPendingOrder(
         id,
         sellable_sku_id,
         quantity,
+        fulfilment_node_id,
         inventory_reservation_id,
         inventory_reservations(
           id,
@@ -171,24 +175,25 @@ export async function createPendingOrder(
   }
 
   try {
-    // Get the default fulfilment node for the organisation
-    const { data: defaultNode } = await supabase
-      .from("fulfilment_nodes")
-      .select("id")
-      .eq("organisation_id", cartData.organisation_id)
-      .limit(1)
-      .single();
-
-    if (!defaultNode) {
-      return {
-        success: false,
-        errors: [
-          {
-            field: "organisation",
-            message: "No fulfilment node found for organisation",
-          },
-        ],
-      };
+    // Determine the order's fulfilment node from where its lines are
+    // *already* reserved (B-130/B-131, blueprint §11) -- reserve_inventory()
+    // pins each cart line to a specific node at add-to-cart time, so by
+    // checkout there's no live choice left among nodes for those units;
+    // route_order()'s priority scoring is only meaningful when a genuine
+    // choice exists. What matters here is recording an accurate,
+    // auditable routing_reason for the node(s) that already hold the
+    // stock, using the same priority vocabulary (blueprint §11 /
+    // classify_allocation_reason), not re-deciding a fixed outcome. Full
+    // multi-node split-shipment support would need orders/shipments to
+    // stop assuming one fulfilment node per order -- out of scope here;
+    // when a cart's lines span multiple nodes, the node covering the
+    // most quantity becomes the order's primary node.
+    const quantityByNode = new Map<string, number>();
+    for (const line of cartData.cart_lines) {
+      quantityByNode.set(
+        line.fulfilment_node_id,
+        (quantityByNode.get(line.fulfilment_node_id) ?? 0) + line.quantity,
+      );
     }
 
     let shippingAddressId: string | null = null;
@@ -230,10 +235,33 @@ export async function createPendingOrder(
       shippingAddressId = newAddress.id;
     }
 
-    // Map fulfilment node for collection
+    // Map fulfilment node for collection (storeId is required and
+    // validated above whenever fulfillmentType === "collect").
     if (fulfillmentType === "collect") {
-      collectionStoreId = storeId || defaultNode.id;
+      collectionStoreId = storeId!;
     }
+
+    // The primary node: the customer's chosen collection store, or -- for
+    // delivery -- whichever node the cart's lines are predominantly
+    // reserved at (see comment above on the single-node limitation).
+    const primaryNodeId =
+      collectionStoreId ??
+      [...quantityByNode.entries()].reduce((best, current) =>
+        current[1] > best[1] ? current : best,
+      )[0];
+
+    // Fetch node types for every distinct node the cart's lines are
+    // reserved at, to classify each allocation's routing_reason correctly
+    // (a warehouse line is "warehouse_priority" even if it isn't the
+    // order's primary node).
+    const distinctNodeIds = [...quantityByNode.keys()];
+    const { data: nodeRows } = await supabase
+      .from("fulfilment_nodes")
+      .select("id, type")
+      .in("id", distinctNodeIds.length > 0 ? distinctNodeIds : [primaryNodeId]);
+
+    const nodeTypeById = new Map((nodeRows ?? []).map((n) => [n.id, n.type]));
+    const isSingleNodeOrder = fulfillmentType === "collect" || distinctNodeIds.length <= 1;
 
     // Generate order number
     const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
@@ -243,7 +271,7 @@ export async function createPendingOrder(
       .from("orders")
       .insert({
         organisation_id: cartData.organisation_id,
-        fulfilment_node_id: collectionStoreId || defaultNode.id,
+        fulfilment_node_id: primaryNodeId,
         order_number: orderNumber,
         status: "pending",
         fulfilment_type: fulfillmentType === "delivery" ? "online_shipping" : "click_and_collect",
@@ -288,6 +316,42 @@ export async function createPendingOrder(
           {
             field: "order",
             message: "Failed to create order lines",
+          },
+        ],
+      };
+    }
+
+    // Persist the routing decision for every line (B-130's AC: every
+    // allocation is persisted and auditable, not recomputed after the
+    // fact). A collect order's lines all resolve to the customer's chosen
+    // store regardless of each line's raw reservation node.
+    const allocations = cartData.cart_lines.map((line) => {
+      const nodeId = fulfillmentType === "collect" ? collectionStoreId! : line.fulfilment_node_id;
+      const nodeType = nodeTypeById.get(nodeId);
+      return {
+        sku_id: line.sellable_sku_id,
+        node_id: nodeId,
+        quantity: line.quantity,
+        reason: classify_allocation_reason(
+          { type: nodeType ?? "store" },
+          fulfillmentType === "delivery" ? "online_shipping" : "click_and_collect",
+          isSingleNodeOrder,
+        ),
+      };
+    });
+
+    const { error: allocationsError } = await supabase.rpc("persist_order_allocations", {
+      p_order_id: order.id,
+      p_allocations: allocations,
+    });
+
+    if (allocationsError) {
+      return {
+        success: false,
+        errors: [
+          {
+            field: "order",
+            message: "Failed to record order routing decision",
           },
         ],
       };
