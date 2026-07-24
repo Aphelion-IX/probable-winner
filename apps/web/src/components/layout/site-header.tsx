@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { LogIn, MapPin, Menu, Search, ShoppingCart, User } from "lucide-react";
+import { LogIn, Menu, Search, ShoppingCart, User } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { CartBadge } from "@/components/layout/cart-badge";
+import { HeaderStoreSelector } from "@/components/layout/header-store-selector";
 
 const NAV_LINKS = [
   { href: "/search", label: "Search" },
@@ -78,25 +80,23 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="relative ml-auto hidden max-w-sm flex-1 sm:block">
+        <form
+          action="/search"
+          method="GET"
+          className="relative ml-auto hidden max-w-sm flex-1 sm:block"
+        >
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
+            name="q"
             placeholder="Search cards, sets, artists..."
             className="pl-8"
             aria-label="Search"
           />
-        </div>
+        </form>
 
         <div className="ml-auto flex items-center gap-1 sm:ml-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden lg:inline-flex"
-            aria-label="Select store"
-          >
-            <MapPin />
-          </Button>
+          <HeaderStoreSelector />
           <Button
             variant="ghost"
             size="icon"
@@ -104,8 +104,14 @@ export function SiteHeader() {
           >
             <User />
           </Button>
-          <Button variant="ghost" size="icon" render={<Link href="/cart" aria-label="Cart" />}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative"
+            render={<Link href="/cart" aria-label="Cart" />}
+          >
             <ShoppingCart />
+            <CartBadge />
           </Button>
           <Button
             variant="ghost"
