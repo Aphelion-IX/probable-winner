@@ -40,6 +40,24 @@
 --   Werribee: e3599527-1d42-45a3-93a0-a0235ece8649  (STR-03)
 --   Ballarat: 35855576-cc0a-4bed-90ec-32b58758bb92  (STR-04)
 -- All 4 allow both online_fulfilment and click_collect.
+--
+-- IMPORTANT -- a lesson learned the hard way running this against live:
+-- PostgreSQL evaluates a volatile expression like random() ONCE per
+-- function-scan / subquery node, not once per LATERAL outer row, UNLESS
+-- the expression is a plain column in the SELECT list of a query whose FROM
+-- clause is a real multi-row source (a table scan, generate_series, or a
+-- materialized CTE). Wrapping a random()-based scalar in ANY subquery --
+-- `generate_series(1, expr)`, a scalar `(SELECT expr)` in a SET clause, or
+-- `CROSS JOIN LATERAL (SELECT expr) x` -- silently freezes it to one value
+-- reused for every row, even if that subquery's SELECT list happens to
+-- also reference an outer column (referencing it isn't enough; Postgres
+-- doesn't treat that as true correlation unless the value actually depends
+-- on it). This cost real data quality here: order status, order_lines'
+-- SKU/quantity/price, and cart_lines' SKU all silently collapsed to a
+-- single frozen value the first time through, despite looking correct at
+-- small scale in some cases. Every phase below computes random values as
+-- plain per-row SELECT-list expressions for exactly this reason -- do not
+-- "clean up" by wrapping one in a subquery.
 
 -- ============================================================
 -- Phase 1: Customers (auth.users) -- target 120,000 rows (20%
@@ -107,13 +125,28 @@ node as (
   from fulfilment_nodes
 ),
 node_total as (select count(*) as cnt from node),
-picked as materialized (
+-- r/created_at/n_lines are plain per-row expressions against the real
+-- generate_series row source (safe); status is derived from r in a
+-- separate downstream CTE rather than inline, since a CASE can't
+-- reference a column defined earlier in the same SELECT list.
+raw as materialized (
   select
     g as n,
     c.id as customer_id,
     a.id as address_id,
     nd.id as node_id,
     case when (g % 10) < 7 then 'online_shipping' else 'click_and_collect' end as fulfilment_type,
+    floor(random() * 100)::int as r,
+    now() - (random() * interval '365 days') as created_at,
+    1 + floor(random() * 4)::int as n_lines
+  from generate_series(1, 130000) g
+  join cust c on c.rn = (g % (select cnt from cust_total))
+  join addr a on a.rn = (g % (select cnt from addr_total))
+  join node nd on nd.rn = (g % (select cnt from node_total))
+),
+picked as materialized (
+  select
+    n, customer_id, address_id, node_id, fulfilment_type, created_at, n_lines,
     (case
       when r < 60 then 'delivered'
       when r < 75 then 'shipped'
@@ -122,14 +155,8 @@ picked as materialized (
       when r < 95 then 'paid'
       when r < 98 then 'pending'
       else 'cancelled'
-    end) as status,
-    now() - (random() * interval '365 days') as created_at,
-    1 + floor(random() * 4)::int as n_lines
-  from generate_series(1, 130000) g
-  cross join lateral (select floor(random() * 100)::int as r) rr
-  join cust c on c.rn = (g % (select cnt from cust_total))
-  join addr a on a.rn = (g % (select cnt from addr_total))
-  join node nd on nd.rn = (g % (select cnt from node_total))
+    end) as status
+  from raw
 ),
 ins_orders as (
   insert into orders (
@@ -159,19 +186,20 @@ line_counts as (
 sku_total as (select count(*) as cnt from sellable_skus),
 sku_pool as (
   select id, row_number() over (order by id) - 1 as rn from sellable_skus
-)
-insert into order_lines (order_id, sellable_sku_id, quantity, unit_price, line_total, created_at)
-select
-  lc.order_id, sp.id, r.qty, r.price, round(r.price * r.qty, 2), lc.created_at
-from line_counts lc
-cross join lateral generate_series(1, lc.n_lines) as gs(line_no)
-cross join lateral (
+),
+line_seed as materialized (
   select
+    lc.order_id, lc.created_at,
     floor(random() * (select cnt from sku_total))::bigint as pick_rn,
     1 + floor(random() * 3)::int as qty,
     round((0.20 + random() * 149.80)::numeric, 2) as price
-) r
-join sku_pool sp on sp.rn = r.pick_rn;
+  from line_counts lc
+  cross join lateral generate_series(1, lc.n_lines) as gs(line_no)
+)
+insert into order_lines (order_id, sellable_sku_id, quantity, unit_price, line_total, created_at)
+select ls.order_id, sp.id, ls.qty, ls.price, round(ls.price * ls.qty, 2), ls.created_at
+from line_seed ls
+join sku_pool sp on sp.rn = ls.pick_rn;
 
 -- ============================================================
 -- Phase 4: Roll up order_lines into orders.total_amount (orders
@@ -283,11 +311,18 @@ ins_carts as (
   from cart_seed
   returning id as cart_id
 ),
-cart_line_seed as materialized (
+cart_line_raw as materialized (
   select
     cs.cart_id, cs.n as n, gs.line_no,
-    nd.id as node_id,
-    sp.id as sellable_sku_id,
+    -- pick_rn/qty as PLAIN columns computed directly against the real
+    -- (cs cross join generate_series) row source below -- not wrapped in
+    -- any `CROSS JOIN LATERAL (SELECT ...)` construct, even one that
+    -- references an outer column. That shape freezes the random() call to
+    -- one value reused for every row regardless of the LATERAL keyword or
+    -- what the subquery's SELECT list references (see the file-header
+    -- note) -- exactly the bug that made every cart_line point at the
+    -- same SKU the first time this ran against live.
+    floor(random() * (select cnt from sku_total))::bigint as pick_rn,
     1 + floor(random() * 2)::int as qty,
     now() + interval '30 minutes' as expires_at
   from (
@@ -301,11 +336,12 @@ cart_line_seed as materialized (
     from ins_carts
   ) cs
   cross join lateral generate_series(1, cs.n_lines) as gs(line_no)
-  join node nd on nd.rn = ((cs.n + gs.line_no) % (select cnt from node_total))
-  cross join lateral (
-    select floor(random() * (select cnt from sku_total))::bigint as pick_rn
-  ) r
-  join sku_pool sp on sp.rn = r.pick_rn
+),
+cart_line_seed as materialized (
+  select clr.cart_id, clr.n, clr.line_no, nd.id as node_id, sp.id as sellable_sku_id, clr.qty, clr.expires_at
+  from cart_line_raw clr
+  join node nd on nd.rn = ((clr.n + clr.line_no) % (select cnt from node_total))
+  join sku_pool sp on sp.rn = clr.pick_rn
 ),
 ins_reservations as (
   insert into inventory_reservations (

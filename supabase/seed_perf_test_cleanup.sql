@@ -7,6 +7,24 @@
 -- since seeding: inventory_balances cleanup only removes rows that have
 -- no remaining movement and no remaining reservation once the tagged rows
 -- are gone, rather than assuming the table is untouched.
+--
+-- Also covers the operational data from seed_perf_test_operational.sql
+-- (pick batches, allocations, transfers, pricing) -- all of those tables
+-- were 0 rows before that script ran and have no real-world equivalent
+-- yet, so cleanup is a plain TRUNCATE rather than a tagged DELETE.
+
+-- ============================================================
+-- Step 0: Operational data (seed_perf_test_operational.sql). Must
+-- run before step 4 deletes the customers/orders that
+-- order_allocations/inventory_allocations reference. CASCADE
+-- pulls in pick_lines (references inventory_allocations) and
+-- transfer_order_lines/shipments/receipts (reference
+-- transfer_orders).
+-- ============================================================
+truncate order_allocations, inventory_allocations, transfer_orders, published_prices, calculated_prices, pricing_rules cascade;
+truncate pick_batches cascade;
+delete from staff_memberships sm using auth.users u where sm.user_id = u.id and u.email like 'perftest-staff+%@perftest.invalid';
+delete from auth.users where email like 'perftest-staff+%@perftest.invalid';
 
 -- ============================================================
 -- Step 1: Reservations backing perf_seed carts (no cascading FK
