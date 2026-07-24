@@ -1,63 +1,13 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 
-import { CardTile, type CardTileProps } from "@/components/commerce/card-tile";
+import { CardTile } from "@/components/commerce/card-tile";
 import { Input } from "@/components/ui/input";
+import { listPopularCards } from "@/features/catalogue/queries/list-popular-cards";
 
-// Preview-only demo content — no catalogue exists yet (backlog Phase 1).
-// Not real inventory; remove once /cards is backed by real data.
-const SAMPLE_CARDS: CardTileProps[] = [
-  {
-    href: "/cards",
-    name: "Jeweled Lotus",
-    setCode: "FDN",
-    rarity: "Mythic",
-    condition: "NM",
-    price: 189.95,
-  },
-  {
-    href: "/cards",
-    name: "Mana Crypt",
-    setCode: "FDN",
-    rarity: "Mythic",
-    condition: "NM",
-    price: 249.95,
-  },
-  {
-    href: "/cards",
-    name: "Cavern of Souls",
-    setCode: "FDN",
-    rarity: "Mythic",
-    condition: "NM",
-    price: 89.95,
-  },
-  {
-    href: "/cards",
-    name: "Doubling Season",
-    setCode: "FDN",
-    rarity: "Rare",
-    condition: "NM",
-    price: 48.95,
-  },
-  {
-    href: "/cards",
-    name: "Sol Ring",
-    setCode: "FDN",
-    rarity: "Uncommon",
-    condition: "NM",
-    price: 12.5,
-  },
-  {
-    href: "/cards",
-    name: "Command Tower",
-    setCode: "FDN",
-    rarity: "Common",
-    condition: "NM",
-    price: 2.95,
-  },
-];
+export default async function Home() {
+  const popularCards = await listPopularCards();
 
-export default function Home() {
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-12 px-4 py-12 sm:px-6 sm:py-20">
       <section className="flex flex-col items-center gap-6 text-center">
@@ -79,19 +29,28 @@ export default function Home() {
         </form>
       </section>
 
-      <section>
-        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-          <h2 className="text-lg font-semibold">Popular right now</h2>
-          <span className="text-xs text-muted-foreground">
-            Preview layout — sample cards, not live inventory
-          </span>
-        </div>
-        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
-          {SAMPLE_CARDS.map((card) => (
-            <CardTile key={card.name} {...card} className="w-40 shrink-0 snap-start sm:w-48" />
-          ))}
-        </div>
-      </section>
+      {popularCards.length > 0 && (
+        <section>
+          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+            <h2 className="text-lg font-semibold">Popular right now</h2>
+          </div>
+          <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
+            {popularCards.map((card) => (
+              <CardTile
+                key={card.printingId}
+                href={`/cards/${encodeURIComponent(card.name)}/${card.printingId}`}
+                name={card.name}
+                setCode={card.setCode}
+                setIconUrl={card.setIconUrl}
+                rarity={card.rarity}
+                price={card.price ?? undefined}
+                imageSrc={card.imageUrl ?? undefined}
+                className="w-40 shrink-0 snap-start sm:w-48"
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Link href="/sets" className="rounded-lg border p-6 transition-colors hover:bg-muted">
@@ -120,11 +79,12 @@ export default function Home() {
         </Link>
       </section>
 
-      <section className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-        Catalogue and inventory data are not connected yet — this is the storefront shell only
-        (backlog Phase 2, Step 10). See <code>docs/backlog.md</code>
-        {" for what's next."}
-      </section>
+      {popularCards.length === 0 && (
+        <section className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+          No cards have been imported yet — the catalogue importer (backlog Step 5) hasn&apos;t run
+          against this environment yet. See <code>docs/backlog.md</code>.
+        </section>
+      )}
     </div>
   );
 }
