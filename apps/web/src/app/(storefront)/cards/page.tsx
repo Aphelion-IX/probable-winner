@@ -75,6 +75,7 @@ export default async function CardsPage({
                   name={card.name}
                   setCode={card.setCode}
                   rarity={card.rarity}
+                  imageSrc={card.imageUrl ?? undefined}
                 />
               ))}
             </div>

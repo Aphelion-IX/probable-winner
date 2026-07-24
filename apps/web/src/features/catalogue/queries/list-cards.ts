@@ -48,6 +48,7 @@ export type CardBrowseItem = {
   releasedAt: string | null;
   setCode: string;
   setName: string;
+  imageUrl: string | null;
 };
 
 type CardBrowseRow = {
@@ -63,6 +64,7 @@ type CardBrowseRow = {
   released_at: string | null;
   set_code: string;
   set_name: string;
+  image_url: string | null;
 };
 
 export function onlyKnown<T extends string>(
@@ -164,5 +166,6 @@ export async function listCards(filters: ListCardsFilters = {}): Promise<CardBro
     releasedAt: row.released_at,
     setCode: row.set_code,
     setName: row.set_name,
+    imageUrl: row.image_url,
   }));
 }

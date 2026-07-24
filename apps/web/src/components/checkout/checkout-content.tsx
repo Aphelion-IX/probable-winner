@@ -5,10 +5,17 @@ import { FulfillmentMethod } from "@/components/checkout/fulfillment-method";
 import { AddressForm } from "@/components/checkout/address-form";
 import { StoreSelection } from "@/components/checkout/store-selection";
 import { OrderReview } from "@/components/checkout/order-review";
+import type { CartContents } from "@/features/cart/queries/get-cart-contents";
+import type { ClickAndCollectStore } from "@/features/customer/queries/list-click-and-collect-stores";
 
 type FulfillmentType = "delivery" | "collect" | null;
 
-export function CheckoutContent() {
+interface CheckoutContentProps {
+  cart: CartContents;
+  clickAndCollectStores: ClickAndCollectStore[];
+}
+
+export function CheckoutContent({ cart, clickAndCollectStores }: CheckoutContentProps) {
   const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>(null);
   const [selectedAddress, setSelectedAddress] = useState<{
     line1: string;
@@ -18,6 +25,17 @@ export function CheckoutContent() {
     postcode: string;
   } | null>(null);
   const [selectedStore, setSelectedStore] = useState<string | null>(null);
+
+  if (!cart.cartId || cart.lines.length === 0) {
+    return (
+      <div className="mt-12 rounded-lg border border-dashed p-12 text-center">
+        <h2 className="text-lg font-semibold">Your cart is empty</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Add something to your cart before checking out.
+        </p>
+      </div>
+    );
+  }
 
   // Determine next step based on current state
   let currentStep = 1;
@@ -82,6 +100,7 @@ export function CheckoutContent() {
               />
             ) : (
               <StoreSelection
+                stores={clickAndCollectStores}
                 onSelect={(storeId) => setSelectedStore(storeId)}
                 selectedStore={selectedStore}
               />
@@ -103,6 +122,9 @@ export function CheckoutContent() {
               fulfillmentType={fulfillmentType}
               address={selectedAddress}
               storeId={selectedStore}
+              cartId={cart.cartId}
+              lines={cart.lines}
+              subtotal={cart.subtotal}
             />
           </div>
         )}

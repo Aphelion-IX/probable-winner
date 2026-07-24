@@ -399,6 +399,69 @@ Important fields on `fulfilment_nodes`: `id`, `organisation_id`, `name`, `code`,
 
 The catalogue describes the card, not its stock.
 
+#### 8.2.1 Card imagery: Scryfall as the image importer
+
+Catalogue metadata (name, oracle text, sets, etc.) comes from MTGJSON
+(`apps/worker/src/integrations/mtgjson`), which does not provide card
+images at all -- it only carries a `scryfallId`/`scryfallOracleId` per
+printing as a cross-reference, already stored on `card_identifiers` and
+`oracle_cards.scryfall_oracle_id` by `promote-catalogue.ts`. Card images
+are imported separately, from Scryfall, using those already-recorded ids:
+`apps/worker/src/jobs/import-card-images.ts` finds every `card_printings`
+row with a `scryfall_id` but no `card_images` rows yet, batches them
+through Scryfall's `POST /cards/collection` endpoint (75 identifiers per
+request, its documented batch limit -- never one request per card), and
+upserts the returned `image_uris` (small/normal/large/png/art_crop/
+border_crop). Only the Scryfall-hosted URL is stored, never the image
+itself, per Scryfall's own guidance. Run via
+`pnpm --filter worker import-card-images`; safe to re-run, since it only
+ever targets printings still missing images.
+
+Double-faced cards carry per-face images under Scryfall's `card_faces`
+array instead of a single top-level `image_uris`, so `card_images` has a
+`face` column (`front`/`back`) alongside `image_type`, letting both faces'
+images coexist under the same image_type rather than colliding on
+(printing, image_type) as the original schema would have. Rarer 3+-face
+layouts (e.g. meld) are not represented -- only the first two faces map to
+front/back.
+
+The storefront already read `card_images` for the card identity page's
+artwork before this (`get-card-identity.ts`); the browse grid
+(`/cards`) did not -- `card_browse` now also exposes a `normal`/`front`
+`image_url` column (a single preferred size for grid tiles, per Scryfall's
+own image-size guidance), wired into `CardTile`. Fixing this also
+surfaced a latent bug: `next.config.ts` had no `images.remotePatterns`
+configured at all, so `next/image` would have thrown at request time the
+moment any real image URL existed anywhere in the app (nothing had ever
+populated `card_images` before, so nothing had hit it) -- fixed by
+allowlisting `*.scryfall.io`.
+
+There are two importer entry points, matching Scryfall's own guidance on
+when to use each (https://scryfall.com/docs/api/bulk-data: "Bulk data is
+only collected once every 12-24 hours. You can use the card API methods to
+retrieve fresh objects instead."):
+
+- `pnpm --filter worker import-card-images` -- the `/cards/collection`
+  batch lookup described above. Best for a small/urgent top-up (e.g. right
+  after a new set is catalogued) where up-to-a-day-old bulk data isn't
+  fresh enough yet.
+- `pnpm --filter worker sync-card-images-bulk`
+  (`apps/worker/src/jobs/sync-card-images-bulk.ts`) -- a full-catalogue
+  sync via Scryfall's daily bulk-data export instead of one
+  `/cards/collection` request per 75 printings. Loads every known
+  `scryfall_id` from `card_identifiers` into memory, then streams
+  Scryfall's `default_cards` bulk file (`GET /bulk-data` to find its
+  current `jsonl_download_uri`, then gunzip + line-by-line JSON parse --
+  the file itself is never held in memory whole, since it runs to
+  hundreds of megabytes uncompressed), matching and upserting
+  `card_images` rows for whichever cards it already tracks, flushing every
+  500 rows. Neither entry point creates new `card_printings`/
+  `oracle_cards` rows -- discovering new cards/sets stays the MTGJSON
+  importer's job; this only ever fills in images for printings it already
+  knows about. Not yet wired to a schedule (see blueprint §17's queue
+  list) -- intended to run daily once one exists, per the "Daily scheduled
+  sync" architecture this backlog item calls for.
+
 ### 8.3 Sellable products
 
 `sellable_skus`, `conditions`, `languages`, `finishes`, `product_statuses`.
@@ -552,6 +615,43 @@ A scheduled job releases expired reservations.
 Checkout validation must revalidate: reservation ownership; reservation expiry;
 current price; shipping method; fulfilment location; customer address; cart
 total.
+
+### 10.1 Current implementation status
+
+Add-to-cart, the cart page, and checkout are now real end-to-end rather than
+each stopping at a different mocked layer:
+
+- `SkuSelector` (the card identity page) has a working quantity/"Add to
+  cart" control calling `addToCart()`
+  (`apps/web/src/app/actions/add-to-cart.ts`), which resolves a store via
+  `resolveDefaultStore()`, a cart via `get_or_create_cart()`, and reserves
+  via the atomic `add_to_cart()` database function.
+- `/cart` renders real line items via a new `get_cart_contents()` database
+  function (guest carts have no raw-table RLS -- see
+  `20260723070153_carts.sql`'s comment -- so this SECURITY DEFINER function
+  is the only correct read path for one), with working quantity +/- and
+  remove controls calling `update_cart_line_quantity()`/`remove_cart_line()`.
+- `/checkout` fetches that same real cart server-side and threads its real
+  `cartId`, line items, and subtotal into `OrderReview` -- no more hardcoded
+  `"demo_cart"` id or mocked $299.85 subtotal. Click-and-collect's store
+  list is real too (`listClickAndCollectStores()`, joined against
+  `store_addresses`, which needed its own public-read RLS policy alongside
+  `fulfilment_nodes`'s -- see `20260724240000_store_addresses_public_read.sql`).
+- Still placeholder: shipping is a flat $15/free rate and tax is a flat
+  10%, matching `create-pending-order.ts`'s existing scope -- there is no
+  real shipping-cost calculation or tax-jurisdiction logic yet.
+- The store selector, cart badge, and add-to-cart wiring above replaced a
+  fully dead, never-rendered `RootNavbar`/`StoreSelector` pair (the real
+  layout has always used `StorefrontShell` → `SiteHeader`, per
+  `apps/web/src/app/(storefront)/layout.tsx`). `SiteHeader`'s own store
+  selector and cart icon were previously decorative (no store list, no
+  count); the header's search input didn't submit anywhere either. All
+  three are now real, and deliberately fetch/read client-side
+  (`/api/stores`, `/api/cart/count`) rather than as Server Component reads
+  in the shared layout -- reading the cart cookie there would force every
+  page under it into dynamic rendering with no PPR/Cache Components opted
+  in (see the framework-version note in AGENTS.md), undoing the static
+  caching on the card identity/sets/home pages.
 
 ## 11. Multi-store order routing
 
