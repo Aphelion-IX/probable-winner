@@ -6,6 +6,8 @@ import { ImageOff } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { getCardIdentity } from "@/features/catalogue/queries/get-card-identity";
+import { listSkuOptions } from "@/features/catalogue/queries/list-sku-options";
+import { SkuSelector } from "@/features/catalogue/components/sku-selector";
 
 type CardIdentityPageProps = {
   params: Promise<{ name: string; id: string }>;
@@ -38,7 +40,7 @@ export async function generateMetadata({ params }: CardIdentityPageProps): Promi
 
 export default async function CardIdentityPage({ params }: CardIdentityPageProps) {
   const { id } = await params;
-  const card = await getCardIdentity(id);
+  const [card, skuOptions] = await Promise.all([getCardIdentity(id), listSkuOptions(id)]);
 
   if (!card) {
     notFound();
@@ -87,6 +89,8 @@ export default async function CardIdentityPage({ params }: CardIdentityPageProps
             <span className="capitalize">{card.rarity}</span>
             {card.artistName && <span>Illustrated by {card.artistName}</span>}
           </div>
+
+          <SkuSelector options={skuOptions} />
 
           {card.oracleText && (
             <p className="whitespace-pre-line text-sm leading-relaxed">{card.oracleText}</p>
