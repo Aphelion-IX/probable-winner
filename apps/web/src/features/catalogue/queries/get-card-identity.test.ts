@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { cardIdentityCacheKey, cardIdentityCacheTag, pickImageUrl } from "./get-card-identity";
+import {
+  cardIdentityCacheKey,
+  cardIdentityCacheTag,
+  pickImageUrl,
+  THUMBNAIL_IMAGE_TYPE_PREFERENCE,
+} from "./get-card-identity";
 
 describe("cardIdentityCacheKey", () => {
   it("derives a stable key scoped to the printing id", () => {
@@ -47,5 +52,17 @@ describe("pickImageUrl", () => {
 
   it("returns null when there are no images", () => {
     expect(pickImageUrl([])).toBeNull();
+  });
+
+  it("accepts a custom preference order, e.g. for list thumbnails", () => {
+    expect(
+      pickImageUrl(
+        [
+          { imageType: "normal", url: "normal.png" },
+          { imageType: "small", url: "small.png" },
+        ],
+        THUMBNAIL_IMAGE_TYPE_PREFERENCE,
+      ),
+    ).toBe("small.png");
   });
 });

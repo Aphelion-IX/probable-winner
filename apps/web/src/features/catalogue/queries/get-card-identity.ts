@@ -7,7 +7,15 @@ import { createServerSupabaseClient } from "@/server/supabase";
 // cache aggressively rather than re-querying on every page view.
 const CARD_IDENTITY_REVALIDATE_SECONDS = 3600;
 
-const IMAGE_TYPE_PREFERENCE = ["normal", "large", "small", "png", "art_crop", "border_crop"];
+export const IMAGE_TYPE_PREFERENCE = ["normal", "large", "small", "png", "art_crop", "border_crop"];
+export const THUMBNAIL_IMAGE_TYPE_PREFERENCE = [
+  "small",
+  "normal",
+  "large",
+  "png",
+  "art_crop",
+  "border_crop",
+];
 
 export function cardIdentityCacheKey(printingId: string): string[] {
   return ["card-identity", printingId];
@@ -17,8 +25,11 @@ export function cardIdentityCacheTag(printingId: string): string {
   return `card-identity:${printingId}`;
 }
 
-export function pickImageUrl(images: { imageType: string; url: string }[]): string | null {
-  for (const type of IMAGE_TYPE_PREFERENCE) {
+export function pickImageUrl(
+  images: { imageType: string; url: string }[],
+  preference: string[] = IMAGE_TYPE_PREFERENCE,
+): string | null {
+  for (const type of preference) {
     const match = images.find((image) => image.imageType === type);
     if (match) return match.url;
   }

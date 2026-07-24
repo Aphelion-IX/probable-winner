@@ -119,7 +119,15 @@ export default async function CardIdentityPage({ params }: CardIdentityPageProps
 
       {card.relatedPrintings.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold">Other printings</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Other printings</h2>
+            <Link
+              href={`/cards/${encodeURIComponent(card.name)}/${card.printingId}/printings`}
+              className="text-sm text-muted-foreground hover:underline"
+            >
+              See all printings →
+            </Link>
+          </div>
           <ul className="mt-3 flex flex-col gap-2">
             {card.relatedPrintings.map((printing) => (
               <li key={printing.printingId}>
