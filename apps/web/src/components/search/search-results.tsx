@@ -1,93 +1,41 @@
 import { CardTile } from "@/components/commerce/card-tile";
 import { Pagination } from "@/components/search/pagination";
+import { type SearchQueryParams } from "@/features/catalogue/lib/build-search-query";
+import { searchCards, type SearchCardsResult } from "@/features/catalogue/queries/search-cards";
 
 interface SearchResultsProps {
   searchParams: Record<string, string | string[] | undefined>;
 }
 
-interface SearchHit {
-  id: string;
-  name: string;
-  set: string;
-  rarity: string;
-  artist: string;
-  condition: string;
-  finish: string;
-  price: number;
-}
-
-interface SearchResponse {
-  hits: SearchHit[];
-  page: number;
-  pageSize: number;
-  totalHits: number;
-  totalPages: number;
-  processingTimeMs: number;
-}
-
 export async function SearchResults({ searchParams }: SearchResultsProps) {
-  const query = new URLSearchParams();
-
-  // Map search params to API parameters
-  if (searchParams.q) {
-    query.append("q", String(searchParams.q));
-  }
-  if (searchParams.set) {
-    query.append("set", String(searchParams.set));
-  }
-  if (searchParams.artist) {
-    query.append("artist", String(searchParams.artist));
-  }
-  if (searchParams.rarity) {
-    query.append("rarity", String(searchParams.rarity));
-  }
-  if (searchParams.finish) {
-    query.append("finish", String(searchParams.finish));
-  }
-  if (searchParams.condition) {
-    query.append("condition", String(searchParams.condition));
-  }
-  if (searchParams.colour) {
-    const colours = Array.isArray(searchParams.colour)
-      ? searchParams.colour
-      : [searchParams.colour];
-    colours.forEach((c) => query.append("colour", c));
-  }
-  if (searchParams.minPrice) {
-    query.append("minPrice", String(searchParams.minPrice));
-  }
-  if (searchParams.maxPrice) {
-    query.append("maxPrice", String(searchParams.maxPrice));
-  }
-  if (searchParams.inStock === "true") {
-    query.append("inStock", "true");
-  }
-  if (searchParams.storeId) {
-    query.append("storeId", String(searchParams.storeId));
-  }
   const page = searchParams.page ? Number(searchParams.page) : 1;
-  query.append("page", String(page));
-  if (searchParams.limit) {
-    query.append("limit", String(searchParams.limit));
-  }
-  if (searchParams.sort) {
-    query.append("sort", String(searchParams.sort));
-  }
 
-  let data: SearchResponse | null = null;
+  const params: SearchQueryParams = {
+    q: searchParams.q ? String(searchParams.q) : undefined,
+    set: searchParams.set ? String(searchParams.set) : undefined,
+    artist: searchParams.artist ? String(searchParams.artist) : undefined,
+    rarity: searchParams.rarity ? String(searchParams.rarity) : undefined,
+    finish: searchParams.finish ? String(searchParams.finish) : undefined,
+    condition: searchParams.condition ? String(searchParams.condition) : undefined,
+    colour: searchParams.colour
+      ? Array.isArray(searchParams.colour)
+        ? searchParams.colour
+        : [searchParams.colour]
+      : undefined,
+    minPrice: searchParams.minPrice ? Number(searchParams.minPrice) : undefined,
+    maxPrice: searchParams.maxPrice ? Number(searchParams.maxPrice) : undefined,
+    inStock: searchParams.inStock === "true",
+    storeId: searchParams.storeId ? String(searchParams.storeId) : undefined,
+    page,
+    limit: searchParams.limit ? Number(searchParams.limit) : undefined,
+    sort: searchParams.sort as SearchQueryParams["sort"] | undefined,
+  };
+
+  let data: SearchCardsResult | null = null;
   let hasError = false;
 
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-    const response = await fetch(`${baseUrl}/api/search?${query}`, {
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      hasError = true;
-    } else {
-      data = await response.json();
-    }
+    data = await searchCards(params);
   } catch {
     hasError = true;
   }
