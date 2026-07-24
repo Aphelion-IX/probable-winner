@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { getDashboardStats, type DashboardStats } from "@/features/staff/actions/get-dashboard-stats";
+import {
+  getDashboardStats,
+  type DashboardStats,
+} from "@/features/staff/actions/get-dashboard-stats";
 import { Badge } from "@/components/ui/badge";
 
 // Requires an authenticated staff session at request time — cannot be

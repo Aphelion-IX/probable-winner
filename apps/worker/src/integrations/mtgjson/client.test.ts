@@ -59,7 +59,12 @@ describe("fetchSetList", () => {
     mockFetchOnce({
       data: [
         { code: "ARN", name: "Arabian Nights", releaseDate: "1993-12-17", type: "expansion" },
-        { code: "MID", name: "Innistrad: Midnight Hunt", releaseDate: "2021-09-24", type: "expansion" },
+        {
+          code: "MID",
+          name: "Innistrad: Midnight Hunt",
+          releaseDate: "2021-09-24",
+          type: "expansion",
+        },
       ],
     });
 

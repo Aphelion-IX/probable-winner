@@ -109,7 +109,9 @@ export async function getCustomerAlerts() {
     throw new Error("Failed to fetch restock alerts");
   }
 
-  const priceAlerts: CustomerPriceAlert[] = ((priceAlertsData.data || []) as unknown as PriceAlertRow[]).map((alert: PriceAlertRow) => ({
+  const priceAlerts: CustomerPriceAlert[] = (
+    (priceAlertsData.data || []) as unknown as PriceAlertRow[]
+  ).map((alert: PriceAlertRow) => ({
     id: alert.id,
     card_printing_id: alert.card_printing_id,
     card_name: alert.card_printings?.[0]?.cards?.name || "Unknown",
@@ -122,7 +124,9 @@ export async function getCustomerAlerts() {
     created_at: alert.created_at,
   }));
 
-  const restockAlerts: CustomerRestockAlert[] = ((restockAlertsData.data || []) as unknown as RestockAlertRow[]).map((alert: RestockAlertRow) => ({
+  const restockAlerts: CustomerRestockAlert[] = (
+    (restockAlertsData.data || []) as unknown as RestockAlertRow[]
+  ).map((alert: RestockAlertRow) => ({
     id: alert.id,
     card_printing_id: alert.card_printing_id,
     card_name: alert.card_printings?.[0]?.cards?.name || "Unknown",

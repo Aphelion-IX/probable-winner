@@ -56,9 +56,7 @@ export function SearchFilters() {
       if (name === "colour") {
         const existing = params.getAll("colour") || [];
         params.delete("colour");
-        existing
-          .filter((c) => c !== value)
-          .forEach((c) => params.append("colour", c));
+        existing.filter((c) => c !== value).forEach((c) => params.append("colour", c));
       } else {
         params.delete(name);
       }
@@ -138,9 +136,7 @@ export function SearchFilters() {
               <Checkbox
                 id={`rarity-${rarity.id}`}
                 checked={isChecked("rarity", rarity.id)}
-                onCheckedChange={(checked) =>
-                  updateFilter("rarity", rarity.id, checked === true)
-                }
+                onCheckedChange={(checked) => updateFilter("rarity", rarity.id, checked === true)}
               />
               <Label htmlFor={`rarity-${rarity.id}`} className="text-sm">
                 {rarity.label}
@@ -182,9 +178,7 @@ export function SearchFilters() {
               <Checkbox
                 id={`finish-${finish.id}`}
                 checked={isChecked("finish", finish.id)}
-                onCheckedChange={(checked) =>
-                  updateFilter("finish", finish.id, checked === true)
-                }
+                onCheckedChange={(checked) => updateFilter("finish", finish.id, checked === true)}
               />
               <Label htmlFor={`finish-${finish.id}`} className="text-sm">
                 {finish.label}
@@ -204,9 +198,7 @@ export function SearchFilters() {
               <Checkbox
                 id={`colour-${colour.id}`}
                 checked={isChecked("colour", colour.id)}
-                onCheckedChange={(checked) =>
-                  updateFilter("colour", colour.id, checked === true)
-                }
+                onCheckedChange={(checked) => updateFilter("colour", colour.id, checked === true)}
               />
               <Label htmlFor={`colour-${colour.id}`} className="text-sm">
                 {colour.label}

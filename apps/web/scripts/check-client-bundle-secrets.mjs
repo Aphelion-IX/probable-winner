@@ -42,7 +42,9 @@ function main() {
   try {
     files = walk(STATIC_DIR);
   } catch (err) {
-    console.error(`check-client-bundle-secrets: could not read ${STATIC_DIR} — run "next build" first.`);
+    console.error(
+      `check-client-bundle-secrets: could not read ${STATIC_DIR} — run "next build" first.`,
+    );
     console.error(err.message);
     process.exit(1);
   }
@@ -74,7 +76,9 @@ function main() {
     process.exit(1);
   }
 
-  console.log(`check-client-bundle-secrets: OK — scanned ${files.length} client bundle file(s), no leaks found.`);
+  console.log(
+    `check-client-bundle-secrets: OK — scanned ${files.length} client bundle file(s), no leaks found.`,
+  );
 }
 
 main();

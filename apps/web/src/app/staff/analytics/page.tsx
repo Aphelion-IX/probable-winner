@@ -74,7 +74,9 @@ export default async function AnalyticsDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-muted-foreground">Avg Margin</p>
-              <p className="mt-2 text-3xl font-bold">{analytics.pricingStats.average_margin_percent.toFixed(1)}%</p>
+              <p className="mt-2 text-3xl font-bold">
+                {analytics.pricingStats.average_margin_percent.toFixed(1)}%
+              </p>
             </div>
             <TrendingUp className="h-8 w-8 opacity-50" />
           </div>
@@ -102,7 +104,10 @@ export default async function AnalyticsDashboard() {
                 <div key={trend.date} className="flex items-center justify-between gap-4">
                   <div className="w-24 text-sm font-medium">{trend.date}</div>
                   <div className="flex-1">
-                    <div className="h-8 rounded-lg bg-blue-100 dark:bg-blue-900" style={{ width: `${Math.min(100, (trend.count / 10) * 100)}%` }} />
+                    <div
+                      className="h-8 rounded-lg bg-blue-100 dark:bg-blue-900"
+                      style={{ width: `${Math.min(100, (trend.count / 10) * 100)}%` }}
+                    />
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold">{trend.count} orders</p>
@@ -141,7 +146,10 @@ export default async function AnalyticsDashboard() {
                 </tr>
               ) : (
                 analytics.popularCards.map((card) => (
-                  <tr key={`${card.card_name}-${card.set_name}`} className="border-b hover:bg-muted/50">
+                  <tr
+                    key={`${card.card_name}-${card.set_name}`}
+                    className="border-b hover:bg-muted/50"
+                  >
                     <td className="px-6 py-3 font-medium">{card.card_name}</td>
                     <td className="px-6 py-3 text-xs text-muted-foreground">{card.set_name}</td>
                     <td className="px-6 py-3 text-right font-semibold">{card.total_units}</td>
@@ -165,19 +173,27 @@ export default async function AnalyticsDashboard() {
           <div className="rounded-lg border p-6 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Cards in Review</span>
-              <span className="text-lg font-semibold">{analytics.pricingStats.cards_in_review}</span>
+              <span className="text-lg font-semibold">
+                {analytics.pricingStats.cards_in_review}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Auto-Approved</span>
-              <span className="text-lg font-semibold">{analytics.pricingStats.auto_approved_count}</span>
+              <span className="text-lg font-semibold">
+                {analytics.pricingStats.auto_approved_count}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Manual Approvals</span>
-              <span className="text-lg font-semibold">{analytics.pricingStats.manual_approved_count}</span>
+              <span className="text-lg font-semibold">
+                {analytics.pricingStats.manual_approved_count}
+              </span>
             </div>
             <div className="flex items-center justify-between border-t pt-4">
               <span className="text-sm font-semibold">Approval Rate</span>
-              <span className="text-lg font-bold">{analytics.pricingStats.approval_rate_percent.toFixed(1)}%</span>
+              <span className="text-lg font-bold">
+                {analytics.pricingStats.approval_rate_percent.toFixed(1)}%
+              </span>
             </div>
           </div>
         </div>
@@ -189,7 +205,9 @@ export default async function AnalyticsDashboard() {
               <div key={status.status}>
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium capitalize">{status.status}</span>
-                  <span className="text-muted-foreground">{status.count} ({status.percentage.toFixed(1)}%)</span>
+                  <span className="text-muted-foreground">
+                    {status.count} ({status.percentage.toFixed(1)}%)
+                  </span>
                 </div>
                 <div className="mt-2 h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
                   <div

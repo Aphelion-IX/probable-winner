@@ -32,9 +32,7 @@ export function FulfillmentMethod({ onSelect }: FulfillmentMethodProps) {
           <Store className="h-6 w-6 text-primary" />
           <div>
             <h3 className="font-semibold">Click &amp; Collect</h3>
-            <p className="text-xs text-muted-foreground">
-              Pick up at your nearest store
-            </p>
+            <p className="text-xs text-muted-foreground">Pick up at your nearest store</p>
           </div>
         </div>
       </button>

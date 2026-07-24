@@ -178,23 +178,29 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
   }
 
   const autoApproved = ((pricingData || []) as unknown as PricingRow[]).filter(
-    (p: PricingRow) => p.metadata?.published?.event_type === "pricing_approved" && !p.metadata?.overridden,
+    (p: PricingRow) =>
+      p.metadata?.published?.event_type === "pricing_approved" && !p.metadata?.overridden,
   ).length;
-  const manualApproved = ((pricingData || []) as unknown as PricingRow[]).filter((p: PricingRow) => p.status === "approved").length;
-  const cardsInReview = ((pricingData || []) as unknown as PricingRow[]).filter((p: PricingRow) => p.status === "suggested").length;
+  const manualApproved = ((pricingData || []) as unknown as PricingRow[]).filter(
+    (p: PricingRow) => p.status === "approved",
+  ).length;
+  const cardsInReview = ((pricingData || []) as unknown as PricingRow[]).filter(
+    (p: PricingRow) => p.status === "suggested",
+  ).length;
 
   const pricingStats: PricingStats = {
     average_margin_percent: 25, // Placeholder - would calculate from actual prices
     cards_in_review: cardsInReview,
     auto_approved_count: autoApproved,
     manual_approved_count: manualApproved,
-    approval_rate_percent: autoApproved + manualApproved > 0 ? ((autoApproved + manualApproved) / (pricingData?.length || 1)) * 100 : 0,
+    approval_rate_percent:
+      autoApproved + manualApproved > 0
+        ? ((autoApproved + manualApproved) / (pricingData?.length || 1)) * 100
+        : 0,
   };
 
   // Get fulfillment breakdown
-  const { data: allOrders, error: allOrdersError } = await supabase
-    .from("orders")
-    .select("status");
+  const { data: allOrders, error: allOrdersError } = await supabase.from("orders").select("status");
 
   if (allOrdersError) {
     logger.error("Analytics: fetch all orders failed", {
@@ -235,7 +241,10 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
   const exceptionCount = exceptionsData?.length || 0;
 
   // Calculate total revenue
-  const totalRevenue = ((ordersData || []) as unknown as OrderRow[]).reduce((sum: number, order: OrderRow) => sum + order.total_amount, 0);
+  const totalRevenue = ((ordersData || []) as unknown as OrderRow[]).reduce(
+    (sum: number, order: OrderRow) => sum + order.total_amount,
+    0,
+  );
 
   return {
     orderTrends,

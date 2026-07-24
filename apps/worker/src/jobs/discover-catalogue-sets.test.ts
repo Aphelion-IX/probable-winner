@@ -15,10 +15,7 @@ describe("selectSetsToEnqueue", () => {
   });
 
   it("excludes set codes already recorded as a succeeded import run", () => {
-    const codes = selectSetsToEnqueue(
-      [set("ARN"), set("MID"), set("NEO")],
-      new Set(["MID"]),
-    );
+    const codes = selectSetsToEnqueue([set("ARN"), set("MID"), set("NEO")], new Set(["MID"]));
 
     expect(codes).toEqual(["ARN", "NEO"]);
   });

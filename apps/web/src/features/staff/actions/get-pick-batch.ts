@@ -115,8 +115,8 @@ export async function getPickBatch(batchId: string): Promise<PickBatchDetail> {
   const lineIds = (batch.pick_lines || []).map((line: PickLineRow) => line.order_line_id);
 
   if (lineIds.length === 0) {
-    const nodeName = (batch.fulfillment_node as unknown as BatchFulfilmentNode[] | null)?.[0]
-      ?.name || "";
+    const nodeName =
+      (batch.fulfillment_node as unknown as BatchFulfilmentNode[] | null)?.[0]?.name || "";
     return {
       id: batch.id,
       fulfilment_node_id: batch.fulfilment_node_id,
@@ -168,8 +168,8 @@ export async function getPickBatch(batchId: string): Promise<PickBatchDetail> {
   }
 
   const detailsMap = new Map(
-    ((lineDetails as unknown) as LineDetail[] | null)?.map((line: LineDetail) => [line.id, line]) ||
-      []
+    (lineDetails as unknown as LineDetail[] | null)?.map((line: LineDetail) => [line.id, line]) ||
+      [],
   );
 
   const enrichedLines: PickLineItem[] = (batch.pick_lines || [])
@@ -203,8 +203,8 @@ export async function getPickBatch(batchId: string): Promise<PickBatchDetail> {
 
   const totalItems = enrichedLines.reduce((sum, line) => sum + line.quantity_to_pick, 0);
   const pickedItems = enrichedLines.reduce((sum, line) => sum + line.quantity_picked, 0);
-  const nodeName = (batch.fulfillment_node as unknown as BatchFulfilmentNode[] | null)?.[0]
-    ?.name || "";
+  const nodeName =
+    (batch.fulfillment_node as unknown as BatchFulfilmentNode[] | null)?.[0]?.name || "";
 
   return {
     id: batch.id,

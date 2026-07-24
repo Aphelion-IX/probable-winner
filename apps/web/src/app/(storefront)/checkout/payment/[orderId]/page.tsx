@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2, AlertCircle } from "lucide-react";
 
 interface PaymentPageProps {
   params: {
@@ -18,16 +18,16 @@ export default function PaymentPage({ params }: PaymentPageProps) {
   useEffect(() => {
     const createCheckoutSession = async () => {
       try {
-        const response = await fetch('/api/checkout/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const response = await fetch("/api/checkout/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderId: params.orderId }),
         });
 
         const data = await response.json();
 
         if (!data.success || !data.sessionUrl) {
-          setError(data.error || 'Failed to create checkout session');
+          setError(data.error || "Failed to create checkout session");
           setIsLoading(false);
           return;
         }
@@ -35,7 +35,7 @@ export default function PaymentPage({ params }: PaymentPageProps) {
         // Redirect to Stripe Checkout
         router.push(data.sessionUrl);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
+        setError(err instanceof Error ? err.message : "An error occurred");
         setIsLoading(false);
       }
     };

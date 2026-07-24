@@ -8,6 +8,8 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "enqueue-catalogue-import": "tsx src/scripts/enqueue-catalogue-import.ts",
+    "reindex-search": "tsx src/scripts/reindex-search.ts",
+    "update-popularity-scores": "tsx src/scripts/update-popularity-scores.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "test": "vitest run",
@@ -19,7 +21,8 @@
     "@supabase/supabase-js": "^2.110.8",
     "justtcg-js": "^0.2.1",
     "mtggraphql": "^1.0.2",
-    "postgres": "^3.4.7"
+    "postgres": "^3.4.7",
+    "typesense": "^3.0.6"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

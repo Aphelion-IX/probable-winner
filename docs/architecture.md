@@ -475,6 +475,13 @@ inventory_balances
 Do not calculate live availability by summing the full movement ledger whenever
 a customer opens a page.
 
+`inventory_balances` also carries an optional `storage_location_id`
+(nullable — not every store has location-tagged stock yet), recording
+where a SKU's stock physically sits within a node. This is what pick-batch
+generation sorts by to minimize walking distance (§11's picking workflow);
+a SKU with no location assigned yet sorts last rather than blocking batch
+creation.
+
 ### 9.2 Inventory movement ledger
 
 Every stock change creates an immutable movement:
@@ -575,6 +582,46 @@ rule prefers warehouse stock strongly enough to justify the extra handling.
 
 The routing decision should be stored in `order_allocations`: `order_line_id`,
 `fulfilment_node_id`, `quantity`, `routing_reason`, `allocation_status`.
+
+### 11.1 Current implementation status
+
+The priority-scored algorithm above is implemented and tested
+(`@probable-winner/routing`, including this section's Melbourne
+18-of-20-vs-20-of-20 example and real dispatch-cutoff/transfer-time logic),
+but it only makes a *live* choice among nodes when one genuinely exists.
+`reserve_inventory()` already commits each cart line to a specific
+fulfilment node at add-to-cart time (the customer's selected/preferred
+store), so by checkout there is no remaining live choice for those units —
+running the scoring algorithm again at that point would be theatre, not a
+real decision. What checkout actually does (`createPendingOrder()`) is
+classify the already-committed node using this section's same priority
+vocabulary (`click_and_collect_store`, `warehouse_priority`,
+`single_complete_order_store`, `split_minimum_nodes`) and persist that to
+`order_allocations` for every line, so the audit trail is real even though
+the decision point has effectively already happened at cart time.
+
+`orders` carries a single `fulfilment_node_id` — it does not yet support a
+genuinely split multi-node order. When a cart's lines are reserved across
+more than one node, the node covering the largest quantity becomes the
+order's primary node; every line's real allocation (including ones at a
+different node) is still recorded in `order_allocations`, but `orders`/
+`shipments` cannot yet represent "this order shipped from three different
+stores." Full split-shipment support needs that schema extended — a larger,
+deliberate change, not attempted as part of this pass.
+
+`route_order()`'s full scoring (including the split-order fallback branch)
+does have a genuine live-decision use case: choosing which node
+`reserve_inventory()` reserves *from* when a customer adds an online-
+shipping item to their cart, rather than committing to whatever node the
+storefront happens to be browsing. That integration point is still not
+wired up: `addToCart()` (`apps/web/src/app/actions/add-to-cart.ts`) is now
+reachable from the storefront UI (the card identity page's SKU selector)
+and resolves a real cart/store/reservation via `get_or_create_cart()` and
+`add_to_cart()`, but its store choice is a placeholder — the first active
+store with `allows_online_fulfilment`, not `route_order()`'s scoring — and
+there's still no durable "customer's preferred store" mechanism (the
+navbar's store selector is local UI state only, not persisted or wired
+into any write path) to feed a real choice in.
 
 ## 12. Store transfer support
 
@@ -913,6 +960,32 @@ significantly increase query time.
 
 Never expose the Supabase service-role key to the browser.
 
+### 18.1 Current implementation status
+
+`staff_has_permission()` checks a `role_permissions` join table mapping
+each role to its permissions, but that table shipped with `roles` and
+`permissions` seeded individually and no rows ever inserted connecting the
+two — every permission check returned false for every role until this was
+found. Only the `pricing.*` mappings (`pricing_manager`/`owner`/
+`system_admin` → `pricing.view`/`pricing.approve`/`pricing.override`) are
+seeded so far, enough to make the pricing review queue's permission checks
+actually work. The rest of the matrix in this section — which roles get
+`inventory.*`, `orders.*`, `stores.*`, `users.*`, `catalogue.*` — is still
+empty and needs its own deliberate pass; that mapping is a product
+decision, not something to infer from the role/permission names alone.
+
+Separately: a `SECURITY DEFINER` function's own body must call
+`staff_has_permission()` (or an equivalent check) explicitly if it should
+be permission-gated — RLS policies on the table it writes to do not apply
+to a security-definer function's internal statements, since RLS is not
+enforced against the function owner. `approve_suggested_price()`/
+`override_suggested_price()`/`reject_suggested_price()` had exactly this
+gap (an RLS policy existed and looked like protection, but the functions
+themselves never checked anything), which let any authenticated user
+approve or override any price until fixed. Any new security-definer
+mutation function should check permissions itself, not rely on the target
+table's RLS policy alone.
+
 ## 19. API and command boundaries
 
 Server Actions: use for authenticated application mutations such as updating
@@ -1180,3 +1253,25 @@ The defining competitive advantages should be: faster than MTG MATE; better
 search than MTG MATE; clearer condition-level stock; better deck-list
 purchasing; true multi-store availability; faster click and collect; better
 pricing intelligence; stronger warehouse operations.
+
+### 30.1 Why not a hosted platform (Shopify, etc.)
+
+A hosted e-commerce platform's product/variant model is built for goods with
+a handful of simple variants (size, colour) — it does not natively express
+this platform's actual unit of sale: printing + language + finish +
+condition (§8.3), nor the inventory ledger states a sale must respect
+(reserved/allocated/quarantined/safety-stock, §9), nor store-to-store
+transfer logistics (§12), nor order routing that prefers one store fulfilling
+a whole order over splitting it with a warehouse (§11). These aren't
+presentation details a plugin or app layer bolts on; they're the data model
+the rest of this platform is built around, and forcing them onto a platform
+designed for simpler variants means fighting its assumptions rather than
+using them.
+
+The honest tradeoff: a hosted platform gives you PCI compliance surface,
+checkout hardening, and uptime for free. Building custom means this backlog
+is the cost of owning all of that ourselves. That cost is only worth paying
+because the competitive advantages listed above — better search, clearer
+condition-level stock, true multi-store availability, better deck-list
+purchasing — are specifically the things a generic platform doesn't give you
+out of the box.

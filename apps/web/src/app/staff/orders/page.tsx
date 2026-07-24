@@ -82,9 +82,7 @@ export default async function StaffOrdersPage() {
                       currency: order.currency,
                     }).format(order.total_amount)}
                   </td>
-                  <td className="px-4 py-3 text-xs font-mono">
-                    {order.fulfillment_node.code}
-                  </td>
+                  <td className="px-4 py-3 text-xs font-mono">{order.fulfillment_node.code}</td>
                   <td className="px-4 py-3 text-xs">
                     {new Date(order.created_at).toLocaleDateString("en-AU", {
                       month: "short",

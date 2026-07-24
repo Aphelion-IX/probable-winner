@@ -1,4 +1,4 @@
-import { PricingProvider, ImportedPrice } from '../types.js';
+import { PricingProvider, ImportedPrice, MappingException } from "../types.js";
 
 interface CardKingdomProduct {
   id: string;
@@ -20,23 +20,38 @@ interface CardKingdomResponse {
 
 export class CardKingdomAdapter implements PricingProvider {
   private apiKey: string;
-  private baseUrl = 'https://api.cardkingdom.com/api/v1';
+  private baseUrl = "https://api.cardkingdom.com/api/v1";
+  private exceptions: MappingException[] = [];
+  private onMappingException?: (exception: MappingException) => void | Promise<void>;
 
-  constructor(apiKey: string) {
+  constructor(
+    apiKey: string,
+    onMappingException?: (exception: MappingException) => void | Promise<void>,
+  ) {
     this.apiKey = apiKey;
+    this.onMappingException = onMappingException;
+  }
+
+  // Mapping exceptions recorded during the most recent fetchPrices() call
+  // (blueprint §15.2, B-152's AC: unresolved products are recorded, not
+  // dropped silently). This package has no database dependency, so
+  // recording means "queryable here and forwarded to onMappingException if
+  // the caller provided one" -- persisting to price_import_exceptions is
+  // the caller's job, since only it has a Postgres connection.
+  getMappingExceptions(): MappingException[] {
+    return this.exceptions;
   }
 
   async fetchPrices(
-    identifiers: Array<{ cardId: string; oracleId?: string }>
+    identifiers: Array<{ cardId: string; oracleId?: string }>,
   ): Promise<ImportedPrice[]> {
+    this.exceptions = [];
     try {
       // Card Kingdom requires oracle_id based lookups
       // Filter identifiers that have oracle_id (Card Kingdom primary key)
-      const validIdentifiers = identifiers.filter(
-        (id) => id.oracleId && id.oracleId.trim() !== ''
-      );
+      const validIdentifiers = identifiers.filter((id) => id.oracleId && id.oracleId.trim() !== "");
       const unmappedIdentifiers = identifiers.filter(
-        (id) => !id.oracleId || id.oracleId.trim() === ''
+        (id) => !id.oracleId || id.oracleId.trim() === "",
       );
 
       const prices: ImportedPrice[] = [];
@@ -45,7 +60,7 @@ export class CardKingdomAdapter implements PricingProvider {
       for (const unmapped of unmappedIdentifiers) {
         await this.recordMappingException(
           unmapped.cardId,
-          'Missing oracle_id required for Card Kingdom lookup'
+          "Missing oracle_id required for Card Kingdom lookup",
         );
       }
 
@@ -66,13 +81,10 @@ export class CardKingdomAdapter implements PricingProvider {
           // }
         } catch (error) {
           // Record lookup failure
-          console.error(
-            `Card Kingdom lookup failed for oracle_id ${identifier.oracleId}:`,
-            error
-          );
+          console.error(`Card Kingdom lookup failed for oracle_id ${identifier.oracleId}:`, error);
           await this.recordMappingException(
             identifier.cardId,
-            `API lookup failed: ${String(error)}`
+            `API lookup failed: ${String(error)}`,
           );
           // Don't throw - continue processing
         }
@@ -80,7 +92,7 @@ export class CardKingdomAdapter implements PricingProvider {
 
       return prices;
     } catch (error) {
-      console.error('Card Kingdom adapter fatal error:', error);
+      console.error("Card Kingdom adapter fatal error:", error);
       throw new Error(`Card Kingdom adapter failed: ${String(error)}`);
     }
   }
@@ -101,14 +113,14 @@ export class CardKingdomAdapter implements PricingProvider {
     }
   }
 
-  private async recordMappingException(
-    cardId: string,
-    reason: string
-  ): Promise<void> {
-    // In production: store in price_import_exceptions table
-    // Blueprint §15.2: mapping exceptions recorded not dropped silently
-    console.warn(
-      `Mapping exception for Card Kingdom card ${cardId}: ${reason}`
-    );
+  private async recordMappingException(cardId: string, reason: string): Promise<void> {
+    const exception: MappingException = {
+      cardId,
+      source: "card_kingdom",
+      reason,
+      recordedAt: new Date(),
+    };
+    this.exceptions.push(exception);
+    await this.onMappingException?.(exception);
   }
 }

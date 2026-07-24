@@ -1,26 +1,17 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 import { AlertCircle, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-interface CartLine {
-  id: string;
-  sellableSkuId: string;
-  quantity: number;
-  priceAtAdd: number;
-  cardName: string;
-  setCode: string;
-  rarity: string;
-  condition: string;
-  finish: string;
-  reservationId: string;
-  reservationExpiresAt: string;
-  currentPrice?: number;
-  isAvailable: boolean;
-}
+import { removeCartLine, updateCartLineQuantity } from "@/features/cart/actions/update-cart-line";
+import type { CartContentsLine } from "@/features/cart/queries/get-cart-contents";
 
 interface CartLineItemProps {
-  line: CartLine;
+  line: CartContentsLine;
 }
 
 const priceFormatter = new Intl.NumberFormat("en-AU", {
@@ -36,8 +27,45 @@ const dateFormatter = new Intl.DateTimeFormat("en-AU", {
 });
 
 export function CartLineItem({ line }: CartLineItemProps) {
-  const priceChanged = line.currentPrice && line.currentPrice !== line.priceAtAdd;
-  const priceIncreased = priceChanged && (line.currentPrice || 0) > line.priceAtAdd;
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function changeQuantity(newQuantity: number) {
+    setPending(true);
+    setError(null);
+    try {
+      const result = await updateCartLineQuantity(line.cartLineId, newQuantity);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update quantity");
+      Sentry.captureException(err);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function handleRemove() {
+    setPending(true);
+    setError(null);
+    try {
+      const result = await removeCartLine(line.cartLineId);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove item");
+      Sentry.captureException(err);
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
     <div className="rounded-lg border p-4">
@@ -48,41 +76,35 @@ export function CartLineItem({ line }: CartLineItemProps) {
               <h3 className="font-medium">{line.cardName}</h3>
               <p className="text-xs text-muted-foreground">
                 {line.setCode} · {line.rarity}
-                {line.finish !== "nonfoil" && (
+                {line.finishCode !== "nonfoil" && (
                   <>
                     {" "}
                     <Badge variant="outline" className="ml-1">
-                      {line.finish === "foil" ? "Foil" : "Etched"}
+                      {line.finishName}
                     </Badge>
                   </>
                 )}
               </p>
-              <p className="text-xs text-muted-foreground">
-                Condition: {line.condition.toUpperCase()}
-              </p>
+              <p className="text-xs text-muted-foreground">Condition: {line.conditionName}</p>
             </div>
           </div>
 
           <div className="mt-3 space-y-2">
-            {priceChanged && (
-              <div className="flex items-center gap-2 rounded bg-amber-50 p-2 text-xs text-amber-900">
+            {line.price == null && (
+              <div className="flex items-center gap-2 rounded bg-red-50 p-2 text-xs text-red-900 dark:bg-red-950 dark:text-red-100">
                 <AlertCircle className="size-4 shrink-0" />
-                <span>
-                  Price changed from {priceFormatter.format(line.priceAtAdd)} to{" "}
-                  {priceFormatter.format(line.currentPrice || 0)}
-                  {priceIncreased ? " ↑" : " ↓"}
-                </span>
+                <span>This item is no longer available for sale</span>
               </div>
             )}
 
-            {!line.isAvailable && (
-              <div className="flex items-center gap-2 rounded bg-red-50 p-2 text-xs text-red-900">
+            {error && (
+              <div className="flex items-center gap-2 rounded bg-red-50 p-2 text-xs text-red-900 dark:bg-red-950 dark:text-red-100">
                 <AlertCircle className="size-4 shrink-0" />
-                <span>This item is no longer available</span>
+                <span>{error}</span>
               </div>
             )}
 
-            {line.isAvailable && (
+            {line.price != null && line.reservationExpiresAt && (
               <p className="text-xs text-muted-foreground">
                 Reserved until {dateFormatter.format(new Date(line.reservationExpiresAt))}
               </p>
@@ -92,11 +114,17 @@ export function CartLineItem({ line }: CartLineItemProps) {
 
         <div className="flex flex-col items-end gap-2 text-right">
           <div className="text-lg font-semibold">
-            {priceFormatter.format((line.currentPrice || line.priceAtAdd) * line.quantity)}
+            {line.price != null ? priceFormatter.format(line.price * line.quantity) : "Unavailable"}
           </div>
 
           <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0"
+              disabled={pending || line.quantity <= 1}
+              onClick={() => changeQuantity(line.quantity - 1)}
+            >
               −
             </Button>
             <Input
@@ -106,7 +134,13 @@ export function CartLineItem({ line }: CartLineItemProps) {
               className="h-8 w-12 text-center p-0"
               readOnly
             />
-            <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-8 p-0"
+              disabled={pending}
+              onClick={() => changeQuantity(line.quantity + 1)}
+            >
               +
             </Button>
           </div>
@@ -114,8 +148,10 @@ export function CartLineItem({ line }: CartLineItemProps) {
           <Button
             variant="ghost"
             size="sm"
+            aria-label="Remove"
             className="h-8 text-destructive hover:text-destructive"
-            disabled
+            disabled={pending}
+            onClick={handleRemove}
           >
             <Trash2 className="size-4" />
           </Button>

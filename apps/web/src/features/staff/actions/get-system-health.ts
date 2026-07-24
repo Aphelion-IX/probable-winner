@@ -61,21 +61,24 @@ export async function getSystemHealth(): Promise<SystemHealth> {
     throw new Error("Failed to fetch import failure summary");
   }
 
-  const queues: QueueHealthStatus[] = ((queueResult.data ?? []) as QueueMetricsRow[]).map((row) => ({
-    queueName: row.queue_name,
-    queueLength: row.queue_length,
-    oldestMsgAgeSeconds: row.oldest_msg_age_sec,
-    healthy:
-      row.oldest_msg_age_sec === null || row.oldest_msg_age_sec <= QUEUE_STALENESS_THRESHOLD_SECONDS,
-  }));
-
-  const importFailures: ImportFailureStatus[] = ((importResult.data ?? []) as ImportFailureRow[]).map(
+  const queues: QueueHealthStatus[] = ((queueResult.data ?? []) as QueueMetricsRow[]).map(
     (row) => ({
-      source: row.source,
-      failedRunCount: row.failed_run_count,
-      mostRecentFailureAt: row.most_recent_failure_at,
+      queueName: row.queue_name,
+      queueLength: row.queue_length,
+      oldestMsgAgeSeconds: row.oldest_msg_age_sec,
+      healthy:
+        row.oldest_msg_age_sec === null ||
+        row.oldest_msg_age_sec <= QUEUE_STALENESS_THRESHOLD_SECONDS,
     }),
   );
+
+  const importFailures: ImportFailureStatus[] = (
+    (importResult.data ?? []) as ImportFailureRow[]
+  ).map((row) => ({
+    source: row.source,
+    failedRunCount: row.failed_run_count,
+    mostRecentFailureAt: row.most_recent_failure_at,
+  }));
 
   return { queues, importFailures };
 }

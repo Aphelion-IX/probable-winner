@@ -92,9 +92,7 @@ export function StoreSelection({ onSelect, selectedStore }: StoreSelectionProps)
         </button>
       ))}
 
-      {selectedStore && (
-        <Button className="w-full mt-4">Continue</Button>
-      )}
+      {selectedStore && <Button className="w-full mt-4">Continue</Button>}
     </div>
   );
 }

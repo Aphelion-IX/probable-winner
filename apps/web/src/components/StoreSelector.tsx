@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { ChevronDown } from "lucide-react";
 
 interface Store {
   id: string;
@@ -10,13 +10,13 @@ interface Store {
 
 export function StoreSelector() {
   const [stores, setStores] = useState<Store[]>([]);
-  const [selectedStore, setSelectedStore] = useState<string>('');
+  const [selectedStore, setSelectedStore] = useState<string>("");
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     async function fetchStores() {
       try {
-        const response = await fetch('/api/stores');
+        const response = await fetch("/api/stores");
         if (response.ok) {
           const data = await response.json();
           setStores(data);
@@ -25,7 +25,7 @@ export function StoreSelector() {
           }
         }
       } catch (error) {
-        console.error('Failed to fetch stores:', error);
+        console.error("Failed to fetch stores:", error);
       }
     }
 
@@ -40,7 +40,7 @@ export function StoreSelector() {
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-background hover:bg-muted transition"
       >
-        <span className="text-sm">{selectedStoreData?.name || 'Select store'}</span>
+        <span className="text-sm">{selectedStoreData?.name || "Select store"}</span>
         <ChevronDown className="w-4 h-4" />
       </button>
 
@@ -54,7 +54,7 @@ export function StoreSelector() {
                 setOpen(false);
               }}
               className={`w-full text-left px-4 py-2 hover:bg-muted transition ${
-                selectedStore === store.id ? 'bg-muted' : ''
+                selectedStore === store.id ? "bg-muted" : ""
               }`}
             >
               {store.name}

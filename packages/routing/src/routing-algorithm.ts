@@ -1,4 +1,4 @@
-// Order routing algorithm (blueprint §11, backlog B-131-B-132).
+// Order routing algorithm (blueprint §11, backlog B-131/B-132).
 // Routes orders to fulfilment nodes following a strict priority order:
 // 1. Click-and-collect store (if fulfillment type is click_and_collect)
 // 2. Warehouse priority (warehouse nodes before stores)
@@ -9,8 +9,6 @@
 // 7. Shipping cost (minimize shipping cost)
 // 8. Safety stock (respect safety stock policies)
 // 9. Split required (allow splitting if all else fails)
-
-import type { Sql } from "postgres";
 
 export interface FulfilmentNode {
   id: string;
@@ -57,11 +55,36 @@ function estimateShippingCost(nodeRegion: string | undefined, customerRegion: st
   return 5; // Different region = higher cost
 }
 
-// Check if a node respects dispatch cutoff (simplified: assume orders placed before cutoff)
-function respects_dispatch_cutoff(node: FulfilmentNode): boolean {
-  // In production: compare current time to dispatch_cutoff in node's timezone
-  // For now, assume all nodes respect cutoff if they have one
-  return !node.dispatch_cutoff || true;
+// Same-region/cross-region heuristic as estimateShippingCost, applied to
+// transfer lead time in days (blueprint §11 priority 6, B-132's "factors in
+// transfer lead time when a transfer would be required to fulfil"). A real
+// implementation would look up actual transfer_orders history per node
+// pair; this repo has no such recorded lead-time data yet, so cross-region
+// transfers are modelled as a flat 3-day penalty and same-region as 1 day.
+function estimateTransferTimeDays(nodeRegion: string | undefined, customerRegion: string): number {
+  if (nodeRegion === customerRegion) return 1;
+  return 3;
+}
+
+// Real dispatch-cutoff check: compares "now" (in the node's timezone) to the
+// node's dispatch_cutoff time-of-day. A node with no configured cutoff
+// always respects it. `now` is a parameter (not `new Date()` inline) so
+// callers -- and tests -- can exercise both sides of the cutoff
+// deterministically.
+function respects_dispatch_cutoff(node: FulfilmentNode, now: Date): boolean {
+  if (!node.dispatch_cutoff) return true;
+
+  const nowInNodeTz = new Intl.DateTimeFormat("en-AU", {
+    timeZone: node.timezone,
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(now);
+
+  // Intl formats as "HH:MM:SS" (en-AU, hour12: false); dispatch_cutoff is
+  // stored the same way, so a plain string compare works for time-of-day.
+  return nowInNodeTz <= node.dispatch_cutoff;
 }
 
 // Priority scoring function (lower is better)
@@ -85,8 +108,16 @@ function score_node_for_routing(node: FulfilmentNode, context: ScoringContext): 
   }
 
   // Dispatch cutoff compliance
-  if (!respects_dispatch_cutoff(node)) {
+  if (!respects_dispatch_cutoff(node, context.current_time)) {
     score += 1000; // Severe penalty for cutoff violations
+  }
+
+  // Transfer time: only relevant for nodes that would need to move stock
+  // in from elsewhere (warehouse/distribution_centre) to reach the
+  // customer's region -- a store fulfils from its own shelf, not a
+  // transfer, so it isn't penalised here.
+  if (node.type === "warehouse" || node.type === "distribution_centre") {
+    score += estimateTransferTimeDays(node.region, context.customer_region) * 20;
   }
 
   // Shipping cost (if applicable for online shipment)
@@ -95,9 +126,9 @@ function score_node_for_routing(node: FulfilmentNode, context: ScoringContext): 
   // Safety stock consideration (prefer nodes with higher availability)
   let total_available = 0;
   for (const line of context.order_lines) {
-    const avail = context.sku_availability
-      .get(line.sku_id)
-      ?.find((a) => a.node_id === node.id)?.quantity_available ?? 0;
+    const avail =
+      context.sku_availability.get(line.sku_id)?.find((a) => a.node_id === node.id)
+        ?.quantity_available ?? 0;
     total_available += avail;
   }
   score += Math.max(0, 100 - total_available); // Lower score if high availability
@@ -112,9 +143,9 @@ function can_fulfill_complete_order(
   sku_availability: Map<string, SKUAvailability[]>,
 ): boolean {
   for (const line of lines) {
-    const avail = sku_availability
-      .get(line.sku_id)
-      ?.find((a) => a.node_id === node.id)?.quantity_available ?? 0;
+    const avail =
+      sku_availability.get(line.sku_id)?.find((a) => a.node_id === node.id)?.quantity_available ??
+      0;
     if (avail < line.quantity) {
       return false;
     }
@@ -128,12 +159,13 @@ export async function route_order(
   available_nodes: FulfilmentNode[],
   sku_availability: Map<string, SKUAvailability[]>,
   customer_region: string,
+  now: Date = new Date(),
 ): Promise<RoutingAllocation[]> {
   const allocations: RoutingAllocation[] = [];
   const context: ScoringContext = {
     order_lines: order.lines,
     sku_availability,
-    current_time: new Date(),
+    current_time: now,
     customer_region,
   };
 
@@ -186,9 +218,9 @@ export async function route_order(
       let allocation_count = 0;
 
       for (const line of remaining_lines) {
-        const avail = sku_availability
-          .get(line.sku_id)
-          ?.find((a) => a.node_id === node.id)?.quantity_available ?? 0;
+        const avail =
+          sku_availability.get(line.sku_id)?.find((a) => a.node_id === node.id)
+            ?.quantity_available ?? 0;
         if (avail >= line.quantity) {
           can_fulfill_from_this_node = true;
           allocation_count++;
@@ -211,9 +243,9 @@ export async function route_order(
 
     for (let i = 0; i < remaining_lines.length; i++) {
       const line = remaining_lines[i];
-      const avail = sku_availability
-        .get(line.sku_id)
-        ?.find((a) => a.node_id === best_node!.id)?.quantity_available ?? 0;
+      const avail =
+        sku_availability.get(line.sku_id)?.find((a) => a.node_id === best_node!.id)
+          ?.quantity_available ?? 0;
 
       if (avail >= line.quantity) {
         allocations.push({
@@ -234,27 +266,24 @@ export async function route_order(
   return allocations;
 }
 
-// Store allocations in database
-export async function persist_allocations(
-  sql: Sql,
-  order_id: string,
-  allocations: RoutingAllocation[],
-): Promise<void> {
-  if (allocations.length === 0) {
-    return;
+// Classifies why a given node fulfils an order, for cases where the node
+// was already decided (e.g. by an existing inventory reservation) rather
+// than chosen live by route_order() -- still using the same priority
+// vocabulary, so order_allocations.routing_reason is consistent regardless
+// of which path produced it. See B-130's AC: every allocation decision
+// must be persisted and auditable.
+export function classify_allocation_reason(
+  node: Pick<FulfilmentNode, "type">,
+  fulfillment_type: RoutingInput["fulfillment_type"],
+  is_only_node_for_order: boolean,
+): string {
+  if (fulfillment_type === "click_and_collect") {
+    return "click_and_collect_store";
   }
-
-  // In production, this would:
-  // 1. Look up order_line_id for each sku_id in the order
-  // 2. Build allocation_rows mapping sku to order_line_id
-  // 3. Insert into order_allocations table via SQL
-  // For now, this is stubbed pending integration with order_lines lookup
-  void order_id; // Silence unused variable warning in stub
-  void sql; // Silence unused variable warning in stub
-  allocations.forEach((alloc) => {
-    // Placeholder: would resolve sku_id to order_line_id here
-    void alloc.node_id;
-    void alloc.reason;
-    void alloc.quantity;
-  });
+  if (node.type === "warehouse") {
+    return "warehouse_priority";
+  }
+  return is_only_node_for_order ? "single_complete_order_store" : "split_minimum_nodes";
 }
+
+export { respects_dispatch_cutoff, estimateTransferTimeDays as estimate_transfer_time_days };

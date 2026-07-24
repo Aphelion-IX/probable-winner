@@ -7,7 +7,7 @@
 -- BEGIN/ROLLBACK so no fixture data was left behind).
 begin;
 
-select plan(14);
+select plan(16);
 
 -- Setup: create org, stores, pricing rule, SKU, and calculated prices.
 insert into pricing_rules (organisation_id, source_price_type, target_currency, margin_type, margin_value)
@@ -231,6 +231,27 @@ select ok(
     where tablename = 'published_prices' and policyname = 'published_prices_select'
   ),
   'RLS select policy exists on published_prices'
+);
+
+-- Test 15: RLS policy exists for public/customer access (B-102 — the
+-- storefront needs to show the current price without a staff session).
+select ok(
+  exists(
+    select 1 from pg_policies
+    where tablename = 'published_prices' and policyname = 'published_prices_select_public'
+  ),
+  'RLS select policy exists for anon/authenticated access to active published prices'
+);
+
+-- Test 16: the public policy is scoped to active status only, not a blanket
+-- grant — archived/suspended prices must stay off the storefront.
+select ok(
+  (
+    select qual like '%status = ''active''%' or qual like '%(status = ''active''::text)%'
+    from pg_policies
+    where tablename = 'published_prices' and policyname = 'published_prices_select_public'
+  ),
+  'public published_prices policy is scoped to active status only'
 );
 
 select finish();

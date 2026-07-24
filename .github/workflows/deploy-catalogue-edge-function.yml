@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       process_queue:
-        description: 'Trigger queue processing after deploy'
+        description: "Trigger queue processing after deploy"
         required: false
-        default: 'true'
+        default: "true"
         type: choice
         options:
-          - 'true'
-          - 'false'
+          - "true"
+          - "false"
 
 jobs:
   deploy:

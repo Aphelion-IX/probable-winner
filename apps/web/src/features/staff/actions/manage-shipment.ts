@@ -47,7 +47,7 @@ export async function getAvailableCarriers(): Promise<ShipmentCarrier[]> {
 
 export async function createShipmentForBatch(
   batchId: string,
-  carrierCode?: string
+  carrierCode?: string,
 ): Promise<Shipment> {
   const supabase = createServerSupabaseClient();
 
@@ -76,7 +76,7 @@ export async function createShipmentForBatch(
 export async function generateShipmentLabel(
   shipmentId: string,
   trackingNumber?: string,
-  labelUrl?: string
+  labelUrl?: string,
 ): Promise<void> {
   const supabase = createServerSupabaseClient();
 
@@ -131,7 +131,7 @@ export async function getShipmentsForBatch(batchId: string): Promise<Shipment[]>
       packed_at,
       shipped_at,
       created_at
-    `
+    `,
     )
     .eq("pick_batch_id", batchId)
     .order("created_at", { ascending: false });
@@ -146,24 +146,27 @@ export async function getShipmentsForBatch(batchId: string): Promise<Shipment[]>
   }
 
   return (
-    (shipments as unknown as Array<{
-      id: string;
-      pick_batch_id: string;
-      carrier_id: string | null;
-      carrier: ShipmentCarrier[] | null;
-      status: string;
-      tracking_number: string | null;
-      weight_kg: number | null;
-      label_url: string | null;
-      packed_at: string | null;
-      shipped_at: string | null;
-      created_at: string;
-    }> | null)?.map((s) => ({
+    (
+      shipments as unknown as Array<{
+        id: string;
+        pick_batch_id: string;
+        carrier_id: string | null;
+        carrier: ShipmentCarrier[] | null;
+        status: string;
+        tracking_number: string | null;
+        weight_kg: number | null;
+        label_url: string | null;
+        packed_at: string | null;
+        shipped_at: string | null;
+        created_at: string;
+      }> | null
+    )?.map((s) => ({
       id: s.id,
       pick_batch_id: s.pick_batch_id,
       carrier_id: s.carrier_id,
       carrier: (s.carrier as ShipmentCarrier[] | null)?.[0] || null,
-      status: s.status as "pending" | "packed" | "labeled" | "ready_to_ship" | "shipped" | "cancelled",
+      status: s.status as
+        "pending" | "packed" | "labeled" | "ready_to_ship" | "shipped" | "cancelled",
       tracking_number: s.tracking_number,
       weight_kg: s.weight_kg,
       label_url: s.label_url,

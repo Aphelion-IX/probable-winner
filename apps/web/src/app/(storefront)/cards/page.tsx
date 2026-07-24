@@ -71,7 +71,7 @@ export default async function CardsPage({
               {cards.map((card) => (
                 <CardTile
                   key={card.printingId}
-                  href={`/sets?q=${encodeURIComponent(card.setCode)}`}
+                  href={`/cards/${encodeURIComponent(card.name)}/${card.printingId}`}
                   name={card.name}
                   setCode={card.setCode}
                   rarity={card.rarity}

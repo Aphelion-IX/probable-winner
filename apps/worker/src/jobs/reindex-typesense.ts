@@ -1,161 +1,72 @@
 // Full Typesense reindex job (B-081, blueprint §13.3)
-// Rebuilds the entire search index from Postgres without affecting customer traffic
+// Rebuilds the entire search index from Postgres without affecting customer
+// traffic: builds the full document set, then upserts it into the existing
+// collection (creating the collection first if it doesn't exist yet) rather
+// than deleting and recreating, so searches keep working against the old
+// documents until each is overwritten.
 
-import { createClient } from '@supabase/supabase-js';
-import type { CardSearchDocument } from '@probable-winner/search';
+import type { Sql } from "postgres";
+import {
+  buildCardSearchDocument,
+  createTypesenseClient,
+  ensureCardsCollectionExists,
+  CARDS_COLLECTION_NAME,
+} from "@probable-winner/search";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { fetchSkuSearchRows } from "./fetch-sku-search-rows.js";
 
-// Mock Typesense client for local development (real client would use typesense npm package)
-interface TypesenseClient {
-  collections: (name: string) => {
-    delete: () => Promise<void>;
-    documents: () => {
-      import: (docs: CardSearchDocument[]) => Promise<{ success_imports: number }>;
-    };
-  };
-}
+const IMPORT_BATCH_SIZE = 1000;
 
-const typesenseClient: TypesenseClient = {
-  collections: (name: string) => ({
-    delete: async () => {
-      console.log(`[Mock] Deleted Typesense collection: ${name}`);
-    },
-    documents: () => ({
-      import: async (docs: CardSearchDocument[]) => {
-        console.log(
-          `[Mock] Imported ${docs.length} documents into Typesense collection: ${name}`
-        );
-        return { success_imports: docs.length };
-      },
-    }),
-  }),
+export type ReindexResult = {
+  status: "completed" | "failed";
+  documentsIndexed: number;
+  documentsFailed: number;
+  durationMs: number;
+  error?: string;
 };
 
-interface ReindexResult {
-  status: 'completed' | 'failed';
-  documents_indexed: number;
-  duration_ms: number;
-  error?: string;
-}
-
-export async function reindexTypesense(): Promise<ReindexResult> {
+export async function reindexTypesense(sql: Sql): Promise<ReindexResult> {
   const startTime = Date.now();
 
   try {
-    // Fetch all SKUs with current pricing and inventory from Postgres
-    const { data: skus, error: fetchError } = await supabase
-      .from('sellable_skus')
-      .select(
-        `
-        id,
-        card_printing_id,
-        language_id,
-        finish_id,
-        condition_id,
-        card_printings(
-          id,
-          card_id,
-          set_id,
-          collector_number,
-          card_images(image_url),
-          sets(code, name),
-          oracle_cards(name, type_line, mana_cost, cmc, rarity, artist_name),
-          card_identifiers(scryfall_id)
-        ),
-        languages(code),
-        finishes(name),
-        conditions(name)
-      `
-      )
-      .limit(10000);
+    const rows = await fetchSkuSearchRows(sql);
+    const documents = rows.map((row) => buildCardSearchDocument(row));
 
-    if (fetchError) {
-      return {
-        status: 'failed',
-        documents_indexed: 0,
-        duration_ms: Date.now() - startTime,
-        error: fetchError.message,
-      };
+    const client = createTypesenseClient();
+    await ensureCardsCollectionExists(client);
+
+    let documentsIndexed = 0;
+    let documentsFailed = 0;
+
+    for (let i = 0; i < documents.length; i += IMPORT_BATCH_SIZE) {
+      const batch = documents.slice(i, i + IMPORT_BATCH_SIZE);
+      const results = await client
+        .collections(CARDS_COLLECTION_NAME)
+        .documents()
+        .import(batch, { action: "upsert" });
+
+      for (const result of results) {
+        if (result.success) {
+          documentsIndexed += 1;
+        } else {
+          documentsFailed += 1;
+        }
+      }
     }
-
-    if (!skus || skus.length === 0) {
-      return {
-        status: 'completed',
-        documents_indexed: 0,
-        duration_ms: Date.now() - startTime,
-      };
-    }
-
-    // Supabase SDK returns any types; we need to accept this for query results
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    type SkuData = any;
-
-    // Transform SKUs into search documents
-    const documents = skus.map((sku: SkuData) => {
-      const cardPrinting = Array.isArray(sku.card_printings) ? sku.card_printings[0] : sku.card_printings;
-      const oracleCard = Array.isArray(cardPrinting?.oracle_cards) ? cardPrinting?.oracle_cards[0] : cardPrinting?.oracle_cards;
-      const setData = Array.isArray(cardPrinting?.sets) ? cardPrinting?.sets[0] : cardPrinting?.sets;
-
-      return {
-        id: sku.id,
-        oracle_id: cardPrinting?.card_id || '',
-        name: oracleCard?.name || '',
-        set_code: setData?.code || '',
-        set_name: setData?.name || '',
-        collector_number: cardPrinting?.collector_number || '',
-        rarity: (oracleCard?.rarity || 'common') as 'common' | 'uncommon' | 'rare' | 'mythic' | 'special',
-        artist: oracleCard?.artist_name || '',
-        colour_identity: [],
-        colour_count: 0,
-        mana_cost: oracleCard?.mana_cost || '',
-        cmc: oracleCard?.cmc || 0,
-        type_line: oracleCard?.type_line || '',
-        finish: (sku.finish_id || 'nonfoil') as 'nonfoil' | 'foil' | 'etched',
-        condition: (sku.condition_id || 'nm') as 'nm' | 'lp' | 'mp' | 'hp',
-        language: sku.language_id || 'en',
-        layout: 'normal',
-        legality: {},
-        price_amount: 0,
-        price_currency: 'AUD',
-        quantity_available: 0,
-        quantity_in_stores: {},
-        popularity_score: 0,
-        last_updated_at: Date.now(),
-      } as CardSearchDocument;
-    });
-
-    // Delete and recreate collection
-    await typesenseClient.collections('cards').delete();
-
-    // Import all documents
-    const result = await typesenseClient
-      .collections('cards')
-      .documents()
-      .import(documents);
 
     return {
-      status: 'completed',
-      documents_indexed: result.success_imports,
-      duration_ms: Date.now() - startTime,
+      status: "completed",
+      documentsIndexed,
+      documentsFailed,
+      durationMs: Date.now() - startTime,
     };
   } catch (error) {
     return {
-      status: 'failed',
-      documents_indexed: 0,
-      duration_ms: Date.now() - startTime,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      status: "failed",
+      documentsIndexed: 0,
+      documentsFailed: 0,
+      durationMs: Date.now() - startTime,
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
-}
-
-export async function handleReindexJob(): Promise<{ status: string }> {
-  const result = await reindexTypesense();
-  console.log(
-    `Reindex complete: ${result.documents_indexed} documents in ${result.duration_ms}ms`
-  );
-  return { status: result.status };
 }

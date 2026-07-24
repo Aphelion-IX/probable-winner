@@ -31,7 +31,7 @@ export function AddressForm({ onSubmit, initialValues }: AddressFormProps) {
       suburb: "",
       state: "NSW",
       postcode: "",
-    }
+    },
   );
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -79,27 +79,19 @@ export function AddressForm({ onSubmit, initialValues }: AddressFormProps) {
           type="text"
           placeholder="123 Main Street"
           value={formData.line1}
-          onChange={(e) =>
-            setFormData({ ...formData, line1: e.target.value })
-          }
+          onChange={(e) => setFormData({ ...formData, line1: e.target.value })}
           className={errors.line1 ? "border-destructive" : ""}
         />
-        {errors.line1 && (
-          <p className="text-xs text-destructive mt-1">{errors.line1}</p>
-        )}
+        {errors.line1 && <p className="text-xs text-destructive mt-1">{errors.line1}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">
-          Apartment, suite, etc. (optional)
-        </label>
+        <label className="block text-sm font-medium mb-1">Apartment, suite, etc. (optional)</label>
         <Input
           type="text"
           placeholder="Apartment 4B"
           value={formData.line2 || ""}
-          onChange={(e) =>
-            setFormData({ ...formData, line2: e.target.value })
-          }
+          onChange={(e) => setFormData({ ...formData, line2: e.target.value })}
         />
       </div>
 
@@ -110,23 +102,17 @@ export function AddressForm({ onSubmit, initialValues }: AddressFormProps) {
             type="text"
             placeholder="Sydney"
             value={formData.suburb}
-            onChange={(e) =>
-              setFormData({ ...formData, suburb: e.target.value })
-            }
+            onChange={(e) => setFormData({ ...formData, suburb: e.target.value })}
             className={errors.suburb ? "border-destructive" : ""}
           />
-          {errors.suburb && (
-            <p className="text-xs text-destructive mt-1">{errors.suburb}</p>
-          )}
+          {errors.suburb && <p className="text-xs text-destructive mt-1">{errors.suburb}</p>}
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1">State</label>
           <select
             value={formData.state}
-            onChange={(e) =>
-              setFormData({ ...formData, state: e.target.value })
-            }
+            onChange={(e) => setFormData({ ...formData, state: e.target.value })}
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
           >
             {STATES.map((state) => (
@@ -145,14 +131,10 @@ export function AddressForm({ onSubmit, initialValues }: AddressFormProps) {
           placeholder="2000"
           maxLength={4}
           value={formData.postcode}
-          onChange={(e) =>
-            setFormData({ ...formData, postcode: e.target.value })
-          }
+          onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
           className={errors.postcode ? "border-destructive" : ""}
         />
-        {errors.postcode && (
-          <p className="text-xs text-destructive mt-1">{errors.postcode}</p>
-        )}
+        {errors.postcode && <p className="text-xs text-destructive mt-1">{errors.postcode}</p>}
       </div>
 
       <Button type="submit" className="w-full">

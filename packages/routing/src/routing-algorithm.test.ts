@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
   route_order,
+  classify_allocation_reason,
+  respects_dispatch_cutoff,
   type FulfilmentNode,
   type RoutingInput,
-} from "./routing-algorithm.js";
+} from "./routing-algorithm";
 
 // Helper to create test nodes
 function create_node(
@@ -42,7 +44,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         ],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
         ["sku-1", [{ sku_id: "sku-1", node_id: "store-1", quantity_available: 5 }]],
         ["sku-2", [{ sku_id: "sku-2", node_id: "store-1", quantity_available: 5 }]],
       ]);
@@ -66,9 +71,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         lines: [{ order_line_id: "line-1", sku_id: "sku-1", quantity: 10 }],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
-        ["sku-1", [{ sku_id: "sku-1", node_id: "store-1", quantity_available: 5 }]],
-      ]);
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([["sku-1", [{ sku_id: "sku-1", node_id: "store-1", quantity_available: 5 }]]]);
 
       const allocations = await route_order(input, [store_cc, warehouse], availability, "VIC");
 
@@ -89,7 +95,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         lines: [{ order_line_id: "line-1", sku_id: "sku-1", quantity: 5 }],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
         [
           "sku-1",
           [
@@ -126,7 +135,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         ],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
         [
           "sku-1",
           [
@@ -170,7 +182,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         ],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
         [
           "sku-1",
           [
@@ -187,12 +202,7 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         ],
       ]);
 
-      const allocations = await route_order(
-        input,
-        [store_a, store_b],
-        availability,
-        "VIC",
-      );
+      const allocations = await route_order(input, [store_a, store_b], availability, "VIC");
 
       // Should split: sku-1 to store-a, sku-2 to store-b
       expect(allocations).toHaveLength(2);
@@ -218,7 +228,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         ],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
         [
           "sku-1",
           [
@@ -262,7 +275,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         lines: [{ order_line_id: "line-1", sku_id: "sku-1", quantity: 5 }],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
         [
           "sku-1",
           [
@@ -272,32 +288,172 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         ],
       ]);
 
+      // A fixed "now" past store-early's cutoff but before store-late's.
+      const now = new Date("2026-07-24T15:00:00+10:00");
+
       const allocations = await route_order(
         input,
         [early_cutoff_store, late_cutoff_store],
         availability,
         "VIC",
+        now,
       );
 
-      // In production, this would check current time against cutoffs
-      // For now, both stores are treated as valid
-      expect(allocations.length).toBeGreaterThan(0);
+      // Both stores can fulfil completely, but store-early is past its
+      // cutoff -- route to store-late instead.
+      expect(allocations.every((a) => a.node_id === "store-late")).toBe(true);
     });
   });
 
   describe("Dispatch cutoff and transfer-time handling (B-132)", () => {
-    it("should factor in transfer lead time when warehouse needed", () => {
-      // B-132: "routing respects dispatch_cutoff per node and factors in
-      // transfer lead time when a transfer would be required to fulfil"
-      // This is conceptual in the test since real implementation needs
-      // transfer_orders and timing data
-      expect(true).toBe(true); // Placeholder for integration test
+    it("respects_dispatch_cutoff returns true when now is before the node's cutoff", () => {
+      const node = create_node("store-1", "store", "VIC", false, "18:00:00");
+      const before_cutoff = new Date("2026-07-24T10:00:00+10:00");
+
+      expect(respects_dispatch_cutoff(node, before_cutoff)).toBe(true);
     });
 
-    it("should route to node that can still ship next business day", () => {
+    it("respects_dispatch_cutoff returns false when now is after the node's cutoff", () => {
+      const node = create_node("store-1", "store", "VIC", false, "10:00:00");
+      const after_cutoff = new Date("2026-07-24T15:00:00+10:00");
+
+      expect(respects_dispatch_cutoff(node, after_cutoff)).toBe(false);
+    });
+
+    it("respects_dispatch_cutoff always returns true for a node with no cutoff configured", () => {
+      const node = create_node("warehouse-1", "warehouse", "NSW");
+      expect(respects_dispatch_cutoff(node, new Date())).toBe(true);
+    });
+
+    it("routes to a node that can still ship next business day when the only same-region option is past cutoff", async () => {
       // B-132 example: "an order placed after cutoff routes to a node
-      // that can still ship next business day"
-      expect(true).toBe(true); // Placeholder for integration test
+      // that can still ship next business day" -- here, the VIC store is
+      // past cutoff, so route to the NSW warehouse (still within its
+      // cutoff) even though it costs more in shipping/transfer terms.
+      const vic_store_past_cutoff = create_node("store-vic", "store", "VIC", false, "10:00:00");
+      const nsw_warehouse = create_node("warehouse-nsw", "warehouse", "NSW", false, "20:00:00");
+
+      const input: RoutingInput = {
+        order_id: "order-1",
+        fulfillment_type: "online_shipping",
+        customer_address: { postcode: "3000", suburb: "Melbourne" },
+        lines: [{ order_line_id: "line-1", sku_id: "sku-1", quantity: 5 }],
+      };
+
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
+        [
+          "sku-1",
+          [
+            { sku_id: "sku-1", node_id: "store-vic", quantity_available: 10 },
+            { sku_id: "sku-1", node_id: "warehouse-nsw", quantity_available: 10 },
+          ],
+        ],
+      ]);
+
+      const now = new Date("2026-07-24T15:00:00+10:00");
+
+      const allocations = await route_order(
+        input,
+        [vic_store_past_cutoff, nsw_warehouse],
+        availability,
+        "VIC",
+        now,
+      );
+
+      expect(allocations.every((a) => a.node_id === "warehouse-nsw")).toBe(true);
+    });
+
+    it("factors in transfer lead time so a same-region warehouse is preferred over a cross-region one", async () => {
+      const vic_warehouse = create_node("warehouse-vic", "warehouse", "VIC");
+      const nsw_warehouse = create_node("warehouse-nsw", "warehouse", "NSW");
+
+      const input: RoutingInput = {
+        order_id: "order-1",
+        fulfillment_type: "online_shipping",
+        customer_address: { postcode: "3000", suburb: "Melbourne" },
+        lines: [{ order_line_id: "line-1", sku_id: "sku-1", quantity: 5 }],
+      };
+
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
+        [
+          "sku-1",
+          [
+            { sku_id: "sku-1", node_id: "warehouse-vic", quantity_available: 10 },
+            { sku_id: "sku-1", node_id: "warehouse-nsw", quantity_available: 10 },
+          ],
+        ],
+      ]);
+
+      const allocations = await route_order(
+        input,
+        [nsw_warehouse, vic_warehouse], // Intentionally out of preference order
+        availability,
+        "VIC",
+      );
+
+      expect(allocations.every((a) => a.node_id === "warehouse-vic")).toBe(true);
+    });
+  });
+
+  describe("classify_allocation_reason (B-130 audit trail for already-decided allocations)", () => {
+    it("classifies a click-and-collect fulfilment regardless of node type", () => {
+      const node: FulfilmentNode = {
+        id: "store-1",
+        type: "store",
+        name: "store-1",
+        allows_click_collect: true,
+        allows_online_fulfilment: true,
+        timezone: "Australia/Melbourne",
+      };
+      expect(classify_allocation_reason(node, "click_and_collect", true)).toBe(
+        "click_and_collect_store",
+      );
+    });
+
+    it("classifies a warehouse fulfilment as warehouse_priority", () => {
+      const node: FulfilmentNode = {
+        id: "warehouse-1",
+        type: "warehouse",
+        name: "warehouse-1",
+        allows_click_collect: false,
+        allows_online_fulfilment: true,
+        timezone: "Australia/Melbourne",
+      };
+      expect(classify_allocation_reason(node, "online_shipping", true)).toBe("warehouse_priority");
+    });
+
+    it("classifies a single store covering the whole order as single_complete_order_store", () => {
+      const node: FulfilmentNode = {
+        id: "store-1",
+        type: "store",
+        name: "store-1",
+        allows_click_collect: false,
+        allows_online_fulfilment: true,
+        timezone: "Australia/Melbourne",
+      };
+      expect(classify_allocation_reason(node, "online_shipping", true)).toBe(
+        "single_complete_order_store",
+      );
+    });
+
+    it("classifies a store covering only part of a split order as split_minimum_nodes", () => {
+      const node: FulfilmentNode = {
+        id: "store-1",
+        type: "store",
+        name: "store-1",
+        allows_click_collect: false,
+        allows_online_fulfilment: true,
+        timezone: "Australia/Melbourne",
+      };
+      expect(classify_allocation_reason(node, "online_shipping", false)).toBe(
+        "split_minimum_nodes",
+      );
     });
   });
 
@@ -314,7 +470,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
       };
 
       // Empty availability
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>();
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >();
 
       const allocations = await route_order(input, [store, warehouse], availability, "VIC");
 
@@ -332,7 +491,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         lines: [], // Empty
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>();
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >();
 
       const allocations = await route_order(input, [store], availability, "VIC");
 

@@ -35,45 +35,9 @@ describe("groupImportedPricesByProduct", () => {
   });
 });
 
-describe("Import reporting (B-154)", () => {
-  it("should track import run metadata for reporting", () => {
-    // B-154: "price_import_runs records per-provider health and failure counts"
-    // This is verified via the price_import_summary view which aggregates:
-    // - provider code, name, status
-    // - timing (started_at, completed_at, duration)
-    // - row counts (raw, mapped, unmapped)
-    // - provider health status
-    // - error/warning counts from price_import_errors
-    // This test validates the reporting structure is available (tested via DB schema)
-    expect(true).toBe(true);
-  });
-
-  it("should provide per-provider health check results", () => {
-    // The get_latest_provider_import() function should return:
-    // - provider code
-    // - last_import timestamp
-    // - status (succeeded/failed/partial)
-    // - healthy boolean (from provider_healthy column)
-    // - error/warning counts
-    // - mapped/unmapped counts
-    expect(true).toBe(true);
-  });
-});
-
-describe("Import isolation (B-155)", () => {
-  it("should prevent failed import from corrupting price_snapshots", () => {
-    // B-155: "failed import run leaves the last-known-good prices untouched"
-    // - If fetch/mapping fails before snapshot insertion, transaction rolls back
-    // - If fetch succeeds but mapping partially fails, errors recorded but snapshots
-    //   still populated for successful cards (partial success in status)
-    // - verify_import_run_isolation() helper confirms failed runs left no snapshots
-    expect(true).toBe(true);
-  });
-
-  it("should maintain price_snapshots integrity across concurrent imports", () => {
-    // Multiple providers may import simultaneously.
-    // Each run is isolated by price_import_run_id foreign key.
-    // No cross-run data corruption is possible.
-    expect(true).toBe(true);
-  });
-});
+// B-154 (import reporting/health) and B-155 (a failed run doesn't corrupt
+// price_snapshots) are covered by
+// supabase/tests/database/pricing_import_reporting_and_isolation.test.sql
+// -- both ACs are about price_import_summary/get_latest_provider_import()/
+// verify_import_run_isolation(), pure-SQL behaviour with no corresponding
+// JS logic in this file to unit test.

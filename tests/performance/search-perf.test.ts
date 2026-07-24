@@ -1,17 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from "vitest";
 
-describe('Search API Performance Tests', () => {
-  const baseURL = 'http://localhost:3000';
+describe("Search API Performance Tests", () => {
+  const baseURL = "http://localhost:3000";
 
   beforeEach(async () => {
     // Setup: ensure dev server is running
   });
 
-  it('should return search results within budget (< 500ms)', async () => {
+  it("should return search results within budget (< 500ms)", async () => {
     const start = performance.now();
 
     const response = await fetch(`${baseURL}/api/search?q=black&limit=20`, {
-      method: 'GET',
+      method: "GET",
     });
 
     const end = performance.now();
@@ -25,7 +25,7 @@ describe('Search API Performance Tests', () => {
     expect(data.totalHits).toBeDefined();
   });
 
-  it('should handle pagination efficiently', async () => {
+  it("should handle pagination efficiently", async () => {
     const pageNumbers = [1, 2, 5, 10];
     const durations: number[] = [];
 
@@ -44,14 +44,14 @@ describe('Search API Performance Tests', () => {
     }
   });
 
-  it('should filter results efficiently (< 300ms)', async () => {
+  it("should filter results efficiently (< 300ms)", async () => {
     const filters = [
-      '?rarity=rare',
-      '?condition=nm',
-      '?finish=foil',
-      '?colour=U',
-      '?minPrice=10&maxPrice=100',
-      '?rarity=rare&condition=nm&finish=foil',
+      "?rarity=rare",
+      "?condition=nm",
+      "?finish=foil",
+      "?colour=U",
+      "?minPrice=10&maxPrice=100",
+      "?rarity=rare&condition=nm&finish=foil",
     ];
 
     for (const filter of filters) {
@@ -64,7 +64,7 @@ describe('Search API Performance Tests', () => {
     }
   });
 
-  it('should handle large result sets without timeout', async () => {
+  it("should handle large result sets without timeout", async () => {
     const start = performance.now();
 
     const response = await fetch(`${baseURL}/api/search?q=&limit=100`);
@@ -78,8 +78,8 @@ describe('Search API Performance Tests', () => {
     expect(data.hits.length).toBeLessThanOrEqual(100);
   });
 
-  it('should cache search results for identical queries', async () => {
-    const query = '?q=test&limit=20';
+  it("should cache search results for identical queries", async () => {
+    const query = "?q=test&limit=20";
 
     // First request
     const start1 = performance.now();
@@ -100,7 +100,7 @@ describe('Search API Performance Tests', () => {
     expect(duration2).toBeLessThan(500);
   });
 
-  it('should validate response size', async () => {
+  it("should validate response size", async () => {
     const response = await fetch(`${baseURL}/api/search?q=card&limit=50`);
     const data = await response.json();
 

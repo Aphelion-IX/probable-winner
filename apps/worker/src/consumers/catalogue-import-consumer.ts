@@ -38,7 +38,10 @@ export async function pollCatalogueImportQueue(sql: Sql): Promise<boolean> {
         `catalogue_import discover: enqueued ${result.enqueued} of ${result.totalSets} sets (${result.alreadyImported} already imported)`,
       );
     } catch (error) {
-      console.error("catalogue_import discover failed, will retry after visibility timeout:", error);
+      console.error(
+        "catalogue_import discover failed, will retry after visibility timeout:",
+        error,
+      );
       return true;
     }
     await sql`select pgmq.archive(${QUEUE_NAME}, ${msg.msg_id}::bigint)`;

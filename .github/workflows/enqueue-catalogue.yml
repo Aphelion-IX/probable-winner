@@ -6,7 +6,7 @@ on:
       confirm:
         description: 'Type "yes" to confirm full catalogue import'
         required: true
-        default: ''
+        default: ""
 
 jobs:
   enqueue:

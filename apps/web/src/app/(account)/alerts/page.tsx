@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { getCustomerAlerts, type CustomerPriceAlert, type CustomerRestockAlert } from "@/features/customer/actions/manage-alerts";
+import {
+  getCustomerAlerts,
+  type CustomerPriceAlert,
+  type CustomerRestockAlert,
+} from "@/features/customer/actions/manage-alerts";
 import { AlertCircle, Trash2, Plus } from "lucide-react";
 
 // Requires an authenticated user's session at request time — cannot be
@@ -84,7 +88,9 @@ export default async function AlertsPage() {
                     {priceAlerts.map((alert) => (
                       <tr key={alert.id} className="border-b hover:bg-muted/50">
                         <td className="px-6 py-3 font-medium">{alert.card_name}</td>
-                        <td className="px-6 py-3 text-xs text-muted-foreground">{alert.set_name}</td>
+                        <td className="px-6 py-3 text-xs text-muted-foreground">
+                          {alert.set_name}
+                        </td>
                         <td className="px-6 py-3 text-xs">{finishLabels[alert.finish]}</td>
                         <td className="px-6 py-3 text-right font-semibold">
                           {new Intl.NumberFormat("en-AU", {
@@ -104,9 +110,8 @@ export default async function AlertsPage() {
                           <form
                             action={async () => {
                               "use server";
-                              const { deleteAlert } = await import(
-                                "@/features/customer/actions/manage-alerts"
-                              );
+                              const { deleteAlert } =
+                                await import("@/features/customer/actions/manage-alerts");
                               await deleteAlert(alert.id, "price");
                             }}
                             className="inline"
@@ -148,7 +153,9 @@ export default async function AlertsPage() {
                     {restockAlerts.map((alert) => (
                       <tr key={alert.id} className="border-b hover:bg-muted/50">
                         <td className="px-6 py-3 font-medium">{alert.card_name}</td>
-                        <td className="px-6 py-3 text-xs text-muted-foreground">{alert.set_name}</td>
+                        <td className="px-6 py-3 text-xs text-muted-foreground">
+                          {alert.set_name}
+                        </td>
                         <td className="px-6 py-3 text-xs">{finishLabels[alert.finish]}</td>
                         <td className="px-6 py-3 text-xs">{alert.condition}</td>
                         <td className="px-6 py-3">
@@ -163,9 +170,8 @@ export default async function AlertsPage() {
                           <form
                             action={async () => {
                               "use server";
-                              const { deleteAlert } = await import(
-                                "@/features/customer/actions/manage-alerts"
-                              );
+                              const { deleteAlert } =
+                                await import("@/features/customer/actions/manage-alerts");
                               await deleteAlert(alert.id, "restock");
                             }}
                             className="inline"

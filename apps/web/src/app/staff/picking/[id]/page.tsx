@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import * as Sentry from "@sentry/nextjs";
 import { getPickBatch, type PickBatchDetail } from "@/features/staff/actions/get-pick-batch";
-import { recordPickException, getPickLineExceptions, type PickException } from "@/features/staff/actions/handle-pick-exception";
+import {
+  recordPickException,
+  getPickLineExceptions,
+  type PickException,
+} from "@/features/staff/actions/handle-pick-exception";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -249,7 +253,9 @@ export default function PickBatchPage() {
                               className="rounded bg-white dark:bg-gray-800 p-2 text-xs border-l-4 border-red-500"
                             >
                               <div className="font-medium">{exc.exception_type.name}</div>
-                              {exc.notes && <div className="text-muted-foreground mt-1">{exc.notes}</div>}
+                              {exc.notes && (
+                                <div className="text-muted-foreground mt-1">{exc.notes}</div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -281,7 +287,9 @@ export default function PickBatchPage() {
                             </select>
                           </div>
                           <div>
-                            <label className="block text-xs font-medium mb-1">Notes (optional)</label>
+                            <label className="block text-xs font-medium mb-1">
+                              Notes (optional)
+                            </label>
                             <textarea
                               value={exceptionNotes}
                               onChange={(e) => setExceptionNotes(e.target.value)}

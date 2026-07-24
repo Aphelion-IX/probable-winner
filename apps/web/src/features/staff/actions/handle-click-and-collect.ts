@@ -43,7 +43,7 @@ export async function getReadyForHandoverOrders(nodeId: string): Promise<OrderFo
 export async function recordOrderHandover(
   orderId: string,
   nodeId: string,
-  notes?: string
+  notes?: string,
 ): Promise<OrderHandover> {
   const supabase = createServerSupabaseClient();
 

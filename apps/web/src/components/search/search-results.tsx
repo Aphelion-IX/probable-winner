@@ -123,9 +123,7 @@ export async function SearchResults({ searchParams }: SearchResultsProps) {
           Showing {(page - 1) * data.pageSize + 1} to{" "}
           {Math.min(page * data.pageSize, data.totalHits)} of {data.totalHits} results
         </p>
-        <p className="text-xs text-muted-foreground">
-          Found in {data.processingTimeMs}ms
-        </p>
+        <p className="text-xs text-muted-foreground">Found in {data.processingTimeMs}ms</p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -137,13 +135,7 @@ export async function SearchResults({ searchParams }: SearchResultsProps) {
             setCode={hit.set}
             rarity={hit.rarity}
             condition={hit.condition}
-            finish={
-              hit.finish === "foil"
-                ? "Foil"
-                : hit.finish === "etched"
-                  ? "Etched"
-                  : undefined
-            }
+            finish={hit.finish === "foil" ? "Foil" : hit.finish === "etched" ? "Etched" : undefined}
             price={hit.price}
           />
         ))}

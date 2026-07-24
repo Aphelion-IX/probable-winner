@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
-const nextConfig: NextConfig = {/* config options here */};
+const nextConfig: NextConfig = {
+  // @probable-winner/search ships raw TypeScript source (no build step) —
+  // Next needs to compile it itself rather than treating it as pre-built JS.
+  transpilePackages: ["@probable-winner/search"],
+};
 
 export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,

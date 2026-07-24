@@ -7,14 +7,7 @@ import { logger, getRequestId } from "@/lib/logger";
 // (20260723081706_orders_and_shipments_v2.sql) -- there is no "confirmed"
 // status, and "paid"/"dispatched"/"cancelled" were previously missing here.
 export type OrderStatus =
-  | "pending"
-  | "paid"
-  | "picking"
-  | "packed"
-  | "dispatched"
-  | "shipped"
-  | "delivered"
-  | "cancelled";
+  "pending" | "paid" | "picking" | "packed" | "dispatched" | "shipped" | "delivered" | "cancelled";
 
 interface OrderRow {
   id: string;
