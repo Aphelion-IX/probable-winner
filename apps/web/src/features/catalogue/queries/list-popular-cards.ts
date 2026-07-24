@@ -1,0 +1,108 @@
+import { createServerSupabaseClient } from "@/server/supabase";
+import type { CardBrowseItem } from "@/features/catalogue/queries/list-cards";
+
+// Homepage "Popular right now" rail. Real popularity scoring (backlog
+// B-085) isn't wired into card_browse yet, so this orders by newest
+// printing as a stand-in — same fallback listCards() already uses for its
+// "newest" sort. Unlike listCards()/the /cards page, this also resolves a
+// price per printing (its first active published price, since the
+// homepage rail is meant to show at-a-glance pricing) via two small
+// batched follow-up queries, not a price per printing/set/etc query.
+export type PopularCardItem = CardBrowseItem & {
+  price: number | null;
+};
+
+export async function listPopularCards(limit = 6): Promise<PopularCardItem[]> {
+  const supabase = createServerSupabaseClient();
+
+  const { data: cards, error: cardsError } = await supabase
+    .from("card_browse")
+    .select("*")
+    .order("released_at", { ascending: false, nullsFirst: false })
+    .limit(limit)
+    .returns<
+      Array<{
+        printing_id: string;
+        oracle_card_id: string;
+        name: string;
+        type_line: string;
+        colors: string[];
+        color_identity: string[];
+        collector_number: string;
+        rarity: string;
+        finishes: string[];
+        released_at: string | null;
+        set_code: string;
+        set_name: string;
+        set_icon_url: string | null;
+        image_url: string | null;
+      }>
+    >();
+
+  if (cardsError) {
+    throw new Error(`Failed to list popular cards: ${cardsError.message}`);
+  }
+  if (!cards || cards.length === 0) {
+    return [];
+  }
+
+  const printingIds = cards.map((card) => card.printing_id);
+
+  const { data: skus, error: skusError } = await supabase
+    .from("sellable_skus")
+    .select("id, card_printing_id")
+    .in("card_printing_id", printingIds);
+
+  if (skusError) {
+    throw new Error(`Failed to list SKUs for popular cards: ${skusError.message}`);
+  }
+
+  const skuIds = (skus ?? []).map((sku) => sku.id);
+  const pricesBySkuId = new Map<string, number>();
+
+  if (skuIds.length > 0) {
+    const { data: prices, error: pricesError } = await supabase
+      .from("published_prices")
+      .select("sellable_sku_id, final_amount")
+      .in("sellable_sku_id", skuIds)
+      .eq("status", "active");
+
+    if (pricesError) {
+      throw new Error(`Failed to list prices for popular cards: ${pricesError.message}`);
+    }
+
+    for (const row of prices ?? []) {
+      if (!pricesBySkuId.has(row.sellable_sku_id)) {
+        pricesBySkuId.set(row.sellable_sku_id, row.final_amount);
+      }
+    }
+  }
+
+  const skuIdByPrintingId = new Map<string, string>();
+  for (const sku of skus ?? []) {
+    if (!skuIdByPrintingId.has(sku.card_printing_id)) {
+      skuIdByPrintingId.set(sku.card_printing_id, sku.id);
+    }
+  }
+
+  return cards.map((row) => {
+    const skuId = skuIdByPrintingId.get(row.printing_id);
+    return {
+      printingId: row.printing_id,
+      oracleCardId: row.oracle_card_id,
+      name: row.name,
+      typeLine: row.type_line,
+      colors: row.colors,
+      colorIdentity: row.color_identity,
+      collectorNumber: row.collector_number,
+      rarity: row.rarity,
+      finishes: row.finishes,
+      releasedAt: row.released_at,
+      setCode: row.set_code,
+      setName: row.set_name,
+      setIconUrl: row.set_icon_url,
+      imageUrl: row.image_url,
+      price: skuId ? (pricesBySkuId.get(skuId) ?? null) : null,
+    };
+  });
+}

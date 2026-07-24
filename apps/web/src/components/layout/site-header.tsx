@@ -100,6 +100,7 @@ export function SiteHeader() {
           <Button
             variant="ghost"
             size="icon"
+            nativeButton={false}
             render={<Link href="/account" aria-label="Account" />}
           >
             <User />
@@ -108,6 +109,7 @@ export function SiteHeader() {
             variant="ghost"
             size="icon"
             className="relative"
+            nativeButton={false}
             render={<Link href="/cart" aria-label="Cart" />}
           >
             <ShoppingCart />
@@ -116,6 +118,7 @@ export function SiteHeader() {
           <Button
             variant="ghost"
             size="icon"
+            nativeButton={false}
             render={<Link href="/staff/dashboard" aria-label="Admin Dashboard" />}
             className="hidden sm:inline-flex"
             title="Admin Dashboard"
