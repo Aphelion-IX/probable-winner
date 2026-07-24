@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "enqueue-catalogue-import": "tsx src/scripts/enqueue-catalogue-import.ts",
     "import-card-images": "tsx src/scripts/import-card-images.ts",
+    "sync-card-images-bulk": "tsx src/scripts/sync-card-images-bulk.ts",
     "reindex-search": "tsx src/scripts/reindex-search.ts",
     "update-popularity-scores": "tsx src/scripts/update-popularity-scores.ts",
     "typecheck": "tsc --noEmit",

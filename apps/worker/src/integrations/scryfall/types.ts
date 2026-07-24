@@ -28,3 +28,28 @@ export type ScryfallCollectionResponse = {
   not_found: Array<{ id?: string }>;
   data: ScryfallCard[];
 };
+
+// https://scryfall.com/docs/api/bulk-data
+export type ScryfallBulkDataType =
+  | "oracle_cards"
+  | "unique_artwork"
+  | "default_cards"
+  | "all_cards"
+  | "rulings"
+  | "art_tags"
+  | "oracle_tags";
+
+export type ScryfallBulkDataEntry = {
+  id: string;
+  type: ScryfallBulkDataType;
+  name: string;
+  download_uri: string;
+  jsonl_download_uri?: string;
+  updated_at: string;
+  size: number;
+};
+
+export type ScryfallBulkDataResponse = {
+  object: "list";
+  data: ScryfallBulkDataEntry[];
+};

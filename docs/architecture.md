@@ -436,6 +436,32 @@ moment any real image URL existed anywhere in the app (nothing had ever
 populated `card_images` before, so nothing had hit it) -- fixed by
 allowlisting `*.scryfall.io`.
 
+There are two importer entry points, matching Scryfall's own guidance on
+when to use each (https://scryfall.com/docs/api/bulk-data: "Bulk data is
+only collected once every 12-24 hours. You can use the card API methods to
+retrieve fresh objects instead."):
+
+- `pnpm --filter worker import-card-images` -- the `/cards/collection`
+  batch lookup described above. Best for a small/urgent top-up (e.g. right
+  after a new set is catalogued) where up-to-a-day-old bulk data isn't
+  fresh enough yet.
+- `pnpm --filter worker sync-card-images-bulk`
+  (`apps/worker/src/jobs/sync-card-images-bulk.ts`) -- a full-catalogue
+  sync via Scryfall's daily bulk-data export instead of one
+  `/cards/collection` request per 75 printings. Loads every known
+  `scryfall_id` from `card_identifiers` into memory, then streams
+  Scryfall's `default_cards` bulk file (`GET /bulk-data` to find its
+  current `jsonl_download_uri`, then gunzip + line-by-line JSON parse --
+  the file itself is never held in memory whole, since it runs to
+  hundreds of megabytes uncompressed), matching and upserting
+  `card_images` rows for whichever cards it already tracks, flushing every
+  500 rows. Neither entry point creates new `card_printings`/
+  `oracle_cards` rows -- discovering new cards/sets stays the MTGJSON
+  importer's job; this only ever fills in images for printings it already
+  knows about. Not yet wired to a schedule (see blueprint §17's queue
+  list) -- intended to run daily once one exists, per the "Daily scheduled
+  sync" architecture this backlog item calls for.
+
 ### 8.3 Sellable products
 
 `sellable_skus`, `conditions`, `languages`, `finishes`, `product_statuses`.
