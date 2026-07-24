@@ -5,9 +5,14 @@ import { DecklistImport } from "./decklist-import";
 import type { DecklistImportResult } from "@/features/deck-builder/actions/match-decklist";
 
 const mockImportDecklist = vi.fn();
+const mockGetSubstitutions = vi.fn();
 
 vi.mock("@/features/deck-builder/actions/match-decklist", () => ({
   importDecklist: (...args: unknown[]) => mockImportDecklist(...args),
+}));
+
+vi.mock("@/features/deck-builder/actions/get-substitutions", () => ({
+  getSubstitutions: (...args: unknown[]) => mockGetSubstitutions(...args),
 }));
 
 const RESULT: DecklistImportResult = {
@@ -69,6 +74,7 @@ describe("DecklistImport", () => {
   afterEach(() => {
     cleanup();
     mockImportDecklist.mockReset();
+    mockGetSubstitutions.mockReset();
   });
 
   it("disables the submit button until something is pasted", () => {
@@ -144,6 +150,120 @@ describe("DecklistImport", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Couldn't match this list. Please try again.")).toBeInTheDocument();
+    });
+  });
+
+  describe("substitution and budget controls", () => {
+    async function matchThenCheckPricing() {
+      mockImportDecklist.mockResolvedValue(RESULT);
+      render(<DecklistImport />);
+      await submit("1 Counterspell\n4 Lightning Bolt\n2 Not A Real Card");
+      await waitFor(() =>
+        expect(screen.getByText("Double Masters 2022 · #94")).toBeInTheDocument(),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /check pricing/i }));
+    }
+
+    it("only requests substitutions for resolved lines, using the customer's selected printing", async () => {
+      mockGetSubstitutions.mockResolvedValue([{ status: "unavailable" }]);
+
+      await matchThenCheckPricing();
+
+      await waitFor(() => expect(mockGetSubstitutions).toHaveBeenCalledTimes(1));
+      expect(mockGetSubstitutions).toHaveBeenCalledWith(
+        [{ oracleCardId: "oracle-cs", preferredPrintingId: "printing-cs" }],
+        { preferredConditionCode: "nm", preferredConditionSortOrder: 1, maxBudget: null },
+      );
+    });
+
+    it("passes the selected condition and parsed budget as preferences", async () => {
+      mockGetSubstitutions.mockResolvedValue([{ status: "unavailable" }]);
+      mockImportDecklist.mockResolvedValue(RESULT);
+      render(<DecklistImport />);
+      await submit("1 Counterspell");
+      await waitFor(() =>
+        expect(screen.getByText("Double Masters 2022 · #94")).toBeInTheDocument(),
+      );
+
+      fireEvent.change(screen.getByLabelText("Preferred condition"), { target: { value: "lp" } });
+      fireEvent.change(screen.getByLabelText("Max budget per card"), { target: { value: "15" } });
+      fireEvent.click(screen.getByRole("button", { name: /check pricing/i }));
+
+      await waitFor(() =>
+        expect(mockGetSubstitutions).toHaveBeenCalledWith(expect.any(Array), {
+          preferredConditionCode: "lp",
+          preferredConditionSortOrder: 2,
+          maxBudget: 15,
+        }),
+      );
+    });
+
+    it("shows the price and location for a 'preferred' outcome", async () => {
+      mockGetSubstitutions.mockResolvedValue([
+        {
+          status: "preferred",
+          sku: {
+            skuId: "sku-cs-nm",
+            printingId: "printing-cs",
+            conditionCode: "nm",
+            conditionSortOrder: 1,
+            price: 12.5,
+            availableQuantity: 3,
+            setCode: "2X2",
+            setName: "Double Masters 2022",
+            collectorNumber: "94",
+          },
+        },
+      ]);
+
+      await matchThenCheckPricing();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("substitution-note")).toHaveTextContent(
+          "$12.50 · Double Masters 2022 #94 · NM",
+        );
+      });
+    });
+
+    it("flags a 'substituted' outcome with its reason", async () => {
+      mockGetSubstitutions.mockResolvedValue([
+        {
+          status: "substituted",
+          reason: "printing",
+          sku: {
+            skuId: "sku-other",
+            printingId: "printing-other",
+            conditionCode: "lp",
+            conditionSortOrder: 2,
+            price: 6,
+            availableQuantity: 1,
+            setCode: "M11",
+            setName: "Magic 2011",
+            collectorNumber: "50",
+          },
+        },
+      ]);
+
+      await matchThenCheckPricing();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("substitution-note")).toHaveTextContent(
+          "Substituted (different printing): $6.00 · Magic 2011 #50 · LP",
+        );
+      });
+    });
+
+    it("flags an 'unavailable' outcome distinctly", async () => {
+      mockGetSubstitutions.mockResolvedValue([{ status: "unavailable" }]);
+
+      await matchThenCheckPricing();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("substitution-note")).toHaveTextContent(
+          "Not currently available in stock.",
+        );
+      });
     });
   });
 });
