@@ -1,4 +1,4 @@
-import { PricingProvider, ImportedPrice } from "../types.js";
+import { PricingProvider, ImportedPrice, MappingException } from "../types.js";
 
 interface CardKingdomProduct {
   id: string;
@@ -21,14 +21,31 @@ interface CardKingdomResponse {
 export class CardKingdomAdapter implements PricingProvider {
   private apiKey: string;
   private baseUrl = "https://api.cardkingdom.com/api/v1";
+  private exceptions: MappingException[] = [];
+  private onMappingException?: (exception: MappingException) => void | Promise<void>;
 
-  constructor(apiKey: string) {
+  constructor(
+    apiKey: string,
+    onMappingException?: (exception: MappingException) => void | Promise<void>,
+  ) {
     this.apiKey = apiKey;
+    this.onMappingException = onMappingException;
+  }
+
+  // Mapping exceptions recorded during the most recent fetchPrices() call
+  // (blueprint §15.2, B-152's AC: unresolved products are recorded, not
+  // dropped silently). This package has no database dependency, so
+  // recording means "queryable here and forwarded to onMappingException if
+  // the caller provided one" -- persisting to price_import_exceptions is
+  // the caller's job, since only it has a Postgres connection.
+  getMappingExceptions(): MappingException[] {
+    return this.exceptions;
   }
 
   async fetchPrices(
     identifiers: Array<{ cardId: string; oracleId?: string }>,
   ): Promise<ImportedPrice[]> {
+    this.exceptions = [];
     try {
       // Card Kingdom requires oracle_id based lookups
       // Filter identifiers that have oracle_id (Card Kingdom primary key)
@@ -97,8 +114,13 @@ export class CardKingdomAdapter implements PricingProvider {
   }
 
   private async recordMappingException(cardId: string, reason: string): Promise<void> {
-    // In production: store in price_import_exceptions table
-    // Blueprint §15.2: mapping exceptions recorded not dropped silently
-    console.warn(`Mapping exception for Card Kingdom card ${cardId}: ${reason}`);
+    const exception: MappingException = {
+      cardId,
+      source: "card_kingdom",
+      reason,
+      recordedAt: new Date(),
+    };
+    this.exceptions.push(exception);
+    await this.onMappingException?.(exception);
   }
 }

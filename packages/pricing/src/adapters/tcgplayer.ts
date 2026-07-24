@@ -1,4 +1,4 @@
-import { PricingProvider, ImportedPrice } from "../types.js";
+import { PricingProvider, ImportedPrice, MappingException } from "../types.js";
 
 interface TCGPlayerProduct {
   productId: number;
@@ -24,24 +24,39 @@ interface TCGPlayerResponse {
 export class TCGPlayerAdapter implements PricingProvider {
   private apiKey: string;
   private baseUrl = "https://api.tcgplayer.com/v1.32.0/catalog";
+  private exceptions: MappingException[] = [];
+  private onMappingException?: (exception: MappingException) => void | Promise<void>;
 
-  constructor(apiKey: string) {
+  constructor(
+    apiKey: string,
+    onMappingException?: (exception: MappingException) => void | Promise<void>,
+  ) {
     this.apiKey = apiKey;
+    this.onMappingException = onMappingException;
+  }
+
+  // See CardKingdomAdapter.getMappingExceptions() for why this package
+  // tracks exceptions in memory rather than writing to Postgres directly.
+  getMappingExceptions(): MappingException[] {
+    return this.exceptions;
   }
 
   async fetchPrices(
     identifiers: Array<{ cardId: string; oracleId?: string }>,
   ): Promise<ImportedPrice[]> {
+    this.exceptions = [];
     try {
-      // TCGPlayer requires product lookups by name/set/number
-      // For now, this is a stub that would query their API
-      // In production, this would batch-fetch product data and prices
+      // TCGPlayer requires product lookups by name/set/number -- this is a
+      // stub that doesn't yet query their API (in production, this would
+      // batch-fetch product data and prices). Since no identifier can
+      // currently resolve to a price, every one of them is unmapped for
+      // audit purposes -- recording that is this adapter's real,
+      // non-stubbed responsibility per B-152's AC.
 
       const prices: ImportedPrice[] = [];
 
       for (const identifier of identifiers) {
         try {
-          // Stub: attempt to fetch price for identifier
           // In real implementation: query TCGPlayer API
           // const response = await this.queryTCGPlayer(identifier);
           // if (response) {
@@ -52,12 +67,16 @@ export class TCGPlayerAdapter implements PricingProvider {
           //     currency: 'USD',
           //     lastUpdated: new Date(),
           //   });
-          // } else {
-          //   Store mapping exception
+          //   continue;
           // }
+          await this.recordMappingException(
+            identifier.cardId,
+            "TCGPlayer product lookup not yet implemented",
+          );
         } catch (error) {
           // Record failed lookup for audit trail
           console.error(`TCGPlayer lookup failed for card ${identifier.cardId}:`, error);
+          await this.recordMappingException(identifier.cardId, `Lookup failed: ${String(error)}`);
           // Don't throw - continue processing other cards
         }
       }
@@ -85,8 +104,13 @@ export class TCGPlayerAdapter implements PricingProvider {
   }
 
   private async recordMappingException(cardId: string, reason: string): Promise<void> {
-    // In production: store in price_import_exceptions table
-    // This prevents silent data loss on unresolved cards
-    console.warn(`Mapping exception for TCGPlayer card ${cardId}: ${reason}`);
+    const exception: MappingException = {
+      cardId,
+      source: "tcgplayer",
+      reason,
+      recordedAt: new Date(),
+    };
+    this.exceptions.push(exception);
+    await this.onMappingException?.(exception);
   }
 }
