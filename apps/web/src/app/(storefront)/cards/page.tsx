@@ -49,7 +49,11 @@ export default async function CardsPage({
 
       <div className="flex flex-col gap-6 sm:flex-row">
         <CardFiltersSidebar
-          availableSets={availableSets.map((set) => ({ code: set.code, name: set.name }))}
+          availableSets={availableSets.map((set) => ({
+            code: set.code,
+            name: set.name,
+            iconUrl: set.iconUrl,
+          }))}
         />
 
         <div className="flex flex-1 flex-col gap-4">
@@ -74,7 +78,9 @@ export default async function CardsPage({
                   href={`/cards/${encodeURIComponent(card.name)}/${card.printingId}`}
                   name={card.name}
                   setCode={card.setCode}
+                  setIconUrl={card.setIconUrl}
                   rarity={card.rarity}
+                  imageSrc={card.imageUrl ?? undefined}
                 />
               ))}
             </div>

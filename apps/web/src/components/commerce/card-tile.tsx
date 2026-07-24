@@ -4,12 +4,14 @@ import { ImageOff } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { WishlistButton } from "@/components/commerce/wishlist-button";
+import { SetIcon } from "@/components/commerce/set-icon";
 import { cn } from "@/lib/utils";
 
 export type CardTileProps = {
   href: string;
   name: string;
   setCode: string;
+  setIconUrl?: string | null;
   rarity: string;
   condition?: string;
   finish?: "Foil" | "Etched";
@@ -27,6 +29,7 @@ export function CardTile({
   href,
   name,
   setCode,
+  setIconUrl,
   rarity,
   condition,
   finish,
@@ -67,7 +70,8 @@ export function CardTile({
 
       <div className="flex flex-1 flex-col gap-1 p-3">
         <h3 className="line-clamp-2 text-sm font-medium">{name}</h3>
-        <p className="text-xs text-muted-foreground">
+        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <SetIcon url={setIconUrl} alt="" />
           {setCode} · {rarity}
           {condition ? (
             <>

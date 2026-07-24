@@ -1,6 +1,21 @@
 import { Suspense } from "react";
 import { CheckoutContent } from "@/components/checkout/checkout-content";
 import { CheckoutSkeleton } from "@/components/checkout/checkout-skeleton";
+import { getCartContents } from "@/features/cart/queries/get-cart-contents";
+import { listClickAndCollectStores } from "@/features/customer/queries/list-click-and-collect-stores";
+
+// Reads the cart session cookie and/or the authenticated user -- cannot be
+// statically prerendered.
+export const dynamic = "force-dynamic";
+
+async function CheckoutContentLoader() {
+  const [cart, clickAndCollectStores] = await Promise.all([
+    getCartContents(),
+    listClickAndCollectStores(),
+  ]);
+
+  return <CheckoutContent cart={cart} clickAndCollectStores={clickAndCollectStores} />;
+}
 
 export default function CheckoutPage() {
   return (
@@ -8,7 +23,7 @@ export default function CheckoutPage() {
       <h1 className="text-3xl font-semibold">Checkout</h1>
 
       <Suspense fallback={<CheckoutSkeleton />}>
-        <CheckoutContent />
+        <CheckoutContentLoader />
       </Suspense>
     </div>
   );

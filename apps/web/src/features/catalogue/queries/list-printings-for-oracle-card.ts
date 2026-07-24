@@ -22,6 +22,7 @@ export type PrintingSummary = {
   printingId: string;
   setCode: string;
   setName: string;
+  setIconUrl: string | null;
   collectorNumber: string;
   rarity: string;
   releasedAt: string | null;
@@ -35,7 +36,7 @@ type PrintingSummaryRow = {
   rarity: string;
   released_at: string | null;
   finishes: string[];
-  sets: { code: string; name: string } | null;
+  sets: { code: string; name: string; icon_url: string | null } | null;
   card_images: { image_type: string; url: string }[] | null;
 };
 
@@ -45,7 +46,7 @@ async function fetchPrintingsForOracleCard(oracleCardId: string): Promise<Printi
   const { data, error } = await supabase
     .from("card_printings")
     .select(
-      "id, collector_number, rarity, released_at, finishes, sets ( code, name ), card_images ( image_type, url )",
+      "id, collector_number, rarity, released_at, finishes, sets ( code, name, icon_url ), card_images ( image_type, url )",
     )
     .eq("oracle_card_id", oracleCardId)
     .order("released_at", { ascending: false, nullsFirst: false })
@@ -57,13 +58,17 @@ async function fetchPrintingsForOracleCard(oracleCardId: string): Promise<Printi
 
   return (data ?? [])
     .filter(
-      (row): row is PrintingSummaryRow & { sets: { code: string; name: string } } =>
-        row.sets !== null,
+      (
+        row,
+      ): row is PrintingSummaryRow & {
+        sets: { code: string; name: string; icon_url: string | null };
+      } => row.sets !== null,
     )
     .map((row) => ({
       printingId: row.id,
       setCode: row.sets.code,
       setName: row.sets.name,
+      setIconUrl: row.sets.icon_url,
       collectorNumber: row.collector_number,
       rarity: row.rarity,
       releasedAt: row.released_at,

@@ -1,5 +1,6 @@
 import { listSets } from "@/features/catalogue/queries/list-sets";
 import { SetSearchInput } from "@/features/catalogue/components/set-search-input";
+import { SetIcon } from "@/components/commerce/set-icon";
 
 const dateFormatter = new Intl.DateTimeFormat("en-AU", { dateStyle: "medium" });
 
@@ -46,7 +47,10 @@ export default async function SetsPage({
           {sets.map((set) => (
             <div key={set.code} className="rounded-lg border p-4">
               <div className="flex items-baseline justify-between gap-2">
-                <h2 className="font-medium">{set.name}</h2>
+                <h2 className="flex items-center gap-1.5 font-medium">
+                  <SetIcon url={set.iconUrl} alt="" />
+                  {set.name}
+                </h2>
                 <span className="font-mono text-xs text-muted-foreground uppercase">
                   {set.code}
                 </span>

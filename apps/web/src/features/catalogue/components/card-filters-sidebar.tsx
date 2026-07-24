@@ -3,6 +3,7 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQueryParamList } from "@/features/catalogue/lib/use-query-params";
 import { CARD_FINISHES, CARD_RARITIES } from "@/features/catalogue/queries/list-cards";
+import { SetIcon } from "@/components/commerce/set-icon";
 
 const FINISH_LABELS: Record<string, string> = {
   nonfoil: "Non-foil",
@@ -21,11 +22,13 @@ function FilterGroup({ title, children }: { title: string; children: React.React
 
 function FilterCheckboxRow({
   label,
+  icon,
   checked,
   onCheckedChange,
   disabled,
 }: {
   label: string;
+  icon?: React.ReactNode;
   checked: boolean;
   onCheckedChange?: (checked: boolean) => void;
   disabled?: boolean;
@@ -33,6 +36,7 @@ function FilterCheckboxRow({
   return (
     <label className="group flex items-center gap-2 text-sm text-foreground has-disabled:text-muted-foreground">
       <Checkbox checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
+      {icon}
       {label}
     </label>
   );
@@ -41,7 +45,7 @@ function FilterCheckboxRow({
 export function CardFiltersSidebar({
   availableSets,
 }: {
-  availableSets: { code: string; name: string }[];
+  availableSets: { code: string; name: string; iconUrl: string | null }[];
 }) {
   const setFilter = useQueryParamList("sets");
   const rarityFilter = useQueryParamList("rarities");
@@ -59,6 +63,7 @@ export function CardFiltersSidebar({
             <FilterCheckboxRow
               key={set.code}
               label={set.name}
+              icon={<SetIcon url={set.iconUrl} alt="" />}
               checked={setFilter.values.includes(set.code)}
               onCheckedChange={() => setFilter.toggle(set.code)}
             />

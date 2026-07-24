@@ -7,6 +7,7 @@ export type SetSummary = {
   setType: string | null;
   releasedAt: string | null;
   cardCount: number;
+  iconUrl: string | null;
 };
 
 type SetRow = {
@@ -15,6 +16,7 @@ type SetRow = {
   set_type: string | null;
   released_at: string | null;
   card_count: number;
+  icon_url: string | null;
 };
 
 export type ListSetsOptions = {
@@ -34,7 +36,7 @@ export async function listSets(options: ListSetsOptions = {}): Promise<SetSummar
 
   let query = supabase
     .from("sets")
-    .select("code, name, set_type, released_at, card_count")
+    .select("code, name, set_type, released_at, card_count, icon_url")
     .order("released_at", { ascending: false, nullsFirst: false });
 
   const search = options.search?.trim();
@@ -54,5 +56,6 @@ export async function listSets(options: ListSetsOptions = {}): Promise<SetSummar
     setType: row.set_type,
     releasedAt: row.released_at,
     cardCount: row.card_count,
+    iconUrl: row.icon_url,
   }));
 }

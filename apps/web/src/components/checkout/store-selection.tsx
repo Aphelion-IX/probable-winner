@@ -2,60 +2,22 @@
 
 import { Button } from "@/components/ui/button";
 import { MapPin, Check } from "lucide-react";
+import type { ClickAndCollectStore } from "@/features/customer/queries/list-click-and-collect-stores";
 
 interface StoreSelectionProps {
+  stores: ClickAndCollectStore[];
   onSelect: (storeId: string) => void;
   selectedStore: string | null;
 }
 
-interface Store {
-  id: string;
-  name: string;
-  address: string;
-  suburb: string;
-  state: string;
-  postcode: string;
-  phone: string;
-  hoursOpen: string;
-}
-
-// Mock stores data - in production, would fetch from API
-const MOCK_STORES: Store[] = [
-  {
-    id: "store_1",
-    name: "Sydney CBD",
-    address: "123 Pitt Street",
-    suburb: "Sydney",
-    state: "NSW",
-    postcode: "2000",
-    phone: "(02) 9xxx xxxx",
-    hoursOpen: "10am - 6pm, Mon-Sat",
-  },
-  {
-    id: "store_2",
-    name: "Westfield Parramatta",
-    address: "159-175 Church Street",
-    suburb: "Parramatta",
-    state: "NSW",
-    postcode: "2150",
-    phone: "(02) 9xxx xxxx",
-    hoursOpen: "10am - 9pm, Daily",
-  },
-  {
-    id: "store_3",
-    name: "Melbourne CBD",
-    address: "456 Collins Street",
-    suburb: "Melbourne",
-    state: "VIC",
-    postcode: "3000",
-    phone: "(03) 9xxx xxxx",
-    hoursOpen: "10am - 6pm, Mon-Sat",
-  },
-];
-
-export function StoreSelection({ onSelect, selectedStore }: StoreSelectionProps) {
-  // Initialize with mock data - in production, would fetch from API via useEffect
-  const stores = MOCK_STORES;
+export function StoreSelection({ stores, onSelect, selectedStore }: StoreSelectionProps) {
+  if (stores.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No stores currently accept click &amp; collect.
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -75,12 +37,14 @@ export function StoreSelection({ onSelect, selectedStore }: StoreSelectionProps)
                 <MapPin className="h-4 w-4 text-muted-foreground" />
                 <h3 className="font-semibold">{store.name}</h3>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {store.address}, {store.suburb} {store.state} {store.postcode}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {store.phone} • {store.hoursOpen}
-              </p>
+              {store.address && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {store.address.line1}
+                  {store.address.line2 ? `, ${store.address.line2}` : ""}, {store.address.city}
+                  {store.address.region ? ` ${store.address.region}` : ""}
+                  {store.address.postalCode ? ` ${store.address.postalCode}` : ""}
+                </p>
+              )}
             </div>
 
             {selectedStore === store.id && (

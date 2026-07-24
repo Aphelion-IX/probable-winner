@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { createPendingOrder } from "@/app/actions/create-pending-order";
 import { AlertCircle, Loader2 } from "lucide-react";
+import type { CartContentsLine } from "@/features/cart/queries/get-cart-contents";
 
 interface OrderReviewProps {
   fulfillmentType: "delivery" | "collect" | null;
@@ -17,7 +18,9 @@ interface OrderReviewProps {
     postcode: string;
   } | null;
   storeId?: string | null;
-  cartId?: string;
+  cartId: string;
+  lines: CartContentsLine[];
+  subtotal: number;
 }
 
 const priceFormatter = new Intl.NumberFormat("en-AU", {
@@ -29,7 +32,9 @@ export function OrderReview({
   fulfillmentType,
   address,
   storeId,
-  cartId = "demo_cart",
+  cartId,
+  lines,
+  subtotal,
 }: OrderReviewProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -37,11 +42,12 @@ export function OrderReview({
     Array<{ field: string; message: string }>
   >([]);
 
-  // Mock values - in production, would come from cart
-  const subtotal = 299.85;
+  // Shipping/tax are flat-rate placeholders -- there's no real shipping-cost
+  // calculation or tax-jurisdiction logic yet, matching create-pending-order.ts's
+  // own scope. The line items and subtotal above are real, from the cart.
   const shipping = fulfillmentType === "delivery" ? 15.0 : 0;
-  const tax = ((subtotal + shipping) * 0.1).toFixed(2);
-  const total = subtotal + shipping + parseFloat(tax as string);
+  const tax = (subtotal + shipping) * 0.1;
+  const total = subtotal + shipping + tax;
 
   const handleCreateOrder = async () => {
     if (!fulfillmentType) {
@@ -128,10 +134,18 @@ export function OrderReview({
       <div>
         <h3 className="font-semibold text-sm mb-3">Order items</h3>
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">3 items from cart (demo)</span>
-            <span>{priceFormatter.format(subtotal)}</span>
-          </div>
+          {lines.map((line) => (
+            <div key={line.cartLineId} className="flex justify-between">
+              <span className="text-muted-foreground">
+                {line.quantity}× {line.cardName} ({line.setCode})
+              </span>
+              <span>
+                {line.price != null
+                  ? priceFormatter.format(line.price * line.quantity)
+                  : "Unavailable"}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -153,7 +167,7 @@ export function OrderReview({
 
         <div className="flex justify-between">
           <span className="text-muted-foreground">Tax (10%)</span>
-          <span>{priceFormatter.format(parseFloat(tax as string))}</span>
+          <span>{priceFormatter.format(tax)}</span>
         </div>
       </div>
 
