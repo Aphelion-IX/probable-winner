@@ -6,6 +6,7 @@ import type { DecklistImportResult } from "@/features/deck-builder/actions/match
 
 const mockImportDecklist = vi.fn();
 const mockGetSubstitutions = vi.fn();
+const mockAddAllToCart = vi.fn();
 
 vi.mock("@/features/deck-builder/actions/match-decklist", () => ({
   importDecklist: (...args: unknown[]) => mockImportDecklist(...args),
@@ -13,6 +14,10 @@ vi.mock("@/features/deck-builder/actions/match-decklist", () => ({
 
 vi.mock("@/features/deck-builder/actions/get-substitutions", () => ({
   getSubstitutions: (...args: unknown[]) => mockGetSubstitutions(...args),
+}));
+
+vi.mock("@/features/deck-builder/actions/add-all-to-cart", () => ({
+  addAllToCart: (...args: unknown[]) => mockAddAllToCart(...args),
 }));
 
 const RESULT: DecklistImportResult = {
@@ -75,6 +80,7 @@ describe("DecklistImport", () => {
     cleanup();
     mockImportDecklist.mockReset();
     mockGetSubstitutions.mockReset();
+    mockAddAllToCart.mockReset();
   });
 
   it("disables the submit button until something is pasted", () => {
@@ -263,6 +269,93 @@ describe("DecklistImport", () => {
         expect(screen.getByTestId("substitution-note")).toHaveTextContent(
           "Not currently available in stock.",
         );
+      });
+    });
+  });
+
+  describe("fulfilment percentage and add-all-to-cart", () => {
+    async function matchThenCheckPricing() {
+      mockImportDecklist.mockResolvedValue(RESULT);
+      render(<DecklistImport />);
+      await submit("1 Counterspell\n4 Lightning Bolt\n2 Not A Real Card");
+      await waitFor(() =>
+        expect(screen.getByText("Double Masters 2022 · #94")).toBeInTheDocument(),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /check pricing/i }));
+    }
+
+    const COUNTERSPELL_PREFERRED = {
+      status: "preferred" as const,
+      sku: {
+        skuId: "sku-cs-nm",
+        printingId: "printing-cs",
+        conditionCode: "nm",
+        conditionSortOrder: 1,
+        price: 12.5,
+        availableQuantity: 3,
+        setCode: "2X2",
+        setName: "Double Masters 2022",
+        collectorNumber: "94",
+      },
+    };
+
+    it("weights the fulfilment percentage by card quantity, only counting checked lines", async () => {
+      // Total quantity across all 3 lines is 1 + 4 + 2 = 7; only
+      // Counterspell (quantity 1) is resolved and checked, since Lightning
+      // Bolt is still ambiguous and the unmatched card never resolves.
+      mockGetSubstitutions.mockResolvedValue([COUNTERSPELL_PREFERRED]);
+
+      await matchThenCheckPricing();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("fulfilment-percentage")).toHaveTextContent(
+          `${Math.round((1 / 7) * 100)}% of this list can be fulfilled right now`,
+        );
+      });
+    });
+
+    it("disables 'Add all to cart' when nothing is fulfillable", async () => {
+      mockGetSubstitutions.mockResolvedValue([{ status: "unavailable" }]);
+
+      await matchThenCheckPricing();
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /add all to cart/i })).toBeDisabled();
+      });
+    });
+
+    it("adds exactly the fulfillable lines to the cart, matching the previewed percentage", async () => {
+      mockGetSubstitutions.mockResolvedValue([COUNTERSPELL_PREFERRED]);
+      mockAddAllToCart.mockResolvedValue({ status: "success", addedCount: 1, failedCount: 0 });
+
+      await matchThenCheckPricing();
+      await waitFor(() => expect(screen.getByTestId("fulfilment-percentage")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole("button", { name: /add all to cart/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("cart-summary")).toHaveTextContent(
+          "Added 1 of 1 cards to your cart.",
+        );
+      });
+      // Counterspell's parsed quantity (1) travels through, not some default.
+      expect(mockAddAllToCart).toHaveBeenCalledWith([{ skuId: "sku-cs-nm", quantity: 1 }]);
+    });
+
+    it("shows an error message when adding to cart fails", async () => {
+      mockGetSubstitutions.mockResolvedValue([COUNTERSPELL_PREFERRED]);
+      mockAddAllToCart.mockResolvedValue({ status: "error", message: "boom" });
+
+      await matchThenCheckPricing();
+      await waitFor(() => expect(screen.getByTestId("fulfilment-percentage")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole("button", { name: /add all to cart/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Couldn't add these cards to your cart. Please try again."),
+        ).toBeInTheDocument();
       });
     });
   });

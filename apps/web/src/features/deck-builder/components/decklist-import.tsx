@@ -10,8 +10,10 @@ import {
   type DecklistImportResult,
 } from "@/features/deck-builder/actions/match-decklist";
 import { getSubstitutions } from "@/features/deck-builder/actions/get-substitutions";
+import { addAllToCart } from "@/features/deck-builder/actions/add-all-to-cart";
 import type { SubstitutionOutcome } from "@/features/deck-builder/lib/resolve-substitution";
 import type { SubstitutionCandidate } from "@/features/deck-builder/queries/get-substitution-candidates";
+import { computeFulfilmentPercentage } from "@/features/deck-builder/lib/compute-fulfilment";
 
 type Status = "idle" | "loading" | "done" | "error";
 
@@ -173,6 +175,12 @@ export function DecklistImport() {
     Record<number, SubstitutionOutcome<SubstitutionCandidate>>
   >({});
 
+  const [cartStatus, setCartStatus] = useState<Status>("idle");
+  const [cartSummary, setCartSummary] = useState<{
+    addedCount: number;
+    failedCount: number;
+  } | null>(null);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus("loading");
@@ -224,8 +232,42 @@ export function DecklistImport() {
     }
   }
 
+  async function handleAddAllToCart() {
+    if (!result) return;
+
+    const linesToAdd: { skuId: string; quantity: number }[] = [];
+    for (const [index, outcome] of Object.entries(substitutions)) {
+      if (outcome.status !== "unavailable") {
+        linesToAdd.push({
+          skuId: outcome.sku.skuId,
+          quantity: result.lines[Number(index)].quantity,
+        });
+      }
+    }
+
+    if (linesToAdd.length === 0) return;
+
+    setCartStatus("loading");
+
+    try {
+      const outcome = await addAllToCart(linesToAdd);
+      if (outcome.status === "error") {
+        setCartStatus("error");
+        return;
+      }
+      setCartSummary({ addedCount: outcome.addedCount, failedCount: outcome.failedCount });
+      setCartStatus("done");
+    } catch {
+      setCartStatus("error");
+    }
+  }
+
   const resolvedCount = result
     ? result.lines.filter((_, index) => selections[index] !== undefined).length
+    : 0;
+
+  const fulfilmentPercentage = result
+    ? computeFulfilmentPercentage(result.lines, substitutions)
     : 0;
 
   return (
@@ -308,6 +350,35 @@ export function DecklistImport() {
           {substitutionStatus === "error" && (
             <p className="text-sm text-destructive">
               Couldn&apos;t check pricing and availability. Please try again.
+            </p>
+          )}
+
+          {substitutionStatus === "done" && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+              <p className="text-sm font-medium" data-testid="fulfilment-percentage">
+                {fulfilmentPercentage}% of this list can be fulfilled right now
+              </p>
+
+              <Button
+                type="button"
+                disabled={fulfilmentPercentage === 0 || cartStatus === "loading"}
+                onClick={handleAddAllToCart}
+              >
+                {cartStatus === "loading" ? "Adding…" : "Add all to cart"}
+              </Button>
+            </div>
+          )}
+
+          {cartStatus === "error" && (
+            <p className="text-sm text-destructive">
+              Couldn&apos;t add these cards to your cart. Please try again.
+            </p>
+          )}
+
+          {cartStatus === "done" && cartSummary && (
+            <p className="text-sm text-muted-foreground" data-testid="cart-summary">
+              Added {cartSummary.addedCount} of {cartSummary.addedCount + cartSummary.failedCount}{" "}
+              cards to your cart.
             </p>
           )}
 

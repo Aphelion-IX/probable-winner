@@ -39,8 +39,10 @@ export async function clearCartSessionId(): Promise<void> {
 }
 
 function generateSessionId(): string {
-  // Generate a random session ID (UUID v4 style)
-  return `${Math.random().toString(36).substring(2)}${Date.now().toString(36)}`;
+  // Must be a real UUID: it's used as guest_token, a `uuid` column/param
+  // throughout the cart schema (e.g. get_or_create_cart()) that rejects
+  // anything else.
+  return crypto.randomUUID();
 }
 
 export async function getOrCreateCart(userId?: string) {
