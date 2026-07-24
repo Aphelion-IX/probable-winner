@@ -21,19 +21,24 @@ function formatResult(result: ScenarioResult): string {
 
 async function main(): Promise<void> {
   const requested = process.argv.slice(2) as ScenarioName[];
-  const names = (requested.length > 0 ? requested : (Object.keys(SCENARIOS) as ScenarioName[])).filter(
-    (name): name is ScenarioName => name in SCENARIOS,
-  );
+  const names = (
+    requested.length > 0 ? requested : (Object.keys(SCENARIOS) as ScenarioName[])
+  ).filter((name): name is ScenarioName => name in SCENARIOS);
 
   if (names.length === 0) {
     console.error(`No matching scenarios. Available: ${Object.keys(SCENARIOS).join(", ")}`);
     process.exit(1);
   }
 
-  console.log(`Running ${names.length} scenario(s) against ${new URL(process.env.DATABASE_URL!).hostname}\n`);
+  console.log(
+    `Running ${names.length} scenario(s) against ${new URL(process.env.DATABASE_URL!).hostname}\n`,
+  );
 
   const before = await snapshotDbHealth(sql).catch((err) => {
-    console.warn("Could not snapshot DB health before run:", err instanceof Error ? err.message : err);
+    console.warn(
+      "Could not snapshot DB health before run:",
+      err instanceof Error ? err.message : err,
+    );
     return undefined;
   });
   if (before) {

@@ -68,7 +68,9 @@ export default function CreateAlertPage() {
 
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Create New Alert</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Set up a price or restock alert for a card.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Set up a price or restock alert for a card.
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="max-w-lg space-y-6 rounded-lg border p-6">

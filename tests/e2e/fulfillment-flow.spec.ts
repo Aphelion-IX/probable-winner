@@ -77,7 +77,10 @@ test.describe("Staff Fulfillment Workflow", () => {
     // Either empty state or batch list should be visible
     const isEmptyOrHasBatches = await Promise.race([
       emptyState.isVisible().then(() => true),
-      batchList.isVisible().then(() => true).catch(() => false),
+      batchList
+        .isVisible()
+        .then(() => true)
+        .catch(() => false),
     ]).catch(() => false);
 
     expect(isEmptyOrHasBatches).toBe(true);
@@ -100,7 +103,10 @@ test.describe("Staff Fulfillment Workflow", () => {
     // Either empty or has batches
     const isEmptyOrHasBatches = await Promise.race([
       emptyState.isVisible().then(() => true),
-      batchCard.isVisible().then(() => true).catch(() => false),
+      batchCard
+        .isVisible()
+        .then(() => true)
+        .catch(() => false),
     ]).catch(() => false);
 
     expect(isEmptyOrHasBatches).toBe(true);
@@ -123,7 +129,10 @@ test.describe("Staff Fulfillment Workflow", () => {
     // Either empty or has orders
     const isEmptyOrHasOrders = await Promise.race([
       emptyState.isVisible().then(() => true),
-      orderCard.isVisible().then(() => true).catch(() => false),
+      orderCard
+        .isVisible()
+        .then(() => true)
+        .catch(() => false),
     ]).catch(() => false);
 
     expect(isEmptyOrHasOrders).toBe(true);
@@ -166,7 +175,10 @@ test.describe("Staff Fulfillment Workflow", () => {
 
     // Get initial stat values
     const pendingOrdersStat = page.locator("text=Pending Orders").first().locator("..");
-    const pendingOrdersValue = await pendingOrdersStat.locator("text=/^\\d+$/").first().textContent();
+    const pendingOrdersValue = await pendingOrdersStat
+      .locator("text=/^\\d+$/")
+      .first()
+      .textContent();
 
     // Verify stat is a number (can be 0)
     expect(pendingOrdersValue).toMatch(/^\d+$/);
@@ -196,7 +208,10 @@ test.describe("Staff Fulfillment Workflow", () => {
     await page.goto("/staff/picking");
 
     // Try to find and click first batch if exists
-    const batchLink = page.locator("a").filter({ hasText: /[a-f0-9]{8}/ }).first();
+    const batchLink = page
+      .locator("a")
+      .filter({ hasText: /[a-f0-9]{8}/ })
+      .first();
     const batchLinkVisible = await batchLink.isVisible().catch(() => false);
 
     if (batchLinkVisible) {

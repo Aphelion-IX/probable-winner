@@ -145,7 +145,9 @@ export class CardKingdomPriceProvider implements PricingProvider {
     } catch (error) {
       // Log mapping exceptions so unmapped cards are never silently dropped
       if (error instanceof CardKingdomPriceValidationError) {
-        logger.warn("Card Kingdom fetch failed, will retry on next run", { message: error.message });
+        logger.warn("Card Kingdom fetch failed, will retry on next run", {
+          message: error.message,
+        });
         return [];
       }
       throw error;

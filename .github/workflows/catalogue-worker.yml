@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # Run every 30 minutes to process batches
-    - cron: '*/30 * * * *'
+    - cron: "*/30 * * * *"
 
 jobs:
   worker:

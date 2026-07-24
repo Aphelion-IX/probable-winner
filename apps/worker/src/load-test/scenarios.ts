@@ -21,7 +21,8 @@ export interface ScenarioResult {
 export async function concurrentSearches(): Promise<ScenarioResult> {
   return {
     name: "Concurrent searches",
-    blocked: "Typesense search (B-080-087) is unimplemented — apps/web's /search page is a placeholder.",
+    blocked:
+      "Typesense search (B-080-087) is unimplemented — apps/web's /search page is a placeholder.",
   };
 }
 
@@ -34,7 +35,9 @@ export async function concurrentSearches(): Promise<ScenarioResult> {
  * the seeded stock.
  */
 export async function hotCardContention(sql: Sql, concurrency = 200): Promise<ScenarioResult> {
-  const [hot] = await sql<[{ fulfilment_node_id: string; sellable_sku_id: string; on_hand: number }]>`
+  const [hot] = await sql<
+    [{ fulfilment_node_id: string; sellable_sku_id: string; on_hand: number }]
+  >`
     select fulfilment_node_id, sellable_sku_id, quantity_on_hand as on_hand
     from inventory_balances
     where quantity_on_hand between 1 and 5
@@ -43,7 +46,10 @@ export async function hotCardContention(sql: Sql, concurrency = 200): Promise<Sc
   `;
 
   if (!hot) {
-    return { name: "Hot card contention", blocked: "No low-stock SKU found in inventory_balances." };
+    return {
+      name: "Hot card contention",
+      blocked: "No low-stock SKU found in inventory_balances.",
+    };
   }
 
   const samples = await runLoad(
@@ -81,7 +87,11 @@ export async function decklistImport(): Promise<ScenarioResult> {
  * (fulfilment_node_id, sellable_sku_id) index a real staff inventory page
  * would hit.
  */
-export async function storeLevelStaffSearch(sql: Sql, concurrency = 20, iterations = 100): Promise<ScenarioResult> {
+export async function storeLevelStaffSearch(
+  sql: Sql,
+  concurrency = 20,
+  iterations = 100,
+): Promise<ScenarioResult> {
   const nodes = await sql<Array<{ id: string }>>`select id from fulfilment_nodes`;
 
   const samples = await runLoad(
@@ -109,7 +119,11 @@ export async function storeLevelStaffSearch(sql: Sql, concurrency = 20, iteratio
  * per-request pattern a real "publish this price" staff action would
  * generate at volume), distinct from scenario 10's single bulk pass.
  */
-export async function bulkRepricing(sql: Sql, concurrency = 50, iterations = 500): Promise<ScenarioResult> {
+export async function bulkRepricing(
+  sql: Sql,
+  concurrency = 50,
+  iterations = 500,
+): Promise<ScenarioResult> {
   const rows = await sql<Array<{ id: string; sellable_sku_id: string; pricing_rule_id: string }>>`
     select id, sellable_sku_id, pricing_rule_id
     from calculated_prices
@@ -144,7 +158,11 @@ export async function bulkRepricing(sql: Sql, concurrency = 50, iterations = 500
  * under write contention is measured without mutating real catalogue
  * data.
  */
-export async function catalogueImportDuringShopping(sql: Sql, concurrency = 30, iterations = 150): Promise<ScenarioResult> {
+export async function catalogueImportDuringShopping(
+  sql: Sql,
+  concurrency = 30,
+  iterations = 150,
+): Promise<ScenarioResult> {
   const writer = (async () => {
     for (let i = 0; i < 20; i++) {
       await sql`
@@ -204,7 +222,8 @@ export async function transferReceiving(sql: Sql, concurrency = 20): Promise<Sce
   if (transfers.length === 0) {
     return {
       name: "Transfer receiving",
-      blocked: "No transfer_orders left in dispatched/in_transit status to receive (seed data exhausted by a prior run).",
+      blocked:
+        "No transfer_orders left in dispatched/in_transit status to receive (seed data exhausted by a prior run).",
     };
   }
 

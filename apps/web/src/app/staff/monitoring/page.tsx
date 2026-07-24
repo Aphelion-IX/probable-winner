@@ -154,7 +154,9 @@ export default async function SystemMonitoringPage() {
                     {failure.failedRunCount === 0 ? (
                       <span className="text-muted-foreground">0</span>
                     ) : (
-                      <span className="font-semibold text-orange-600">{failure.failedRunCount}</span>
+                      <span className="font-semibold text-orange-600">
+                        {failure.failedRunCount}
+                      </span>
                     )}
                   </td>
                   <td className="px-6 py-3 text-xs text-muted-foreground">

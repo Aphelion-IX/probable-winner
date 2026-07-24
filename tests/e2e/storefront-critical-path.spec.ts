@@ -89,9 +89,9 @@ test.describe("Storefront critical path", () => {
       await cartLink.click();
       await expect(page).toHaveURL(/.*\/cart/);
       // Cart should show empty state or items
-      const emptyCart = page.locator("text=Your cart is empty").or(
-        page.locator("text=Shopping cart")
-      );
+      const emptyCart = page
+        .locator("text=Your cart is empty")
+        .or(page.locator("text=Shopping cart"));
       await expect(emptyCart).toBeVisible();
     }
 
@@ -141,9 +141,12 @@ test.describe("Storefront critical path", () => {
     await expect(page.locator("text=Click & Collect")).toBeVisible();
 
     // Click delivery option
-    const deliveryButton = page.locator("button").filter({
-      hasText: /Delivery/,
-    }).first();
+    const deliveryButton = page
+      .locator("button")
+      .filter({
+        hasText: /Delivery/,
+      })
+      .first();
 
     if (await deliveryButton.isVisible()) {
       await deliveryButton.click();
@@ -156,16 +159,19 @@ test.describe("Storefront critical path", () => {
     // Navigate back and try click-and-collect
     await page.goto("/checkout");
 
-    const collectButton = page.locator("button").filter({
-      hasText: /Click.*Collect/,
-    }).first();
+    const collectButton = page
+      .locator("button")
+      .filter({
+        hasText: /Click.*Collect/,
+      })
+      .first();
 
     if (await collectButton.isVisible()) {
       await collectButton.click();
 
       // Verify store selection appears
       await expect(page.locator("text=Select a store").or(page.locator("text=store"))).toBeVisible({
-        timeout: 5000
+        timeout: 5000,
       });
     }
   });

@@ -1,6 +1,6 @@
-'use server';
+"use server";
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
 interface CheckoutValidationError {
   field: string;
@@ -27,7 +27,7 @@ interface CartData {
 
 export async function createPendingOrder(
   cartId: string,
-  fulfillmentType: 'delivery' | 'collect',
+  fulfillmentType: "delivery" | "collect",
   address?: {
     line1: string;
     line2?: string;
@@ -35,52 +35,52 @@ export async function createPendingOrder(
     state: string;
     postcode: string;
   },
-  storeId?: string
+  storeId?: string,
 ): Promise<CreatePendingOrderResult> {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
   const errors: CheckoutValidationError[] = [];
 
-  if (!fulfillmentType || !['delivery', 'collect'].includes(fulfillmentType)) {
+  if (!fulfillmentType || !["delivery", "collect"].includes(fulfillmentType)) {
     errors.push({
-      field: 'fulfillmentType',
-      message: 'Invalid fulfillment type',
+      field: "fulfillmentType",
+      message: "Invalid fulfillment type",
     });
   }
 
-  if (fulfillmentType === 'delivery') {
+  if (fulfillmentType === "delivery") {
     if (!address?.line1?.trim()) {
       errors.push({
-        field: 'address.line1',
-        message: 'Street address is required for delivery',
+        field: "address.line1",
+        message: "Street address is required for delivery",
       });
     }
     if (!address?.suburb?.trim()) {
       errors.push({
-        field: 'address.suburb',
-        message: 'Suburb/city is required for delivery',
+        field: "address.suburb",
+        message: "Suburb/city is required for delivery",
       });
     }
     if (!address?.postcode?.trim()) {
       errors.push({
-        field: 'address.postcode',
-        message: 'Postcode is required for delivery',
+        field: "address.postcode",
+        message: "Postcode is required for delivery",
       });
     } else if (!/^\d{4}$/.test(address.postcode)) {
       errors.push({
-        field: 'address.postcode',
-        message: 'Postcode must be 4 digits',
+        field: "address.postcode",
+        message: "Postcode must be 4 digits",
       });
     }
   }
 
-  if (fulfillmentType === 'collect' && !storeId?.trim()) {
+  if (fulfillmentType === "collect" && !storeId?.trim()) {
     errors.push({
-      field: 'storeId',
-      message: 'Store selection is required for click and collect',
+      field: "storeId",
+      message: "Store selection is required for click and collect",
     });
   }
 
@@ -89,7 +89,7 @@ export async function createPendingOrder(
   // price is always looked up fresh from published_prices at checkout,
   // so there's no "price at add" to detect drift against.
   const { data: cart, error: cartError } = await supabase
-    .from('carts')
+    .from("carts")
     .select(
       `
       id,
@@ -104,28 +104,25 @@ export async function createPendingOrder(
           expires_at
         )
       )
-    `
+    `,
     )
-    .eq('id', cartId)
+    .eq("id", cartId)
     .single();
 
   if (cartError || !cart) {
     errors.push({
-      field: 'cart',
-      message: 'Cart not found',
+      field: "cart",
+      message: "Cart not found",
     });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cartData = cart as any as CartData;
 
-  if (
-    cartData &&
-    (!cartData.cart_lines || cartData.cart_lines.length === 0)
-  ) {
+  if (cartData && (!cartData.cart_lines || cartData.cart_lines.length === 0)) {
     errors.push({
-      field: 'cart',
-      message: 'Cart is empty',
+      field: "cart",
+      message: "Cart is empty",
     });
   }
 
@@ -135,10 +132,10 @@ export async function createPendingOrder(
   if (cartData?.cart_lines?.length) {
     const skuIds = cartData.cart_lines.map((line) => line.sellable_sku_id);
     const { data: prices } = await supabase
-      .from('published_prices')
-      .select('sellable_sku_id, final_amount')
-      .in('sellable_sku_id', skuIds)
-      .eq('status', 'active');
+      .from("published_prices")
+      .select("sellable_sku_id, final_amount")
+      .in("sellable_sku_id", skuIds)
+      .eq("status", "active");
 
     for (const price of prices ?? []) {
       priceBySkuId.set(price.sellable_sku_id, price.final_amount);
@@ -153,20 +150,17 @@ export async function createPendingOrder(
         ? line.inventory_reservations[0]
         : line.inventory_reservations;
 
-      if (
-        !reservation ||
-        (reservation.expires_at && new Date(reservation.expires_at) < now)
-      ) {
+      if (!reservation || (reservation.expires_at && new Date(reservation.expires_at) < now)) {
         errors.push({
           field: `cartLine_${line.id}`,
-          message: 'Item reservation has expired. Please add it to cart again.',
+          message: "Item reservation has expired. Please add it to cart again.",
         });
       }
 
       if (!priceBySkuId.has(line.sellable_sku_id)) {
         errors.push({
           field: `cartLine_${line.id}_price`,
-          message: 'This item is no longer available for sale. Please remove it and try again.',
+          message: "This item is no longer available for sale. Please remove it and try again.",
         });
       }
     }
@@ -179,9 +173,9 @@ export async function createPendingOrder(
   try {
     // Get the default fulfilment node for the organisation
     const { data: defaultNode } = await supabase
-      .from('fulfilment_nodes')
-      .select('id')
-      .eq('organisation_id', cartData.organisation_id)
+      .from("fulfilment_nodes")
+      .select("id")
+      .eq("organisation_id", cartData.organisation_id)
       .limit(1)
       .single();
 
@@ -190,8 +184,8 @@ export async function createPendingOrder(
         success: false,
         errors: [
           {
-            field: 'organisation',
-            message: 'No fulfilment node found for organisation',
+            field: "organisation",
+            message: "No fulfilment node found for organisation",
           },
         ],
       };
@@ -201,24 +195,24 @@ export async function createPendingOrder(
     let collectionStoreId: string | null = null;
 
     // Create address record if delivery
-    if (fulfillmentType === 'delivery' && address) {
+    if (fulfillmentType === "delivery" && address) {
       const { data: newAddress, error: addressError } = await supabase
-        .from('addresses')
+        .from("addresses")
         .insert({
           organisation_id: cartData.organisation_id,
           // The checkout address form doesn't collect a recipient name yet
           // (a pre-existing gap in this UI, not something this fix adds) --
           // recipient_name is NOT NULL with no default, so fall back rather
           // than fail the insert outright.
-          recipient_name: 'Customer',
+          recipient_name: "Customer",
           line_1: address.line1,
           line_2: address.line2 || null,
           suburb_city: address.suburb,
           state_province: address.state,
           postcode_zip: address.postcode,
-          country_code: 'AU',
+          country_code: "AU",
         })
-        .select('id')
+        .select("id")
         .single();
 
       if (addressError || !newAddress) {
@@ -226,8 +220,8 @@ export async function createPendingOrder(
           success: false,
           errors: [
             {
-              field: 'address',
-              message: 'Failed to save address',
+              field: "address",
+              message: "Failed to save address",
             },
           ],
         };
@@ -237,7 +231,7 @@ export async function createPendingOrder(
     }
 
     // Map fulfilment node for collection
-    if (fulfillmentType === 'collect') {
+    if (fulfillmentType === "collect") {
       collectionStoreId = storeId || defaultNode.id;
     }
 
@@ -246,20 +240,19 @@ export async function createPendingOrder(
 
     // Create order
     const { data: order, error: orderError } = await supabase
-      .from('orders')
+      .from("orders")
       .insert({
         organisation_id: cartData.organisation_id,
         fulfilment_node_id: collectionStoreId || defaultNode.id,
         order_number: orderNumber,
-        status: 'pending',
-        fulfilment_type:
-          fulfillmentType === 'delivery' ? 'online_shipping' : 'click_and_collect',
+        status: "pending",
+        fulfilment_type: fulfillmentType === "delivery" ? "online_shipping" : "click_and_collect",
         shipping_address_id: shippingAddressId,
         collection_store_id: collectionStoreId,
         total_amount: 0,
-        currency: 'AUD',
+        currency: "AUD",
       })
-      .select('id')
+      .select("id")
       .single();
 
     if (orderError || !order) {
@@ -267,8 +260,8 @@ export async function createPendingOrder(
         success: false,
         errors: [
           {
-            field: 'order',
-            message: 'Failed to create order. Please try again.',
+            field: "order",
+            message: "Failed to create order. Please try again.",
           },
         ],
       };
@@ -286,17 +279,15 @@ export async function createPendingOrder(
       };
     });
 
-    const { error: linesError } = await supabase
-      .from('order_lines')
-      .insert(orderLines);
+    const { error: linesError } = await supabase.from("order_lines").insert(orderLines);
 
     if (linesError) {
       return {
         success: false,
         errors: [
           {
-            field: 'order',
-            message: 'Failed to create order lines',
+            field: "order",
+            message: "Failed to create order lines",
           },
         ],
       };
@@ -306,7 +297,7 @@ export async function createPendingOrder(
     // with a 0 placeholder above since the total depends on them).
     const totalAmount =
       Math.round(orderLines.reduce((sum, line) => sum + line.line_total, 0) * 100) / 100;
-    await supabase.from('orders').update({ total_amount: totalAmount }).eq('id', order.id);
+    await supabase.from("orders").update({ total_amount: totalAmount }).eq("id", order.id);
 
     return { success: true, orderId: order.id };
   } catch (error) {
@@ -314,8 +305,8 @@ export async function createPendingOrder(
       success: false,
       errors: [
         {
-          field: 'order',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          field: "order",
+          message: error instanceof Error ? error.message : "Unknown error",
         },
       ],
     };

@@ -1,5 +1,5 @@
 export interface ImportedPrice {
-  source: 'mtgjson' | 'tcgplayer' | 'card_kingdom';
+  source: "mtgjson" | "tcgplayer" | "card_kingdom";
   sourceId: string;
   price: number;
   currency: string;
@@ -8,9 +8,7 @@ export interface ImportedPrice {
 }
 
 export interface PricingProvider {
-  fetchPrices(
-    identifiers: Array<{ cardId: string; oracleId?: string }>
-  ): Promise<ImportedPrice[]>;
+  fetchPrices(identifiers: Array<{ cardId: string; oracleId?: string }>): Promise<ImportedPrice[]>;
   healthCheck(): Promise<boolean>;
 }
 

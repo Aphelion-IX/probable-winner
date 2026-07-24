@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { createClient } from '@supabase/supabase-js';
+import { describe, it, expect, beforeEach } from "vitest";
+import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "",
 );
 
-describe('Checkout Flow Integration Tests', () => {
+describe("Checkout Flow Integration Tests", () => {
   let organisationId: string;
   let cartId: string;
   let skuId: string;
@@ -17,10 +17,10 @@ describe('Checkout Flow Integration Tests', () => {
     // For now, we skip actual DB setup and focus on flow validation
   });
 
-  it('should validate cart items before checkout', async () => {
+  it("should validate cart items before checkout", async () => {
     // Test that cart validation catches missing items
     const { data: cart } = await supabase
-      .from('carts')
+      .from("carts")
       .select(
         `
       id,
@@ -29,7 +29,7 @@ describe('Checkout Flow Integration Tests', () => {
         sellable_sku_id,
         quantity
       )
-    `
+    `,
       )
       .limit(1)
       .single();
@@ -40,10 +40,10 @@ describe('Checkout Flow Integration Tests', () => {
     }
   });
 
-  it('should detect expired reservations during checkout', async () => {
+  it("should detect expired reservations during checkout", async () => {
     // Test that reservations with expires_at in the past are detected
     const { data: expiredLines } = await supabase
-      .from('cart_lines')
+      .from("cart_lines")
       .select(
         `
       id,
@@ -53,9 +53,9 @@ describe('Checkout Flow Integration Tests', () => {
         expires_at,
         status
       )
-    `
+    `,
       )
-      .lt('reservations.expires_at', new Date().toISOString())
+      .lt("reservations.expires_at", new Date().toISOString())
       .limit(1);
 
     // Should either have expired reservations or be empty
@@ -70,16 +70,16 @@ describe('Checkout Flow Integration Tests', () => {
     }
   });
 
-  it('should validate price tolerance during checkout', async () => {
+  it("should validate price tolerance during checkout", async () => {
     // Test that price changes are detected within tolerance
     const { data: lines } = await supabase
-      .from('cart_lines')
+      .from("cart_lines")
       .select(
         `
       id,
       price_at_add,
       published_prices(final_amount)
-    `
+    `,
       )
       .limit(5);
 
@@ -92,9 +92,7 @@ describe('Checkout Flow Integration Tests', () => {
 
         if (currentPrice !== undefined && currentPrice !== null) {
           const percentChange =
-            (Math.abs(currentPrice - line.price_at_add) /
-              line.price_at_add) *
-            100;
+            (Math.abs(currentPrice - line.price_at_add) / line.price_at_add) * 100;
 
           // Price change should be detected if > 10%
           if (percentChange > 10) {
@@ -107,42 +105,42 @@ describe('Checkout Flow Integration Tests', () => {
     }
   });
 
-  it('should enforce address validation for delivery orders', async () => {
+  it("should enforce address validation for delivery orders", async () => {
     // Test address field validation
     const validAddresses = [
       {
-        line1: '123 Main St',
-        suburb: 'Sydney',
-        state: 'NSW',
-        postcode: '2000',
+        line1: "123 Main St",
+        suburb: "Sydney",
+        state: "NSW",
+        postcode: "2000",
         valid: true,
       },
       {
-        line1: '456 Oak Ave',
-        suburb: 'Melbourne',
-        state: 'VIC',
-        postcode: '3000',
+        line1: "456 Oak Ave",
+        suburb: "Melbourne",
+        state: "VIC",
+        postcode: "3000",
         valid: true,
       },
       {
-        line1: '',
-        suburb: 'Brisbane',
-        state: 'QLD',
-        postcode: '4000',
+        line1: "",
+        suburb: "Brisbane",
+        state: "QLD",
+        postcode: "4000",
         valid: false,
       },
       {
-        line1: '789 Elm Dr',
-        suburb: '',
-        state: 'SA',
-        postcode: '5000',
+        line1: "789 Elm Dr",
+        suburb: "",
+        state: "SA",
+        postcode: "5000",
         valid: false,
       },
       {
-        line1: '321 Pine St',
-        suburb: 'Perth',
-        state: 'WA',
-        postcode: '500',
+        line1: "321 Pine St",
+        suburb: "Perth",
+        state: "WA",
+        postcode: "500",
         valid: false,
       },
     ];
@@ -150,31 +148,29 @@ describe('Checkout Flow Integration Tests', () => {
     for (const address of validAddresses) {
       const hasValidPostcode = /^\d{4}$/.test(address.postcode);
       const hasValidAddress =
-        address.line1.trim() !== '' &&
-        address.suburb.trim() !== '' &&
-        hasValidPostcode;
+        address.line1.trim() !== "" && address.suburb.trim() !== "" && hasValidPostcode;
 
       expect(hasValidAddress).toBe(address.valid);
     }
   });
 
-  it('should verify order creation succeeds with valid data', async () => {
+  it("should verify order creation succeeds with valid data", async () => {
     // Test that orders can be created with valid checkout data
     const { data: orders } = await supabase
-      .from('orders')
-      .select('id, status, fulfilment_type')
-      .eq('status', 'pending')
+      .from("orders")
+      .select("id, status, fulfilment_type")
+      .eq("status", "pending")
       .limit(1);
 
     // Should be able to query pending orders
     expect(Array.isArray(orders)).toBe(true);
   });
 
-  it('should enforce RLS on order access', async () => {
+  it("should enforce RLS on order access", async () => {
     // Test that customers can only see their own orders
     const { data: customerOrders } = await supabase
-      .from('orders')
-      .select('id, customer_id')
+      .from("orders")
+      .select("id, customer_id")
       .limit(5);
 
     // Should only return orders visible to authenticated user
@@ -185,17 +181,17 @@ describe('Checkout Flow Integration Tests', () => {
     }
   });
 
-  it('should handle cart to order line conversion', async () => {
+  it("should handle cart to order line conversion", async () => {
     // Test that cart_lines properly map to order_lines
     const { data: cartLines } = await supabase
-      .from('cart_lines')
+      .from("cart_lines")
       .select(
         `
       id,
       quantity,
       price_at_add,
       sellable_sku_id
-    `
+    `,
       )
       .limit(3);
 
@@ -210,11 +206,11 @@ describe('Checkout Flow Integration Tests', () => {
     }
   });
 
-  it('should verify Stripe event idempotency schema', async () => {
+  it("should verify Stripe event idempotency schema", async () => {
     // Test that stripe_events table supports idempotent inserts
     const { data: events, error: selectError } = await supabase
-      .from('stripe_events')
-      .select('id, event_type')
+      .from("stripe_events")
+      .select("id, event_type")
       .limit(1);
 
     // Schema should exist and allow querying
@@ -222,16 +218,16 @@ describe('Checkout Flow Integration Tests', () => {
     expect(Array.isArray(events)).toBe(true);
   });
 
-  it('should detect missing fulfillment node for orders', async () => {
+  it("should detect missing fulfillment node for orders", async () => {
     // Test that orders reference valid fulfillment nodes
     const { data: orders } = await supabase
-      .from('orders')
+      .from("orders")
       .select(
         `
       id,
       fulfilment_node_id,
       fulfilment_nodes(id, name)
-    `
+    `,
       )
       .limit(5);
 

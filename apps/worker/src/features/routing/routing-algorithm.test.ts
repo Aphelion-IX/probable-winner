@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  route_order,
-  type FulfilmentNode,
-  type RoutingInput,
-} from "./routing-algorithm.js";
+import { route_order, type FulfilmentNode, type RoutingInput } from "./routing-algorithm.js";
 
 // Helper to create test nodes
 function create_node(
@@ -42,7 +38,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         ],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
         ["sku-1", [{ sku_id: "sku-1", node_id: "store-1", quantity_available: 5 }]],
         ["sku-2", [{ sku_id: "sku-2", node_id: "store-1", quantity_available: 5 }]],
       ]);
@@ -66,9 +65,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         lines: [{ order_line_id: "line-1", sku_id: "sku-1", quantity: 10 }],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
-        ["sku-1", [{ sku_id: "sku-1", node_id: "store-1", quantity_available: 5 }]],
-      ]);
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([["sku-1", [{ sku_id: "sku-1", node_id: "store-1", quantity_available: 5 }]]]);
 
       const allocations = await route_order(input, [store_cc, warehouse], availability, "VIC");
 
@@ -89,7 +89,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         lines: [{ order_line_id: "line-1", sku_id: "sku-1", quantity: 5 }],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
         [
           "sku-1",
           [
@@ -126,7 +129,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         ],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
         [
           "sku-1",
           [
@@ -170,7 +176,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         ],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
         [
           "sku-1",
           [
@@ -187,12 +196,7 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         ],
       ]);
 
-      const allocations = await route_order(
-        input,
-        [store_a, store_b],
-        availability,
-        "VIC",
-      );
+      const allocations = await route_order(input, [store_a, store_b], availability, "VIC");
 
       // Should split: sku-1 to store-a, sku-2 to store-b
       expect(allocations).toHaveLength(2);
@@ -218,7 +222,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         ],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
         [
           "sku-1",
           [
@@ -262,7 +269,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         lines: [{ order_line_id: "line-1", sku_id: "sku-1", quantity: 5 }],
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>([
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >([
         [
           "sku-1",
           [
@@ -314,7 +324,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
       };
 
       // Empty availability
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>();
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >();
 
       const allocations = await route_order(input, [store, warehouse], availability, "VIC");
 
@@ -332,7 +345,10 @@ describe("Order routing algorithm (blueprint §11, B-131-B-132)", () => {
         lines: [], // Empty
       };
 
-      const availability = new Map<string, Array<{ sku_id: string; node_id: string; quantity_available: number }>>();
+      const availability = new Map<
+        string,
+        Array<{ sku_id: string; node_id: string; quantity_available: number }>
+      >();
 
       const allocations = await route_order(input, [store], availability, "VIC");
 

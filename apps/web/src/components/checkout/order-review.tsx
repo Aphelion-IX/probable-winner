@@ -59,7 +59,7 @@ export function OrderReview({
         cartId,
         fulfillmentType,
         fulfillmentType === "delivery" ? address || undefined : undefined,
-        fulfillmentType === "collect" ? storeId || undefined : undefined
+        fulfillmentType === "collect" ? storeId || undefined : undefined,
       );
 
       if (result.success && result.orderId) {
@@ -72,8 +72,7 @@ export function OrderReview({
       setValidationErrors([
         {
           field: "order",
-          message:
-            error instanceof Error ? error.message : "Failed to create order",
+          message: error instanceof Error ? error.message : "Failed to create order",
         },
       ]);
     } finally {
@@ -89,9 +88,7 @@ export function OrderReview({
           <div className="flex gap-3">
             <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
             <div className="flex-1">
-              <h3 className="font-semibold text-destructive text-sm">
-                Unable to proceed
-              </h3>
+              <h3 className="font-semibold text-destructive text-sm">Unable to proceed</h3>
               <ul className="mt-2 space-y-1">
                 {validationErrors.map((error) => (
                   <li key={error.field} className="text-xs text-destructive">
@@ -132,9 +129,7 @@ export function OrderReview({
         <h3 className="font-semibold text-sm mb-3">Order items</h3>
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">
-              3 items from cart (demo)
-            </span>
+            <span className="text-muted-foreground">3 items from cart (demo)</span>
             <span>{priceFormatter.format(subtotal)}</span>
           </div>
         </div>

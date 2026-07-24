@@ -95,9 +95,9 @@ function score_node_for_routing(node: FulfilmentNode, context: ScoringContext): 
   // Safety stock consideration (prefer nodes with higher availability)
   let total_available = 0;
   for (const line of context.order_lines) {
-    const avail = context.sku_availability
-      .get(line.sku_id)
-      ?.find((a) => a.node_id === node.id)?.quantity_available ?? 0;
+    const avail =
+      context.sku_availability.get(line.sku_id)?.find((a) => a.node_id === node.id)
+        ?.quantity_available ?? 0;
     total_available += avail;
   }
   score += Math.max(0, 100 - total_available); // Lower score if high availability
@@ -112,9 +112,9 @@ function can_fulfill_complete_order(
   sku_availability: Map<string, SKUAvailability[]>,
 ): boolean {
   for (const line of lines) {
-    const avail = sku_availability
-      .get(line.sku_id)
-      ?.find((a) => a.node_id === node.id)?.quantity_available ?? 0;
+    const avail =
+      sku_availability.get(line.sku_id)?.find((a) => a.node_id === node.id)?.quantity_available ??
+      0;
     if (avail < line.quantity) {
       return false;
     }
@@ -186,9 +186,9 @@ export async function route_order(
       let allocation_count = 0;
 
       for (const line of remaining_lines) {
-        const avail = sku_availability
-          .get(line.sku_id)
-          ?.find((a) => a.node_id === node.id)?.quantity_available ?? 0;
+        const avail =
+          sku_availability.get(line.sku_id)?.find((a) => a.node_id === node.id)
+            ?.quantity_available ?? 0;
         if (avail >= line.quantity) {
           can_fulfill_from_this_node = true;
           allocation_count++;
@@ -211,9 +211,9 @@ export async function route_order(
 
     for (let i = 0; i < remaining_lines.length; i++) {
       const line = remaining_lines[i];
-      const avail = sku_availability
-        .get(line.sku_id)
-        ?.find((a) => a.node_id === best_node!.id)?.quantity_available ?? 0;
+      const avail =
+        sku_availability.get(line.sku_id)?.find((a) => a.node_id === best_node!.id)
+          ?.quantity_available ?? 0;
 
       if (avail >= line.quantity) {
         allocations.push({

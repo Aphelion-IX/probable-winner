@@ -1,8 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 import { createServerSupabaseClient } from "@/server/supabase";
-import { calculateSuggestedPrice, type CalculateSuggestedPriceInput } from "@/worker/jobs/calculate-suggested-price.js";
-import { detectPricingReview, type PricingReviewInput } from "@/worker/jobs/detect-pricing-review.js";
+import {
+  calculateSuggestedPrice,
+  type CalculateSuggestedPriceInput,
+} from "@/worker/jobs/calculate-suggested-price.js";
+import {
+  detectPricingReview,
+  type PricingReviewInput,
+} from "@/worker/jobs/detect-pricing-review.js";
 
 /**
  * B-154–B-155: Integration tests for pricing workflow.

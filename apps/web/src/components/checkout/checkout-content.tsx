@@ -71,9 +71,7 @@ export function CheckoutContent() {
                 2
               </div>
               <h2 className="text-lg font-semibold">
-                {fulfillmentType === "delivery"
-                  ? "Delivery address"
-                  : "Select a store"}
+                {fulfillmentType === "delivery" ? "Delivery address" : "Select a store"}
               </h2>
             </div>
 
@@ -115,19 +113,25 @@ export function CheckoutContent() {
         <div className="rounded-lg border p-4 bg-muted">
           <p className="text-sm font-semibold">Checkout progress</p>
           <div className="mt-4 space-y-2">
-            <div className={`flex items-center gap-2 text-sm ${currentStep >= 1 ? "text-foreground" : "text-muted-foreground"}`}>
+            <div
+              className={`flex items-center gap-2 text-sm ${currentStep >= 1 ? "text-foreground" : "text-muted-foreground"}`}
+            >
               <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs">
                 ✓
               </span>
               Fulfillment method
             </div>
-            <div className={`flex items-center gap-2 text-sm ${currentStep >= 2 ? "text-foreground" : "text-muted-foreground"}`}>
+            <div
+              className={`flex items-center gap-2 text-sm ${currentStep >= 2 ? "text-foreground" : "text-muted-foreground"}`}
+            >
               <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs">
                 {currentStep > 2 ? "✓" : "2"}
               </span>
               {fulfillmentType === "delivery" ? "Address" : "Store"}
             </div>
-            <div className={`flex items-center gap-2 text-sm ${currentStep >= 3 ? "text-foreground" : "text-muted-foreground"}`}>
+            <div
+              className={`flex items-center gap-2 text-sm ${currentStep >= 3 ? "text-foreground" : "text-muted-foreground"}`}
+            >
               <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs">
                 3
               </span>

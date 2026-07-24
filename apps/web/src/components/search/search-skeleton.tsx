@@ -5,10 +5,7 @@ export function SearchSkeleton() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 12 }).map((_, i) => (
-          <div
-            key={i}
-            className="flex flex-col overflow-hidden rounded-lg border bg-card"
-          >
+          <div key={i} className="flex flex-col overflow-hidden rounded-lg border bg-card">
             <div className="aspect-square w-full bg-muted animate-pulse" />
             <div className="flex flex-1 flex-col gap-2 p-3">
               <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />

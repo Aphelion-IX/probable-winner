@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { ShoppingCart, Search, User } from 'lucide-react';
-import { StoreSelector } from './StoreSelector';
+import Link from "next/link";
+import { ShoppingCart, Search, User } from "lucide-react";
+import { StoreSelector } from "./StoreSelector";
 
 export function RootNavbar() {
   return (

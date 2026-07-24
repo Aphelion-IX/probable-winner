@@ -11,12 +11,7 @@ interface PaginationProps {
   searchParams: Record<string, string | string[] | undefined>;
 }
 
-export function Pagination({
-  currentPage,
-  totalPages,
-  baseUrl,
-  searchParams,
-}: PaginationProps) {
+export function Pagination({ currentPage, totalPages, baseUrl, searchParams }: PaginationProps) {
   const buildUrl = (page: number) => {
     const params = new URLSearchParams();
 
@@ -63,11 +58,7 @@ export function Pagination({
       {startPage > 1 && (
         <>
           <Link href={buildUrl(1)}>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-            >
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0">
               1
             </Button>
           </Link>
@@ -91,11 +82,7 @@ export function Pagination({
         <>
           {endPage < totalPages - 1 && <span className="px-1">...</span>}
           <Link href={buildUrl(totalPages)}>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
-            >
+            <Button variant="outline" size="sm" className="h-8 w-8 p-0">
               {totalPages}
             </Button>
           </Link>

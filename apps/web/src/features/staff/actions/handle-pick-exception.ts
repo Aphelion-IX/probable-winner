@@ -22,7 +22,7 @@ export async function recordPickException(
   pickLineId: string,
   exceptionTypeCode: string,
   notes?: string,
-  severity: "info" | "warning" | "critical" = "warning"
+  severity: "info" | "warning" | "critical" = "warning",
 ): Promise<void> {
   const supabase = createServerSupabaseClient();
 
@@ -46,7 +46,7 @@ export async function recordPickException(
 
 export async function resolvePickException(
   exceptionId: string,
-  resolution: "substitute" | "refund" | "contact_customer" | "resolved"
+  resolution: "substitute" | "refund" | "contact_customer" | "resolved",
 ): Promise<void> {
   const supabase = createServerSupabaseClient();
 
@@ -94,7 +94,7 @@ export async function getPickLineExceptions(pickLineId: string): Promise<PickExc
       resolution,
       resolved_at,
       created_at
-    `
+    `,
     )
     .eq("pick_line_id", pickLineId)
     .order("created_at", { ascending: false });
@@ -108,15 +108,15 @@ export async function getPickLineExceptions(pickLineId: string): Promise<PickExc
     throw new Error("Failed to fetch exceptions");
   }
 
-  return (((exceptions as unknown) as ExceptionRow[] | null) || []).map((exc: ExceptionRow) => ({
+  return ((exceptions as unknown as ExceptionRow[] | null) || []).map((exc: ExceptionRow) => ({
     id: exc.id,
     pick_line_id: exc.pick_line_id,
     exception_type_id: exc.exception_type_id,
     exception_type: exc.exception_type,
     severity: exc.severity as "info" | "warning" | "critical",
     notes: exc.notes,
-    resolution: (exc.resolution as "substitute" | "refund" | "contact_customer" | "resolved" | null) ||
-      null,
+    resolution:
+      (exc.resolution as "substitute" | "refund" | "contact_customer" | "resolved" | null) || null,
     resolved_at: exc.resolved_at,
     created_at: exc.created_at,
   }));
@@ -142,7 +142,7 @@ export async function getUnresolvedExceptions(batchId: string): Promise<PickExce
         order_line_id,
         sort_order
       )
-    `
+    `,
     )
     .eq("pick_lines.pick_batch_id", batchId)
     .is("resolved_at", null)
@@ -157,15 +157,15 @@ export async function getUnresolvedExceptions(batchId: string): Promise<PickExce
     throw new Error("Failed to fetch unresolved exceptions");
   }
 
-  return (((exceptions as unknown) as ExceptionRow[] | null) || []).map((exc: ExceptionRow) => ({
+  return ((exceptions as unknown as ExceptionRow[] | null) || []).map((exc: ExceptionRow) => ({
     id: exc.id,
     pick_line_id: exc.pick_line_id,
     exception_type_id: exc.exception_type_id,
     exception_type: exc.exception_type,
     severity: exc.severity as "info" | "warning" | "critical",
     notes: exc.notes,
-    resolution: (exc.resolution as "substitute" | "refund" | "contact_customer" | "resolved" | null) ||
-      null,
+    resolution:
+      (exc.resolution as "substitute" | "refund" | "contact_customer" | "resolved" | null) || null,
     resolved_at: exc.resolved_at,
     created_at: exc.created_at,
   }));

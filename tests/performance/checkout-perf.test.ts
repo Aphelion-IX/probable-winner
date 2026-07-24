@@ -1,16 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from "vitest";
 
-describe('Checkout API Performance Tests', () => {
-  const baseURL = 'http://localhost:3000';
+describe("Checkout API Performance Tests", () => {
+  const baseURL = "http://localhost:3000";
 
-  it('should create pending order within budget (< 2000ms)', async () => {
+  it("should create pending order within budget (< 2000ms)", async () => {
     const start = performance.now();
 
     const response = await fetch(`${baseURL}/api/checkout/sessions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        orderId: 'test-order-id',
+        orderId: "test-order-id",
       }),
     });
 
@@ -20,14 +20,14 @@ describe('Checkout API Performance Tests', () => {
     expect(duration).toBeLessThan(2000);
   });
 
-  it('should verify payment within budget (< 1000ms)', async () => {
+  it("should verify payment within budget (< 1000ms)", async () => {
     const start = performance.now();
 
     const response = await fetch(`${baseURL}/api/checkout/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sessionId: 'test-session-id',
+        sessionId: "test-session-id",
       }),
     });
 
@@ -37,15 +37,15 @@ describe('Checkout API Performance Tests', () => {
     expect(duration).toBeLessThan(1000);
   });
 
-  it('should handle webhook validation quickly (< 100ms)', async () => {
+  it("should handle webhook validation quickly (< 100ms)", async () => {
     const webhookPayload = JSON.stringify({
-      id: 'evt_test_123',
-      type: 'charge.succeeded',
+      id: "evt_test_123",
+      type: "charge.succeeded",
       data: {
         object: {
-          id: 'ch_test_123',
+          id: "ch_test_123",
           metadata: {
-            orderId: 'order-test-123',
+            orderId: "order-test-123",
           },
         },
       },
@@ -56,10 +56,10 @@ describe('Checkout API Performance Tests', () => {
     const start = performance.now();
 
     const response = await fetch(`${baseURL}/api/webhooks/stripe`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'stripe-signature': 'test-signature',
+        "Content-Type": "application/json",
+        "stripe-signature": "test-signature",
       },
       body: webhookPayload,
     });
@@ -70,23 +70,21 @@ describe('Checkout API Performance Tests', () => {
     expect(duration).toBeLessThan(100);
   });
 
-  it('should handle concurrent checkout requests', async () => {
+  it("should handle concurrent checkout requests", async () => {
     const concurrentRequests = 5;
     const durations: number[] = [];
 
-    const promises = Array.from({ length: concurrentRequests }).map(
-      async (_, i) => {
-        const start = performance.now();
-        await fetch(`${baseURL}/api/checkout/sessions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId: `order-concurrent-${i}`,
-          }),
-        }).catch(() => null);
-        durations.push(performance.now() - start);
-      }
-    );
+    const promises = Array.from({ length: concurrentRequests }).map(async (_, i) => {
+      const start = performance.now();
+      await fetch(`${baseURL}/api/checkout/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: `order-concurrent-${i}`,
+        }),
+      }).catch(() => null);
+      durations.push(performance.now() - start);
+    });
 
     await Promise.all(promises);
 
@@ -102,10 +100,10 @@ describe('Checkout API Performance Tests', () => {
     expect(withinBudget).toBeGreaterThan(concurrentRequests * 0.7);
   });
 
-  it('should handle large order payloads', async () => {
+  it("should handle large order payloads", async () => {
     // Simulate order with many line items
     const largeOrder = {
-      orderId: 'large-order-test',
+      orderId: "large-order-test",
       items: Array.from({ length: 50 }).map((_, i) => ({
         id: `item-${i}`,
         quantity: Math.ceil(Math.random() * 10),
@@ -116,8 +114,8 @@ describe('Checkout API Performance Tests', () => {
     const start = performance.now();
 
     await fetch(`${baseURL}/api/checkout/sessions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(largeOrder),
     }).catch(() => null);
 
@@ -127,15 +125,15 @@ describe('Checkout API Performance Tests', () => {
     expect(duration).toBeLessThan(3000);
   });
 
-  it('should validate response latency is consistent', async () => {
+  it("should validate response latency is consistent", async () => {
     const iterations = 3;
     const durations: number[] = [];
 
     for (let i = 0; i < iterations; i++) {
       const start = performance.now();
       await fetch(`${baseURL}/api/checkout/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId: `order-${i}`,
         }),
@@ -145,9 +143,7 @@ describe('Checkout API Performance Tests', () => {
 
     // Latency should be consistent across requests
     const avgDuration = durations.reduce((a, b) => a + b, 0) / durations.length;
-    const variance = Math.max(
-      ...durations.map((d) => Math.abs(d - avgDuration))
-    );
+    const variance = Math.max(...durations.map((d) => Math.abs(d - avgDuration)));
 
     // Variance should be less than 50% of average
     expect(variance).toBeLessThan(avgDuration * 0.5);

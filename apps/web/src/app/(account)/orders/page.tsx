@@ -67,7 +67,9 @@ export default async function OrderHistoryPage() {
             <tbody>
               {orders.map((order) => (
                 <tr key={order.id} className="border-b hover:bg-muted/50">
-                  <td className="px-6 py-3 font-mono text-xs font-semibold">{order.order_number}</td>
+                  <td className="px-6 py-3 font-mono text-xs font-semibold">
+                    {order.order_number}
+                  </td>
                   <td className="px-6 py-3">
                     <Badge className={statusColors[order.status]}>
                       {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
