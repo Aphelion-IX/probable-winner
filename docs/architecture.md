@@ -399,6 +399,43 @@ Important fields on `fulfilment_nodes`: `id`, `organisation_id`, `name`, `code`,
 
 The catalogue describes the card, not its stock.
 
+#### 8.2.1 Card imagery: Scryfall as the image importer
+
+Catalogue metadata (name, oracle text, sets, etc.) comes from MTGJSON
+(`apps/worker/src/integrations/mtgjson`), which does not provide card
+images at all -- it only carries a `scryfallId`/`scryfallOracleId` per
+printing as a cross-reference, already stored on `card_identifiers` and
+`oracle_cards.scryfall_oracle_id` by `promote-catalogue.ts`. Card images
+are imported separately, from Scryfall, using those already-recorded ids:
+`apps/worker/src/jobs/import-card-images.ts` finds every `card_printings`
+row with a `scryfall_id` but no `card_images` rows yet, batches them
+through Scryfall's `POST /cards/collection` endpoint (75 identifiers per
+request, its documented batch limit -- never one request per card), and
+upserts the returned `image_uris` (small/normal/large/png/art_crop/
+border_crop). Only the Scryfall-hosted URL is stored, never the image
+itself, per Scryfall's own guidance. Run via
+`pnpm --filter worker import-card-images`; safe to re-run, since it only
+ever targets printings still missing images.
+
+Double-faced cards carry per-face images under Scryfall's `card_faces`
+array instead of a single top-level `image_uris`, so `card_images` has a
+`face` column (`front`/`back`) alongside `image_type`, letting both faces'
+images coexist under the same image_type rather than colliding on
+(printing, image_type) as the original schema would have. Rarer 3+-face
+layouts (e.g. meld) are not represented -- only the first two faces map to
+front/back.
+
+The storefront already read `card_images` for the card identity page's
+artwork before this (`get-card-identity.ts`); the browse grid
+(`/cards`) did not -- `card_browse` now also exposes a `normal`/`front`
+`image_url` column (a single preferred size for grid tiles, per Scryfall's
+own image-size guidance), wired into `CardTile`. Fixing this also
+surfaced a latent bug: `next.config.ts` had no `images.remotePatterns`
+configured at all, so `next/image` would have thrown at request time the
+moment any real image URL existed anywhere in the app (nothing had ever
+populated `card_images` before, so nothing had hit it) -- fixed by
+allowlisting `*.scryfall.io`.
+
 ### 8.3 Sellable products
 
 `sellable_skus`, `conditions`, `languages`, `finishes`, `product_statuses`.
