@@ -3,6 +3,11 @@
 -- The bearer token below is the project's anon key (safe to be public by
 -- design -- RLS enforces access control, not key secrecy; see
 -- docs/security.md), not a service-role or other secret key.
+--
+-- Schedule automatic processing of the catalogue_import queue.
+-- pg_net lets Postgres make outbound HTTP calls; pg_cron invokes the
+-- process-catalogue-import Edge Function every minute so the queue drains
+-- without any external worker or manual trigger.
 
 create extension if not exists pg_net;
 

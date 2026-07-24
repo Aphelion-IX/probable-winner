@@ -52,3 +52,14 @@ export type MtgJsonSet = {
 export type MtgJsonSetResponse = {
   data: MtgJsonSet;
 };
+
+export type MtgJsonSetListEntry = {
+  code: string;
+  name: string;
+  releaseDate: string;
+  type: string;
+};
+
+export type MtgJsonSetListResponse = {
+  data: MtgJsonSetListEntry[];
+};

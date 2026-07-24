@@ -75,6 +75,11 @@ begin
   );
 
 exception when others then
+  -- v_run_id can still be null here if the INSERT itself raised (e.g. an
+  -- earlier CHECK-constraint violation on `status`) before it was ever
+  -- assigned -- guard against a NOT NULL violation in this handler
+  -- masking the real error. Verified against live: this guard is what's
+  -- actually applied to the project's catalogue_import_runs history.
   if v_run_id is not null then
     update catalogue_import_runs
     set status = 'failed', completed_at = now()

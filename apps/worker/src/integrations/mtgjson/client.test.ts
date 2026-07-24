@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchSet, MtgJsonValidationError } from "./client.js";
+import { fetchSet, fetchSetList, MtgJsonValidationError } from "./client.js";
 
 const fixturePath = fileURLToPath(
   new URL("../../../tests/fixtures/mtgjson-arn.json", import.meta.url),
@@ -51,5 +51,33 @@ describe("fetchSet", () => {
     mockFetchOnce(arnFixture);
 
     await expect(fetchSet("MID")).rejects.toBeInstanceOf(MtgJsonValidationError);
+  });
+});
+
+describe("fetchSetList", () => {
+  it("returns every set entry from a SetList response", async () => {
+    mockFetchOnce({
+      data: [
+        { code: "ARN", name: "Arabian Nights", releaseDate: "1993-12-17", type: "expansion" },
+        { code: "MID", name: "Innistrad: Midnight Hunt", releaseDate: "2021-09-24", type: "expansion" },
+      ],
+    });
+
+    const sets = await fetchSetList();
+
+    expect(sets).toHaveLength(2);
+    expect(sets[0]?.code).toBe("ARN");
+  });
+
+  it("rejects a non-OK HTTP response", async () => {
+    mockFetchOnce({}, false, 500);
+
+    await expect(fetchSetList()).rejects.toBeInstanceOf(MtgJsonValidationError);
+  });
+
+  it("rejects a response with an empty data array", async () => {
+    mockFetchOnce({ data: [] });
+
+    await expect(fetchSetList()).rejects.toBeInstanceOf(MtgJsonValidationError);
   });
 });

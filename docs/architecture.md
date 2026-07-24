@@ -827,6 +827,42 @@ Queues: `catalogue-import`, `pricing-import`, `search-index`, `email`,
 `restock-alerts`, `order-processing`, `reservation-cleanup`,
 `stock-reconciliation`, `report-generation`.
 
+Getting the catalogue downloaded: a `catalogue-import` message importing one
+set at a time requires already knowing that set's code, so a discovery step
+enumerates MTGJSON's full `SetList` and enqueues one message per set not yet
+successfully imported (backlog B-040). Discovery runs on a weekly
+`pg_cron` schedule (`weekly-catalogue-discovery`,
+`supabase/migrations/20260724000500_schedule_catalogue_discovery.sql`, since
+new sets release far less often than prices change) and can also be run
+on demand with `pnpm --filter worker enqueue-catalogue-import` for an
+immediate backfill/refresh.
+
+Processing the queue: environments that cannot reach the Supabase connection
+pooler directly (this includes some CI/agent sandboxes) cannot run the
+Node worker against `catalogue-import` at all. The
+`process-catalogue-import` Supabase Edge Function
+(`supabase/functions/process-catalogue-import/index.ts`) is the
+network-isolation-proof alternative — it runs inside Supabase's own network,
+reads up to 10 messages per invocation from `pgmq`, fetches each set from
+`https://mtgjson.com/api/v5/{CODE}.json` (unwrapping the `{meta, data}`
+envelope), and calls the `import_set_and_promote(set_code, set_data)` /
+`process_catalogue_card(...)` stored procedures
+(`supabase/migrations/20260723130907_catalogue_import_edge_function.sql`
+onward) to upsert `sets`, `oracle_cards`, `card_printings`,
+`card_identifiers`, and cross-product `sellable_skus` for every
+finish/condition combination. `import_set_and_promote` returns a status
+object (`{status: 'succeeded' | 'failed', ...}`) rather than raising, so a
+per-set failure records a `catalogue_import_runs`/`catalogue_import_errors`
+row without rolling back the transaction that row lives in.
+
+The `catalogue_import_edge_function_cron` migration schedules a `pg_cron` +
+`pg_net` job (`catalogue-import-worker`, every minute) that invokes the Edge
+Function via `net.http_post`, so the queue drains automatically with no
+external worker process. `card_printings.finishes` allows `nonfoil`,
+`foil`, `etched`, and `signed` (the last one specifically for MTGJSON's
+World Championship deck sets and Pro Tour Collector's Edition, which use a
+signed-card finish no other set does).
+
 Example worker flow:
 
 ```
