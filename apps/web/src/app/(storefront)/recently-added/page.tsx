@@ -5,6 +5,12 @@ export const metadata = {
   title: "Recently added",
 };
 
+// Genuinely live content (new stock changes the feed continuously) fetched
+// from Typesense, not Postgres -- skip static generation rather than bake
+// a stale snapshot into the build, same reasoning as (account) pages that
+// set this for per-request auth state.
+export const dynamic = "force-dynamic";
+
 export default async function RecentlyAddedPage() {
   const cards = await listRecentlyAddedCards();
 
