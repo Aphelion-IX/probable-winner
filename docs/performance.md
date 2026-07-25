@@ -173,6 +173,34 @@ Fixed for `fulfilment_nodes`, `store_addresses`, `published_prices` and
 needs both a public and a staff rule, write them as one policy with the cheap
 condition first, not as two policies.**
 
+### 3. Ordering by a column the index does not lead on
+
+Two staff screens were scanning millions of rows because their index did not
+support the `ORDER BY ... LIMIT`. The instinctive composite index does not
+fix this when the filter is unselective:
+
+For "newest 50 goods-in movements across my nodes" over 5.2M rows, the
+obvious `(fulfilment_node_id, movement_type, created_at desc)` was **rejected
+by the planner** — 1.2M of 5.2M rows are `movement_type='receive'`, so a
+parallel seq scan plus top-N sort looked cheaper. What works is leading on
+the sort column and pushing the selective equality into a partial predicate:
+
+```sql
+create index ... on inventory_movements (created_at desc)
+  include (fulfilment_node_id)
+  where movement_type = 'receive';
+```
+
+That lets Postgres walk the index in output order and stop after `LIMIT`
+rows, with the node filter checked from the `INCLUDE` payload rather than the
+heap. **5,654 ms → 0.088 ms.** The same shape took the inventory search from
+**1,685 ms → 32.8 ms**.
+
+**Rule of thumb: when a query is `WHERE <unselective> ORDER BY x LIMIT n`,
+lead the index on `x` and make the filter a partial predicate — do not lead
+on the filter column.** And confirm with `EXPLAIN ANALYZE`: a composite index
+that looks right is often not used at all.
+
 ### Not a trap: "unused index" advisories
 
 The performance advisor reports ~125 unused indexes. These were checked and
