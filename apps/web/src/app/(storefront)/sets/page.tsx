@@ -1,15 +1,12 @@
+import Link from "next/link";
+
 import { listSets } from "@/features/catalogue/queries/list-sets";
 import { SetSearchInput } from "@/features/catalogue/components/set-search-input";
 import { SetIcon } from "@/components/commerce/set-icon";
 
-const dateFormatter = new Intl.DateTimeFormat("en-AU", { dateStyle: "medium" });
-
-function formatSetMeta(setType: string | null, releasedAt: string | null, cardCount: number) {
-  const parts: string[] = [];
-  if (setType) parts.push(setType.charAt(0).toUpperCase() + setType.slice(1));
-  if (releasedAt) parts.push(dateFormatter.format(new Date(releasedAt)));
-  parts.push(`${cardCount} cards`);
-  return parts.join(" · ");
+function formatDate(releasedAt: string | null): string {
+  if (!releasedAt) return "—";
+  return releasedAt.slice(0, 10);
 }
 
 export default async function SetsPage({
@@ -21,7 +18,7 @@ export default async function SetsPage({
   const sets = await listSets({ search: q });
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-12 sm:px-6">
+    <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-12 sm:px-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Sets</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -43,23 +40,38 @@ export default async function SetsPage({
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {sets.map((set) => (
-            <div key={set.code} className="rounded-lg border p-4">
-              <div className="flex items-baseline justify-between gap-2">
-                <h2 className="flex items-center gap-1.5 font-medium">
-                  <SetIcon url={set.iconUrl} alt="" />
-                  {set.name}
-                </h2>
-                <span className="font-mono text-xs text-muted-foreground uppercase">
-                  {set.code}
-                </span>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {formatSetMeta(set.setType, set.releasedAt, set.cardCount)}
-              </p>
-            </div>
-          ))}
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="px-4 py-3 text-left font-semibold">Name</th>
+                <th className="px-4 py-3 text-right font-semibold">Cards</th>
+                <th className="px-4 py-3 text-right font-semibold">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sets.map((set) => (
+                <tr key={set.code} className="border-b hover:bg-muted/50">
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/sets/${set.code}`}
+                      className="flex items-center gap-1.5 font-medium hover:underline"
+                    >
+                      <SetIcon url={set.iconUrl} alt="" />
+                      {set.name}
+                      <span className="font-mono text-xs text-muted-foreground uppercase">
+                        {set.code}
+                      </span>
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">{set.cardCount}</td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">
+                    {formatDate(set.releasedAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

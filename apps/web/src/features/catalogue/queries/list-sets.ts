@@ -59,3 +59,30 @@ export async function listSets(options: ListSetsOptions = {}): Promise<SetSummar
     iconUrl: row.icon_url,
   }));
 }
+
+// Single-set lookup for the set-detail ("set opened") page's header.
+export async function getSet(code: string): Promise<SetSummary | null> {
+  const supabase = createServerSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("sets")
+    .select("code, name, set_type, released_at, card_count, icon_url")
+    .eq("code", code)
+    .maybeSingle<SetRow>();
+
+  if (error) {
+    throw new Error(`Failed to fetch set: ${error.message}`);
+  }
+  if (!data) {
+    return null;
+  }
+
+  return {
+    code: data.code,
+    name: data.name,
+    setType: data.set_type,
+    releasedAt: data.released_at,
+    cardCount: data.card_count,
+    iconUrl: data.icon_url,
+  };
+}

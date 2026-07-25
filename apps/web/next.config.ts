@@ -7,10 +7,16 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@probable-winner/search"],
   images: {
     // Card images are Scryfall-hosted URLs stored directly in card_images
-    // (not mirrored into our own storage) -- next/image blocks every
-    // external host by default, so without this every <Image src=.../>
-    // rendering a real card image throws at request time.
-    remotePatterns: [{ protocol: "https", hostname: "**.scryfall.io" }],
+    // (not mirrored into our own storage). They're routed through
+    // /api/scryfall-image rather than passed straight to <Image src=.../> --
+    // Scryfall rejects the generic User-Agent next/image's built-in
+    // optimizer sends for direct remote fetches -- so no remotePatterns
+    // entry is needed; every Scryfall fetch goes through that route
+    // instead, same-origin. next/image still requires local (same-origin)
+    // paths to be explicitly allow-listed; localPatterns' `search` only
+    // matches a literal query string (no wildcard), which is why the
+    // upstream URL is a path segment here rather than a `?url=` query param.
+    localPatterns: [{ pathname: "/api/scryfall-image/*", search: "" }],
   },
 };
 

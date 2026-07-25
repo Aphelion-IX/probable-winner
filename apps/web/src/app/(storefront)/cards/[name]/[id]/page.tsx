@@ -9,6 +9,7 @@ import { getCardIdentity } from "@/features/catalogue/queries/get-card-identity"
 import { listSkuOptions } from "@/features/catalogue/queries/list-sku-options";
 import { SkuSelector } from "@/features/catalogue/components/sku-selector";
 import { SetIcon } from "@/components/commerce/set-icon";
+import { scryfallImageProxyUrl } from "@/lib/scryfall-image";
 
 type CardIdentityPageProps = {
   params: Promise<{ name: string; id: string }>;
@@ -80,7 +81,7 @@ export default async function CardIdentityPage({ params }: CardIdentityPageProps
         <div className="relative aspect-[5/7] w-full max-w-xs overflow-hidden rounded-lg border bg-muted">
           {card.imageUrl ? (
             <Image
-              src={card.imageUrl}
+              src={scryfallImageProxyUrl(card.imageUrl)}
               alt={card.name}
               fill
               sizes="280px"
