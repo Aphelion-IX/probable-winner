@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/server/supabase";
+import { CARD_COLORS, CARD_FINISHES, onlyKnown, type CardColor } from "./list-cards";
 
 // Set-detail table (the "set opened" page): one row per printing+finish,
 // not one row per exact SKU -- a printing's conditions/languages all
@@ -16,12 +17,29 @@ export type SetCardRow = {
   rarity: string;
   collectorNumber: string;
   finishCode: string;
+  borderColor: string | null;
   representativeSkuId: string;
   price: number | null;
   currency: string | null;
   availableQuantity: number;
   imageUrl: string | null;
 };
+
+// The schema has no dedicated "full art"/frame-effects column -- border_color
+// is the closest real attribute to a visual "treatment", with "borderless"
+// standing in for full-art/showcase-style prints.
+export const CARD_BORDER_COLORS = [
+  "black",
+  "white",
+  "borderless",
+  "gold",
+  "silver",
+  "yellow",
+] as const;
+export type CardBorderColor = (typeof CARD_BORDER_COLORS)[number];
+
+export const SET_CARD_SORTS = ["name-asc", "price-desc", "price-asc"] as const;
+export type SetCardSort = (typeof SET_CARD_SORTS)[number];
 
 type SkuRow = {
   sku_id: string;
@@ -30,6 +48,7 @@ type SkuRow = {
   printing_id: string;
   rarity: string;
   collector_number: string;
+  border_color: string | null;
   name: string;
   type_line: string;
   colors: string[];
@@ -40,6 +59,7 @@ type CardPrintingRef = {
   id: string;
   rarity: string;
   collector_number: string;
+  border_color: string | null;
   oracle_cards: OracleCardRef | OracleCardRef[];
 };
 type SkuSelectRow = {
@@ -51,7 +71,21 @@ type SkuSelectRow = {
 
 export type ListSetCardsOptions = {
   inStockOnly?: boolean;
+  colors?: string[];
+  finishes?: string[];
+  borderColors?: string[];
+  sort?: string;
 };
+
+// Mirrors buildColorFilter in list-cards.ts (same colourless-vs-chromatic OR
+// semantics), but applied to an already-fetched row's colors array instead
+// of building a Postgrest filter string.
+function matchesColorFilter(rowColors: string[], colors: CardColor[]): boolean {
+  if (colors.length === 0) return true;
+  const chromatic = colors.filter((color) => color !== "C");
+  if (rowColors.length === 0) return colors.includes("C");
+  return chromatic.some((color) => rowColors.includes(color));
+}
 
 // Large sets have thousands of printing+finish rows -- an HTML table that
 // size is impractical to render and scroll, so cap the set-detail view at
@@ -105,7 +139,7 @@ async function fetchAllSkuRows(
         finishes!inner(code),
         product_statuses!inner(code),
         card_printings!inner(
-          id, rarity, collector_number,
+          id, rarity, collector_number, border_color,
           sets!inner(code),
           oracle_cards(id, name, type_line, colors)
         )
@@ -137,11 +171,9 @@ export async function listSetCards(
 
   const skuRows = await fetchAllSkuRows(supabase, setCode);
 
-  const printingIds = new Set<string>();
   const rows: SkuRow[] = (skuRows ?? []).map((row) => {
     const printing = single(row.card_printings);
     const oracle = single(printing.oracle_cards);
-    printingIds.add(printing.id);
 
     return {
       sku_id: row.id,
@@ -150,6 +182,7 @@ export async function listSetCards(
       printing_id: printing.id,
       rarity: printing.rarity,
       collector_number: printing.collector_number,
+      border_color: printing.border_color,
       name: oracle.name,
       type_line: oracle.type_line,
       colors: oracle.colors,
@@ -160,7 +193,27 @@ export async function listSetCards(
     return [];
   }
 
-  const skuIds = rows.map((r) => r.sku_id);
+  const finishFilter = onlyKnown(options.finishes, CARD_FINISHES);
+  const colorFilter = onlyKnown(options.colors, CARD_COLORS);
+  const borderColorFilter = onlyKnown(options.borderColors, CARD_BORDER_COLORS);
+
+  const finishFilterSet = new Set<string>(finishFilter);
+  const borderColorFilterSet = new Set<string>(borderColorFilter);
+
+  const filteredRows = rows.filter(
+    (row) =>
+      (finishFilterSet.size === 0 || finishFilterSet.has(row.finish_code)) &&
+      matchesColorFilter(row.colors, colorFilter) &&
+      (borderColorFilterSet.size === 0 ||
+        (row.border_color != null && borderColorFilterSet.has(row.border_color))),
+  );
+
+  if (filteredRows.length === 0) {
+    return [];
+  }
+
+  const printingIds = new Set(filteredRows.map((row) => row.printing_id));
+  const skuIds = filteredRows.map((r) => r.sku_id);
   const printingIdBatches = chunk(Array.from(printingIds), ID_BATCH_SIZE);
   const skuIdBatches = chunk(skuIds, ID_BATCH_SIZE);
 
@@ -233,6 +286,7 @@ export async function listSetCards(
     rarity: string;
     collectorNumber: string;
     finishCode: string;
+    borderColor: string | null;
     imageUrl: string | null;
     totalAvailable: number;
     bestPrice: { amount: number; currency: string; skuId: string } | null;
@@ -241,7 +295,7 @@ export async function listSetCards(
 
   const groups = new Map<string, Group>();
 
-  for (const row of rows) {
+  for (const row of filteredRows) {
     const key = `${row.printing_id}|${row.finish_code}`;
     const available = availabilityBySkuId.get(row.sku_id) ?? 0;
     const price = priceBySkuId.get(row.sku_id) ?? null;
@@ -256,6 +310,7 @@ export async function listSetCards(
         rarity: row.rarity,
         collectorNumber: row.collector_number,
         finishCode: row.finish_code,
+        borderColor: row.border_color,
         imageUrl: imageByPrintingId.get(row.printing_id) ?? null,
         totalAvailable: 0,
         bestPrice: null,
@@ -280,6 +335,7 @@ export async function listSetCards(
       rarity: group.rarity,
       collectorNumber: group.collectorNumber,
       finishCode: group.finishCode,
+      borderColor: group.borderColor,
       representativeSkuId: group.bestPrice?.skuId ?? group.fallbackSkuId,
       price: group.bestPrice?.amount ?? null,
       currency: group.bestPrice?.currency ?? null,
@@ -287,7 +343,33 @@ export async function listSetCards(
       imageUrl: group.imageUrl,
     }));
 
-  result.sort((a, b) => a.name.localeCompare(b.name) || a.finishCode.localeCompare(b.finishCode));
+  result.sort(buildComparator(options.sort));
 
   return result.slice(0, MAX_RESULT_ROWS);
+}
+
+function byNameThenFinish(a: SetCardRow, b: SetCardRow): number {
+  return a.name.localeCompare(b.name) || a.finishCode.localeCompare(b.finishCode);
+}
+
+// Rows with no active price sort last regardless of direction -- a missing
+// price isn't meaningfully "cheap" or "expensive".
+function buildComparator(sort: string | undefined): (a: SetCardRow, b: SetCardRow) => number {
+  switch (sort) {
+    case "price-desc":
+      return (a, b) => {
+        if (a.price == null) return b.price == null ? byNameThenFinish(a, b) : 1;
+        if (b.price == null) return -1;
+        return b.price - a.price || byNameThenFinish(a, b);
+      };
+    case "price-asc":
+      return (a, b) => {
+        if (a.price == null) return b.price == null ? byNameThenFinish(a, b) : 1;
+        if (b.price == null) return -1;
+        return a.price - b.price || byNameThenFinish(a, b);
+      };
+    case "name-asc":
+    default:
+      return byNameThenFinish;
+  }
 }

@@ -8,12 +8,23 @@ import { listSetCards } from "@/features/catalogue/queries/list-set-cards";
 import { SetIcon } from "@/components/commerce/set-icon";
 import { CardNameHoverPreview } from "@/features/catalogue/components/card-name-hover-preview";
 import { SetCardAddToCartButton } from "@/features/catalogue/components/set-card-add-to-cart-button";
+import { SetCardFilterBar } from "@/features/catalogue/components/set-card-filter-bar";
 import { COLOR_SWATCH_CLASSES } from "@/features/catalogue/lib/color-swatches";
 import type { CardColor } from "@/features/catalogue/queries/list-cards";
 
+function parseList(value: string | undefined): string[] | undefined {
+  return value ? value.split(",").filter(Boolean) : undefined;
+}
+
 type SetDetailPageProps = {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ inStock?: string }>;
+  searchParams: Promise<{
+    inStock?: string;
+    colors?: string;
+    finishes?: string;
+    treatments?: string;
+    sort?: string;
+  }>;
 };
 
 const finishLabels: Record<string, string> = {
@@ -34,15 +45,40 @@ export async function generateMetadata({ params }: SetDetailPageProps): Promise<
 
 export default async function SetDetailPage({ params, searchParams }: SetDetailPageProps) {
   const { code } = await params;
-  const { inStock } = await searchParams;
+  const { inStock, colors, finishes, treatments, sort } = await searchParams;
   const inStockOnly = inStock !== "false";
 
   const set = await getSet(code);
   if (!set) {
     notFound();
   }
+  const setCode = set.code;
 
-  const cards = await listSetCards(code, { inStockOnly });
+  const cards = await listSetCards(code, {
+    inStockOnly,
+    colors: parseList(colors),
+    finishes: parseList(finishes),
+    borderColors: parseList(treatments),
+    sort,
+  });
+
+  // Toggling the stock filter should keep any colour/foil/treatment/sort
+  // filters already applied, not reset them.
+  const otherParams = new URLSearchParams();
+  if (colors) otherParams.set("colors", colors);
+  if (finishes) otherParams.set("finishes", finishes);
+  if (treatments) otherParams.set("treatments", treatments);
+  if (sort) otherParams.set("sort", sort);
+  const otherParamsString = otherParams.toString();
+
+  function stockToggleHref(nextInStock: boolean) {
+    const params = new URLSearchParams(otherParamsString);
+    if (!nextInStock) params.set("inStock", "false");
+    const query = params.toString();
+    return query ? `/sets/${setCode}?${query}` : `/sets/${setCode}`;
+  }
+
+  const anyFilterApplied = Boolean(colors || finishes || treatments);
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6">
@@ -63,7 +99,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
         className="inline-flex w-fit rounded-full border p-0.5 text-xs font-medium"
       >
         <Link
-          href={`/sets/${set.code}`}
+          href={stockToggleHref(true)}
           aria-current={inStockOnly ? "true" : undefined}
           className={cn(
             "rounded-full px-3 py-1 transition-colors",
@@ -75,7 +111,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
           In Stock
         </Link>
         <Link
-          href={`/sets/${set.code}?inStock=false`}
+          href={stockToggleHref(false)}
           aria-current={!inStockOnly ? "true" : undefined}
           className={cn(
             "rounded-full px-3 py-1 transition-colors",
@@ -88,15 +124,16 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
         </Link>
       </div>
 
+      <SetCardFilterBar />
+
       {cards.length === 0 ? (
         <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-          {inStockOnly ? (
+          {anyFilterApplied ? (
+            <>No cards match these filters.</>
+          ) : inStockOnly ? (
             <>
               Nothing in stock right now.{" "}
-              <Link
-                href={`/sets/${set.code}?inStock=false`}
-                className="text-primary hover:underline"
-              >
+              <Link href={stockToggleHref(false)} className="text-primary hover:underline">
                 Show everything in this set
               </Link>
               .
@@ -133,6 +170,11 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
                     {finishLabels[card.finishCode] && (
                       <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-xs font-medium">
                         {finishLabels[card.finishCode]}
+                      </span>
+                    )}
+                    {card.borderColor === "borderless" && (
+                      <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-xs font-medium">
+                        Borderless
                       </span>
                     )}
                   </td>

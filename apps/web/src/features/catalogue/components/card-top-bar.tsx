@@ -1,38 +1,9 @@
 "use client";
 
-import { cn } from "@/lib/utils";
 import { useQueryParam, useQueryParamList } from "@/features/catalogue/lib/use-query-params";
 import { CARD_COLORS, CARD_TYPES } from "@/features/catalogue/queries/list-cards";
 import { COLOR_SWATCH_CLASSES } from "@/features/catalogue/lib/color-swatches";
-
-function ToggleChip({
-  label,
-  active,
-  onClick,
-  className,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "rounded-full border px-2.5 py-1 text-xs font-medium transition-all outline-none",
-        "hover:border-ring/60 hover:shadow-[0_0_8px_var(--color-ring)]",
-        "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:shadow-[0_0_12px_var(--color-ring)]",
-        active ? "ring-2 ring-ring ring-offset-1" : "opacity-70 hover:opacity-100",
-        className,
-      )}
-    >
-      {label}
-    </button>
-  );
-}
+import { ToggleChip } from "@/features/catalogue/components/toggle-chip";
 
 export function CardTopBar() {
   const colorFilter = useQueryParamList("colors");

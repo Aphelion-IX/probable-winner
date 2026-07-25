@@ -59,10 +59,20 @@ function fakeSkuRow(overrides: Record<string, unknown> = {}) {
       id: "printing-1",
       rarity: "rare",
       collector_number: "1",
+      border_color: "black",
       oracle_cards: { id: "oracle-1", name: "Lightning Bolt", type_line: "Instant", colors: ["R"] },
     },
     ...overrides,
   };
+}
+
+// For tests that only care about which sellable_skus rows survive
+// filtering -- images/prices/balances are irrelevant to the assertion.
+function noopDownstream(table: string) {
+  if (table === "card_images") return imagesChain({ data: [], error: null });
+  if (table === "published_prices") return pricesChain({ data: [], error: null });
+  if (table === "inventory_balances") return balancesChain({ data: [], error: null });
+  throw new Error(`unexpected table: ${table}`);
 }
 
 describe("listSetCards", () => {
@@ -149,6 +159,7 @@ describe("listSetCards", () => {
         rarity: "rare",
         collectorNumber: "1",
         finishCode: "foil",
+        borderColor: "black",
         representativeSkuId: "sku-foil",
         price: 20,
         currency: "AUD",
@@ -163,6 +174,7 @@ describe("listSetCards", () => {
         rarity: "rare",
         collectorNumber: "1",
         finishCode: "nonfoil",
+        borderColor: "black",
         representativeSkuId: "sku-lp",
         price: 3,
         currency: "AUD",
@@ -249,5 +261,223 @@ describe("listSetCards", () => {
     expect(callCounts.published_prices).toBe(3);
     // ...but the returned rows are capped well below that.
     expect(result).toHaveLength(200);
+  });
+
+  it("filters by colour, including the colourless option", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "sellable_skus") {
+        return skusChain({
+          data: [
+            fakeSkuRow({
+              id: "sku-red",
+              card_printing_id: "printing-red",
+              card_printings: {
+                id: "printing-red",
+                rarity: "common",
+                collector_number: "1",
+                border_color: "black",
+                oracle_cards: {
+                  id: "o-red",
+                  name: "Red Card",
+                  type_line: "Instant",
+                  colors: ["R"],
+                },
+              },
+            }),
+            fakeSkuRow({
+              id: "sku-blue",
+              card_printing_id: "printing-blue",
+              card_printings: {
+                id: "printing-blue",
+                rarity: "common",
+                collector_number: "2",
+                border_color: "black",
+                oracle_cards: {
+                  id: "o-blue",
+                  name: "Blue Card",
+                  type_line: "Instant",
+                  colors: ["U"],
+                },
+              },
+            }),
+            fakeSkuRow({
+              id: "sku-colourless",
+              card_printing_id: "printing-cl",
+              card_printings: {
+                id: "printing-cl",
+                rarity: "common",
+                collector_number: "3",
+                border_color: "black",
+                oracle_cards: {
+                  id: "o-cl",
+                  name: "Colourless Card",
+                  type_line: "Artifact",
+                  colors: [],
+                },
+              },
+            }),
+          ],
+          error: null,
+        });
+      }
+      return noopDownstream(table);
+    });
+    const { listSetCards } = await import("./list-set-cards");
+
+    const result = await listSetCards("2X2", { colors: ["R", "C"] });
+
+    expect(result.map((r) => r.name).sort()).toEqual(["Colourless Card", "Red Card"]);
+  });
+
+  it("filters by finish", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "sellable_skus") {
+        return skusChain({
+          data: [
+            fakeSkuRow({ id: "sku-nonfoil", finishes: { code: "nonfoil" } }),
+            fakeSkuRow({
+              id: "sku-foil",
+              card_printing_id: "printing-2",
+              finishes: { code: "foil" },
+              card_printings: {
+                id: "printing-2",
+                rarity: "rare",
+                collector_number: "2",
+                border_color: "black",
+                oracle_cards: {
+                  id: "oracle-2",
+                  name: "Foil Card",
+                  type_line: "Instant",
+                  colors: ["R"],
+                },
+              },
+            }),
+          ],
+          error: null,
+        });
+      }
+      return noopDownstream(table);
+    });
+    const { listSetCards } = await import("./list-set-cards");
+
+    const result = await listSetCards("2X2", { finishes: ["foil"] });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].finishCode).toBe("foil");
+  });
+
+  it("filters by treatment (border colour)", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "sellable_skus") {
+        return skusChain({
+          data: [
+            fakeSkuRow({ id: "sku-standard" }),
+            fakeSkuRow({
+              id: "sku-borderless",
+              card_printing_id: "printing-2",
+              card_printings: {
+                id: "printing-2",
+                rarity: "rare",
+                collector_number: "2",
+                border_color: "borderless",
+                oracle_cards: {
+                  id: "oracle-2",
+                  name: "Borderless Card",
+                  type_line: "Instant",
+                  colors: ["R"],
+                },
+              },
+            }),
+          ],
+          error: null,
+        });
+      }
+      return noopDownstream(table);
+    });
+    const { listSetCards } = await import("./list-set-cards");
+
+    const result = await listSetCards("2X2", { borderColors: ["borderless"] });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].borderColor).toBe("borderless");
+  });
+
+  it("sorts by price when requested, putting rows with no active price last", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "sellable_skus") {
+        return skusChain({
+          data: [
+            fakeSkuRow({
+              id: "sku-cheap",
+              card_printing_id: "printing-cheap",
+              card_printings: {
+                id: "printing-cheap",
+                rarity: "common",
+                collector_number: "1",
+                border_color: "black",
+                oracle_cards: {
+                  id: "o-cheap",
+                  name: "Cheap Card",
+                  type_line: "Instant",
+                  colors: ["R"],
+                },
+              },
+            }),
+            fakeSkuRow({
+              id: "sku-pricey",
+              card_printing_id: "printing-pricey",
+              card_printings: {
+                id: "printing-pricey",
+                rarity: "rare",
+                collector_number: "2",
+                border_color: "black",
+                oracle_cards: {
+                  id: "o-pricey",
+                  name: "Pricey Card",
+                  type_line: "Instant",
+                  colors: ["U"],
+                },
+              },
+            }),
+            fakeSkuRow({
+              id: "sku-unpriced",
+              card_printing_id: "printing-unpriced",
+              card_printings: {
+                id: "printing-unpriced",
+                rarity: "common",
+                collector_number: "3",
+                border_color: "black",
+                oracle_cards: {
+                  id: "o-unpriced",
+                  name: "Unpriced Card",
+                  type_line: "Instant",
+                  colors: ["G"],
+                },
+              },
+            }),
+          ],
+          error: null,
+        });
+      }
+      if (table === "card_images") return imagesChain({ data: [], error: null });
+      if (table === "published_prices") {
+        return pricesChain({
+          data: [
+            { sellable_sku_id: "sku-cheap", final_amount: 1, currency: "AUD" },
+            { sellable_sku_id: "sku-pricey", final_amount: 100, currency: "AUD" },
+          ],
+          error: null,
+        });
+      }
+      if (table === "inventory_balances") return balancesChain({ data: [], error: null });
+      throw new Error(`unexpected table: ${table}`);
+    });
+    const { listSetCards } = await import("./list-set-cards");
+
+    const desc = await listSetCards("2X2", { sort: "price-desc" });
+    expect(desc.map((r) => r.name)).toEqual(["Pricey Card", "Cheap Card", "Unpriced Card"]);
+
+    const asc = await listSetCards("2X2", { sort: "price-asc" });
+    expect(asc.map((r) => r.name)).toEqual(["Cheap Card", "Pricey Card", "Unpriced Card"]);
   });
 });
