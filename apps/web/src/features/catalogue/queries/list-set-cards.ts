@@ -61,34 +61,76 @@ function single<T>(value: T | T[]): T {
   return Array.isArray(value) ? value[0] : value;
 }
 
+// Postgrest caps every response at `max_rows` (1000 in this project's
+// supabase/config.toml) regardless of how many rows match -- large sets
+// (The List, Secret Lair Drop, Commander Masters, ...) have tens of
+// thousands of active SKUs, so a single unpaginated query silently drops
+// most of the set's cards. Page through with .range() until a page comes
+// back short.
+const SKU_PAGE_SIZE = 1000;
+
+// Postgrest's .in() filter puts every id in the URL's query string -- fine
+// for a few hundred ids, but the large sets above can have 5,000+ distinct
+// printings and 25,000+ skus, which would build a multi-hundred-KB request
+// URL. Chunk lookups the same way fetchAllSkuRows pages the base query.
+const ID_BATCH_SIZE = 500;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+async function fetchAllSkuRows(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  setCode: string,
+): Promise<SkuSelectRow[]> {
+  const rows: SkuSelectRow[] = [];
+  let offset = 0;
+
+  for (;;) {
+    const { data, error } = await supabase
+      .from("sellable_skus")
+      .select(
+        `
+        id,
+        card_printing_id,
+        finishes!inner(code),
+        product_statuses!inner(code),
+        card_printings!inner(
+          id, rarity, collector_number,
+          sets!inner(code),
+          oracle_cards(id, name, type_line, colors)
+        )
+      `,
+      )
+      .eq("card_printings.sets.code", setCode)
+      .eq("product_statuses.code", "active")
+      .range(offset, offset + SKU_PAGE_SIZE - 1)
+      .returns<SkuSelectRow[]>();
+
+    if (error) {
+      throw new Error(`Failed to list set cards: ${error.message}`);
+    }
+
+    rows.push(...(data ?? []));
+
+    if (!data || data.length < SKU_PAGE_SIZE) {
+      return rows;
+    }
+    offset += SKU_PAGE_SIZE;
+  }
+}
+
 export async function listSetCards(
   setCode: string,
   options: ListSetCardsOptions = {},
 ): Promise<SetCardRow[]> {
   const supabase = createServerSupabaseClient();
 
-  const { data: skuRows, error: skuError } = await supabase
-    .from("sellable_skus")
-    .select(
-      `
-      id,
-      card_printing_id,
-      finishes!inner(code),
-      product_statuses!inner(code),
-      card_printings!inner(
-        id, rarity, collector_number,
-        sets!inner(code),
-        oracle_cards(id, name, type_line, colors)
-      )
-    `,
-    )
-    .eq("card_printings.sets.code", setCode)
-    .eq("product_statuses.code", "active")
-    .returns<SkuSelectRow[]>();
-
-  if (skuError) {
-    throw new Error(`Failed to list set cards: ${skuError.message}`);
-  }
+  const skuRows = await fetchAllSkuRows(supabase, setCode);
 
   const printingIds = new Set<string>();
   const rows: SkuRow[] = (skuRows ?? []).map((row) => {
@@ -113,38 +155,53 @@ export async function listSetCards(
     return [];
   }
 
-  const [
-    { data: imageRows, error: imageError },
-    { data: priceRows, error: priceError },
-    { data: balanceRows, error: balanceError },
-  ] = await Promise.all([
-    supabase
-      .from("card_images")
-      .select("card_printing_id, url")
-      .in("card_printing_id", Array.from(printingIds))
-      .eq("image_type", "normal")
-      .eq("face", "front"),
-    supabase
-      .from("published_prices")
-      .select("sellable_sku_id, final_amount, currency")
-      .in(
-        "sellable_sku_id",
-        rows.map((r) => r.sku_id),
-      )
-      .eq("status", "active"),
-    supabase
-      .from("inventory_balances")
-      .select("sellable_sku_id, quantity_available_online")
-      .in(
-        "sellable_sku_id",
-        rows.map((r) => r.sku_id),
+  const skuIds = rows.map((r) => r.sku_id);
+  const printingIdBatches = chunk(Array.from(printingIds), ID_BATCH_SIZE);
+  const skuIdBatches = chunk(skuIds, ID_BATCH_SIZE);
+
+  const [imageResults, priceResults, balanceResults] = await Promise.all([
+    Promise.all(
+      printingIdBatches.map((batch) =>
+        supabase
+          .from("card_images")
+          .select("card_printing_id, url")
+          .in("card_printing_id", batch)
+          .eq("image_type", "normal")
+          .eq("face", "front"),
       ),
+    ),
+    Promise.all(
+      skuIdBatches.map((batch) =>
+        supabase
+          .from("published_prices")
+          .select("sellable_sku_id, final_amount, currency")
+          .in("sellable_sku_id", batch)
+          .eq("status", "active"),
+      ),
+    ),
+    Promise.all(
+      skuIdBatches.map((batch) =>
+        supabase
+          .from("inventory_balances")
+          .select("sellable_sku_id, quantity_available_online")
+          .in("sellable_sku_id", batch),
+      ),
+    ),
   ]);
 
-  if (imageError) throw new Error(`Failed to list set card images: ${imageError.message}`);
-  if (priceError) throw new Error(`Failed to list set card prices: ${priceError.message}`);
-  if (balanceError)
-    throw new Error(`Failed to list set card availability: ${balanceError.message}`);
+  const imageRows = imageResults.flatMap((result) => {
+    if (result.error) throw new Error(`Failed to list set card images: ${result.error.message}`);
+    return result.data ?? [];
+  });
+  const priceRows = priceResults.flatMap((result) => {
+    if (result.error) throw new Error(`Failed to list set card prices: ${result.error.message}`);
+    return result.data ?? [];
+  });
+  const balanceRows = balanceResults.flatMap((result) => {
+    if (result.error)
+      throw new Error(`Failed to list set card availability: ${result.error.message}`);
+    return result.data ?? [];
+  });
 
   const imageByPrintingId = new Map(
     (imageRows ?? []).map((row) => [row.card_printing_id, row.url]),

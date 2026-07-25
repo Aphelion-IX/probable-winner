@@ -11,7 +11,9 @@ function skusChain(returnValue: { data: unknown; error: unknown }) {
     select: () => ({
       eq: () => ({
         eq: () => ({
-          returns: () => Promise.resolve(returnValue),
+          range: () => ({
+            returns: () => Promise.resolve(returnValue),
+          }),
         }),
       }),
     }),
@@ -195,5 +197,56 @@ describe("listSetCards", () => {
     const result = await listSetCards("2X2", { inStockOnly: true });
 
     expect(result).toEqual([]);
+  });
+
+  it("pages past Postgrest's 1000-row cap and batches the follow-up .in() lookups", async () => {
+    function rowAt(index: number) {
+      return fakeSkuRow({
+        id: `sku-${index}`,
+        card_printing_id: `printing-${index}`,
+        card_printings: {
+          id: `printing-${index}`,
+          rarity: "common",
+          collector_number: String(index),
+          oracle_cards: {
+            id: `oracle-${index}`,
+            name: `Card ${index}`,
+            type_line: "Creature",
+            colors: [],
+          },
+        },
+      });
+    }
+    const pageOne = Array.from({ length: 1000 }, (_, i) => rowAt(i));
+    const pageTwo = [rowAt(1000)];
+
+    const callCounts = { sellable_skus: 0, card_images: 0, published_prices: 0 };
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "sellable_skus") {
+        callCounts.sellable_skus += 1;
+        const data = callCounts.sellable_skus === 1 ? pageOne : pageTwo;
+        return skusChain({ data, error: null });
+      }
+      if (table === "card_images") {
+        callCounts.card_images += 1;
+        return imagesChain({ data: [], error: null });
+      }
+      if (table === "published_prices") {
+        callCounts.published_prices += 1;
+        return pricesChain({ data: [], error: null });
+      }
+      if (table === "inventory_balances") return balancesChain({ data: [], error: null });
+      throw new Error(`unexpected table: ${table}`);
+    });
+    const { listSetCards } = await import("./list-set-cards");
+
+    const result = await listSetCards("2X2");
+
+    // 1001 rows in -> a second page of sellable_skus, and 1001 distinct
+    // printing/sku ids -> three 500-sized .in() batches (500, 500, 1).
+    expect(callCounts.sellable_skus).toBe(2);
+    expect(callCounts.card_images).toBe(3);
+    expect(callCounts.published_prices).toBe(3);
+    expect(result).toHaveLength(1001);
   });
 });
