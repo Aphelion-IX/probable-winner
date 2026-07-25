@@ -89,11 +89,31 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const { data: ordersData, error: ordersError } = await supabase
-    .from("orders")
-    .select("id, created_at, total_amount, status")
-    .gte("created_at", thirtyDaysAgo.toISOString())
-    .order("created_at", { ascending: true });
+  // These five reads are independent of one another, so they run
+  // concurrently rather than paying for each round trip in sequence.
+  const [
+    { data: ordersData, error: ordersError },
+    { data: linesData, error: linesError },
+    { data: pricingData, error: pricingError },
+    { data: allOrders, error: allOrdersError },
+    { data: exceptionsData, error: exceptionsError },
+  ] = await Promise.all([
+    supabase
+      .from("orders")
+      .select("id, created_at, total_amount, status")
+      .gte("created_at", thirtyDaysAgo.toISOString())
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("order_lines")
+      .select("quantity, unit_price, sellable_skus(card_printings(oracle_cards(name), sets(name)))")
+      .gte("created_at", thirtyDaysAgo.toISOString()),
+    supabase
+      .from("calculated_prices")
+      .select("id, status, metadata, base_amount, margin_amount")
+      .gte("created_at", thirtyDaysAgo.toISOString()),
+    supabase.from("orders").select("status"),
+    supabase.from("pick_exceptions").select("id"),
+  ]);
 
   if (ordersError) {
     logger.error("Analytics: fetch orders failed", {
@@ -123,12 +143,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     }))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // Get popular cards
-  const { data: linesData, error: linesError } = await supabase
-    .from("order_lines")
-    .select("quantity, unit_price, sellable_skus(card_printings(oracle_cards(name), sets(name)))")
-    .gte("created_at", thirtyDaysAgo.toISOString());
-
+  // Process popular cards
   if (linesError) {
     logger.error("Analytics: fetch order lines failed", {
       requestId: await getRequestId(),
@@ -164,12 +179,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     .sort((a, b) => b.total_units - a.total_units)
     .slice(0, 10);
 
-  // Get pricing stats
-  const { data: pricingData, error: pricingError } = await supabase
-    .from("calculated_prices")
-    .select("id, status, metadata, base_amount, margin_amount")
-    .gte("created_at", thirtyDaysAgo.toISOString());
-
+  // Process pricing stats
   if (pricingError) {
     logger.error("Analytics: fetch pricing data failed", {
       requestId: await getRequestId(),
@@ -179,26 +189,23 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     throw new Error("Failed to fetch pricing data");
   }
 
-  const autoApproved = ((pricingData || []) as unknown as PricingRow[]).filter(
-    (p: PricingRow) =>
-      p.metadata?.published?.event_type === "pricing_approved" && !p.metadata?.overridden,
-  ).length;
-  const manualApproved = ((pricingData || []) as unknown as PricingRow[]).filter(
-    (p: PricingRow) => p.status === "approved",
-  ).length;
-  const cardsInReview = ((pricingData || []) as unknown as PricingRow[]).filter(
-    (p: PricingRow) => p.status === "suggested",
-  ).length;
+  const pricingRows = (pricingData || []) as unknown as PricingRow[];
 
-  const { totalBase, totalMargin } = (
-    (pricingData || []) as unknown as PricingRow[]
-  ).reduce(
-    (acc: { totalBase: number; totalMargin: number }, p: PricingRow) => ({
-      totalBase: acc.totalBase + p.base_amount,
-      totalMargin: acc.totalMargin + p.margin_amount,
-    }),
-    { totalBase: 0, totalMargin: 0 },
-  );
+  let autoApproved = 0;
+  let manualApproved = 0;
+  let cardsInReview = 0;
+  let totalBase = 0;
+  let totalMargin = 0;
+
+  for (const p of pricingRows) {
+    if (p.metadata?.published?.event_type === "pricing_approved" && !p.metadata?.overridden) {
+      autoApproved++;
+    }
+    if (p.status === "approved") manualApproved++;
+    if (p.status === "suggested") cardsInReview++;
+    totalBase += p.base_amount;
+    totalMargin += p.margin_amount;
+  }
 
   const pricingStats: PricingStats = {
     average_margin_percent: totalBase > 0 ? (totalMargin / totalBase) * 100 : 0,
@@ -207,13 +214,11 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     manual_approved_count: manualApproved,
     approval_rate_percent:
       autoApproved + manualApproved > 0
-        ? ((autoApproved + manualApproved) / (pricingData?.length || 1)) * 100
+        ? ((autoApproved + manualApproved) / (pricingRows.length || 1)) * 100
         : 0,
   };
 
-  // Get fulfillment breakdown
-  const { data: allOrders, error: allOrdersError } = await supabase.from("orders").select("status");
-
+  // Process fulfillment breakdown
   if (allOrdersError) {
     logger.error("Analytics: fetch all orders failed", {
       requestId: await getRequestId(),
@@ -237,11 +242,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     }),
   );
 
-  // Get exception count
-  const { data: exceptionsData, error: exceptionsError } = await supabase
-    .from("pick_exceptions")
-    .select("id");
-
+  // Process exception count
   if (exceptionsError) {
     logger.error("Analytics: fetch exceptions failed", {
       requestId: await getRequestId(),
