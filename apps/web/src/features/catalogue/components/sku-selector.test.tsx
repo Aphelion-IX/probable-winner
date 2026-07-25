@@ -5,9 +5,16 @@ import { SkuSelector } from "./sku-selector";
 import type { SkuOption } from "@/features/catalogue/queries/list-sku-options";
 
 const mockAddToCart = vi.fn();
+const mockAddToSavedList = vi.fn();
+const mockRemoveFromSavedList = vi.fn();
 
 vi.mock("@/app/actions/add-to-cart", () => ({
   addToCart: (skuId: string, quantity: number) => mockAddToCart(skuId, quantity),
+}));
+
+vi.mock("@/features/customer/actions/manage-saved-list", () => ({
+  addToSavedList: (skuId: string) => mockAddToSavedList(skuId),
+  removeFromSavedList: (skuId: string) => mockRemoveFromSavedList(skuId),
 }));
 
 const OPTIONS: SkuOption[] = [
@@ -59,6 +66,8 @@ function mockLiveDataFor(skuId: string) {
 describe("SkuSelector", () => {
   beforeEach(() => {
     mockAddToCart.mockReset();
+    mockAddToSavedList.mockReset();
+    mockRemoveFromSavedList.mockReset();
     vi.stubGlobal(
       "fetch",
       vi.fn((input: string | URL) => {
@@ -187,5 +196,41 @@ describe("SkuSelector", () => {
 
     await waitFor(() => expect(screen.getByText("Out of stock")).toBeInTheDocument());
     expect(screen.queryByTestId("add-to-cart")).not.toBeInTheDocument();
+  });
+
+  it("saves and removes the selected SKU from the saved list", async () => {
+    mockAddToSavedList.mockResolvedValue(undefined);
+    mockRemoveFromSavedList.mockResolvedValue(undefined);
+    render(<SkuSelector printingId="printing-1" options={OPTIONS} />);
+
+    await waitFor(() => expect(screen.getByText("$12.50")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("save-for-later-button"));
+    await waitFor(() => expect(mockAddToSavedList).toHaveBeenCalledWith("sku-en-nonfoil-nm"));
+    await waitFor(() =>
+      expect(screen.getByTestId("save-for-later-button")).toHaveTextContent("Saved (remove)"),
+    );
+
+    fireEvent.click(screen.getByTestId("save-for-later-button"));
+    await waitFor(() => expect(mockRemoveFromSavedList).toHaveBeenCalledWith("sku-en-nonfoil-nm"));
+    await waitFor(() =>
+      expect(screen.getByTestId("save-for-later-button")).toHaveTextContent("Save for later"),
+    );
+  });
+
+  it("resets the saved-list status when the selected SKU changes", async () => {
+    mockAddToSavedList.mockResolvedValue(undefined);
+    render(<SkuSelector printingId="printing-1" options={OPTIONS} />);
+
+    await waitFor(() => expect(screen.getByText("$12.50")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("save-for-later-button"));
+    await waitFor(() =>
+      expect(screen.getByTestId("save-for-later-button")).toHaveTextContent("Saved (remove)"),
+    );
+
+    fireEvent.change(screen.getByLabelText("Condition"), { target: { value: "lp" } });
+
+    await waitFor(() => expect(screen.getByText("$9.00")).toBeInTheDocument());
+    expect(screen.getByTestId("save-for-later-button")).toHaveTextContent("Save for later");
   });
 });
