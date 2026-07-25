@@ -199,7 +199,7 @@ describe("listSetCards", () => {
     expect(result).toEqual([]);
   });
 
-  it("pages past Postgrest's 1000-row cap and batches the follow-up .in() lookups", async () => {
+  it("pages past Postgrest's 1000-row cap, batches .in() lookups, and caps the result at 200 rows", async () => {
     function rowAt(index: number) {
       return fakeSkuRow({
         id: `sku-${index}`,
@@ -247,6 +247,7 @@ describe("listSetCards", () => {
     expect(callCounts.sellable_skus).toBe(2);
     expect(callCounts.card_images).toBe(3);
     expect(callCounts.published_prices).toBe(3);
-    expect(result).toHaveLength(1001);
+    // ...but the returned rows are capped well below that.
+    expect(result).toHaveLength(200);
   });
 });

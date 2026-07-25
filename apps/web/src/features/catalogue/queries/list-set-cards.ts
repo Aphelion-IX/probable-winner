@@ -53,6 +53,11 @@ export type ListSetCardsOptions = {
   inStockOnly?: boolean;
 };
 
+// Large sets have thousands of printing+finish rows -- an HTML table that
+// size is impractical to render and scroll, so cap the set-detail view at
+// this many rows (sorted by name) rather than showing everything.
+const MAX_RESULT_ROWS = 200;
+
 // Postgrest doesn't always know a nested embed is to-one without an
 // explicit FK hint, so the same relation can come back as an object or a
 // single-element array depending on the join path -- same ambiguity
@@ -284,5 +289,5 @@ export async function listSetCards(
 
   result.sort((a, b) => a.name.localeCompare(b.name) || a.finishCode.localeCompare(b.finishCode));
 
-  return result;
+  return result.slice(0, MAX_RESULT_ROWS);
 }
