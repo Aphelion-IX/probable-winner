@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { X } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { getSet } from "@/features/catalogue/queries/list-sets";
 import { listSetCards } from "@/features/catalogue/queries/list-set-cards";
 import { SetIcon } from "@/components/commerce/set-icon";
@@ -57,23 +57,35 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
         </span>
       </nav>
 
-      <div className="flex items-center gap-2">
-        {inStockOnly ? (
-          <Link
-            href={`/sets/${set.code}?inStock=false`}
-            className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium hover:bg-muted/70"
-          >
-            In Stock
-            <X className="size-3.5" aria-hidden />
-          </Link>
-        ) : (
-          <Link
-            href={`/sets/${set.code}`}
-            className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-3 py-1 text-xs font-medium text-muted-foreground hover:border-ring/60 hover:text-foreground"
-          >
-            Show in-stock only
-          </Link>
-        )}
+      <div
+        role="group"
+        aria-label="Stock filter"
+        className="inline-flex w-fit rounded-full border p-0.5 text-xs font-medium"
+      >
+        <Link
+          href={`/sets/${set.code}`}
+          aria-current={inStockOnly ? "true" : undefined}
+          className={cn(
+            "rounded-full px-3 py-1 transition-colors",
+            inStockOnly
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          In Stock
+        </Link>
+        <Link
+          href={`/sets/${set.code}?inStock=false`}
+          aria-current={!inStockOnly ? "true" : undefined}
+          className={cn(
+            "rounded-full px-3 py-1 transition-colors",
+            !inStockOnly
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          All
+        </Link>
       </div>
 
       {cards.length === 0 ? (
