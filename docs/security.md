@@ -49,6 +49,41 @@ enforcement" below for what keeps it true as the codebase grows.
    `.env.example` in the repo; when one is added (tracked separately), it
    must list variable names only, never real values.
 
+## Checkout resource ownership
+
+Carts and orders are reached by an id supplied by the browser, and the
+checkout paths use the **service-role** client (they must: guest carts have
+no RLS policy, because `auth.uid()` cannot identify an anonymous guest). RLS
+is therefore *not* the boundary on these paths — an explicit ownership check
+is, and it has to be written by hand on every one of them.
+
+Both resources use the same two-owner model: `customer_id` for a signed-in
+customer, `guest_token` for a guest holding the httpOnly `cart_session_id`
+cookie. `apps/web/src/server/checkout-ownership.ts` is the single
+implementation:
+
+- `resolveCheckoutIdentity()` — who the request is acting as. Reads the
+  cookie **without creating one**; minting a token inside an authorisation
+  check would hand the caller a fresh identity mid-check.
+- `ownsResource(resource, identity)` — fails closed. Every branch requires a
+  non-null value on both sides before comparing, so an ownerless row and an
+  identity-less caller can never satisfy a `null === null` match.
+
+**Any new endpoint that takes a cart or order id from the client must call
+these before touching the row**, and should return the same "not found" it
+would for a genuinely missing id — confirming that an id exists but belongs
+to someone else is itself a leak.
+
+Historical note: `createPendingOrder()` and `POST /api/checkout/sessions`
+originally had no such check, so passing any cart/order id turned a
+stranger's basket into an order, or opened a Stripe session exposing their
+order contents and totals. Compounding it, `createPendingOrder()` never
+populated `orders.customer_id`, so orders were created ownerless — which
+also meant `orders_select_customer` matched nothing and customers could
+never see their own order history. Fixed together in
+`20260725180000_orders_guest_token.sql` and the checkout ownership module;
+orders predating that migration stay ownerless and unclaimable by design.
+
 ## Staff permissions (blueprint §18)
 
 `staff_has_permission(code)` resolves a permission through the signed-in

@@ -3,6 +3,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 import { classify_allocation_reason } from "@probable-winner/routing";
+import { resolveCheckoutIdentity, ownsResource } from "@/server/checkout-ownership";
 
 interface CheckoutValidationError {
   field: string;
@@ -18,6 +19,8 @@ interface CreatePendingOrderResult {
 interface CartData {
   id: string;
   organisation_id: string;
+  customer_id: string | null;
+  guest_token: string | null;
   cart_lines: Array<{
     id: string;
     sellable_sku_id: string;
@@ -91,12 +94,19 @@ export async function createPendingOrder(
   // price -- unlike order_lines (fixed at order time), a cart line's
   // price is always looked up fresh from published_prices at checkout,
   // so there's no "price at add" to detect drift against.
+  //
+  // customer_id/guest_token are selected for the ownership check below:
+  // cartId arrives from the browser and this client is the service-role
+  // one, which bypasses RLS, so nothing else would stop a caller passing
+  // somebody else's cart id and turning their basket into an order.
   const { data: cart, error: cartError } = await supabase
     .from("carts")
     .select(
       `
       id,
       organisation_id,
+      customer_id,
+      guest_token,
       cart_lines(
         id,
         sellable_sku_id,
@@ -122,6 +132,19 @@ export async function createPendingOrder(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cartData = cart as any as CartData;
+
+  // Authorise before doing anything with the cart. Deliberately reports the
+  // same "Cart not found" as a genuinely missing cart: telling an attacker
+  // that a cart id exists but belongs to someone else is itself a leak, and
+  // there is nothing a legitimate caller could do differently either way.
+  const identity = await resolveCheckoutIdentity();
+
+  if (cartData && !ownsResource(cartData, identity)) {
+    return {
+      success: false,
+      errors: [{ field: "cart", message: "Cart not found" }],
+    };
+  }
 
   if (cartData && (!cartData.cart_lines || cartData.cart_lines.length === 0)) {
     errors.push({
@@ -271,6 +294,13 @@ export async function createPendingOrder(
       .from("orders")
       .insert({
         organisation_id: cartData.organisation_id,
+        // Carried across from the cart, which the check above proved this
+        // caller owns. Without this the order would be created ownerless:
+        // orders_select_customer (`customer_id = auth.uid()`) would match
+        // nothing, so the customer could never see their own order, and
+        // there would be no fact to authorise the payment step against.
+        customer_id: cartData.customer_id,
+        guest_token: cartData.guest_token,
         fulfilment_node_id: primaryNodeId,
         order_number: orderNumber,
         status: "pending",
