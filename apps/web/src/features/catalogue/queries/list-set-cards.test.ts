@@ -6,7 +6,7 @@ vi.mock("@/server/supabase", () => ({
   createServerSupabaseClient: () => ({ from: mockFrom }),
 }));
 
-function skusChain(returnValue: { data: unknown; error: unknown }) {
+function skusChain(returnValue: { data: unknown; error: unknown; count?: number }) {
   return {
     select: () => ({
       eq: () => ({
@@ -236,8 +236,10 @@ describe("listSetCards", () => {
     mockFrom.mockImplementation((table: string) => {
       if (table === "sellable_skus") {
         callCounts.sellable_skus += 1;
-        const data = callCounts.sellable_skus === 1 ? pageOne : pageTwo;
-        return skusChain({ data, error: null });
+        if (callCounts.sellable_skus === 1) {
+          return skusChain({ data: pageOne, error: null, count: 1001 });
+        }
+        return skusChain({ data: pageTwo, error: null });
       }
       if (table === "card_images") {
         callCounts.card_images += 1;
@@ -255,12 +257,70 @@ describe("listSetCards", () => {
     const result = await listSetCards("2X2");
 
     // 1001 rows in -> a second page of sellable_skus, and 1001 distinct
-    // printing/sku ids -> three 500-sized .in() batches (500, 500, 1).
+    // printing/sku ids -> two 1000-sized .in() batches (1000, 1).
     expect(callCounts.sellable_skus).toBe(2);
-    expect(callCounts.card_images).toBe(3);
-    expect(callCounts.published_prices).toBe(3);
+    expect(callCounts.card_images).toBe(2);
+    expect(callCounts.published_prices).toBe(2);
     // ...but the returned rows are capped well below that.
     expect(result).toHaveLength(200);
+  });
+
+  it("retries a transient network failure and still returns correct data", async () => {
+    let priceAttempts = 0;
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "sellable_skus") return skusChain({ data: [fakeSkuRow()], error: null });
+      if (table === "card_images") return imagesChain({ data: [], error: null });
+      if (table === "published_prices") {
+        priceAttempts += 1;
+        if (priceAttempts === 1) {
+          return {
+            select: () => ({
+              in: () => ({
+                eq: () => Promise.reject(new TypeError("fetch failed")),
+              }),
+            }),
+          };
+        }
+        return pricesChain({
+          data: [{ sellable_sku_id: "sku-1", final_amount: 5, currency: "AUD" }],
+          error: null,
+        });
+      }
+      if (table === "inventory_balances") {
+        return balancesChain({
+          data: [{ sellable_sku_id: "sku-1", quantity_available_online: 3 }],
+          error: null,
+        });
+      }
+      throw new Error(`unexpected table: ${table}`);
+    });
+    const { listSetCards } = await import("./list-set-cards");
+
+    const result = await listSetCards("2X2");
+
+    expect(priceAttempts).toBe(2);
+    expect(result[0].price).toBe(5);
+  });
+
+  it("gives up after exhausting retries on a persistent network failure", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "sellable_skus") return skusChain({ data: [fakeSkuRow()], error: null });
+      if (table === "card_images") return imagesChain({ data: [], error: null });
+      if (table === "published_prices") {
+        return {
+          select: () => ({
+            in: () => ({
+              eq: () => Promise.reject(new TypeError("fetch failed")),
+            }),
+          }),
+        };
+      }
+      if (table === "inventory_balances") return balancesChain({ data: [], error: null });
+      throw new Error(`unexpected table: ${table}`);
+    });
+    const { listSetCards } = await import("./list-set-cards");
+
+    await expect(listSetCards("2X2")).rejects.toThrow("fetch failed");
   });
 
   it("filters by colour, including the colourless option", async () => {

@@ -112,7 +112,10 @@ const SKU_PAGE_SIZE = 1000;
 // for a few hundred ids, but the large sets above can have 5,000+ distinct
 // printings and 25,000+ skus, which would build a multi-hundred-KB request
 // URL. Chunk lookups the same way fetchAllSkuRows pages the base query.
-const ID_BATCH_SIZE = 500;
+// 1000 ids keeps the query string comfortably under typical proxy/gateway
+// URL-length limits while roughly halving the number of chunk requests
+// needed for the largest sets versus a smaller batch size.
+const ID_BATCH_SIZE = 1000;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -122,45 +125,121 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+// Real sets routinely fan out into 5-10+ paginated/batched Supabase requests
+// (see fetchAllSkuRows and the image/price/balance batches below). Firing
+// all of them at once reliably starts failing with a plain "TypeError:
+// fetch failed" once the count gets much past this -- observed consistently
+// (not just occasionally) against a real large set, so it isn't transient
+// flakiness a retry alone fixes. Cap how many of these run concurrently;
+// runWithConcurrencyLimit below enforces it.
+const MAX_CONCURRENT_REQUESTS = 4;
+
+// A retry still matters for whatever residual flakiness a concurrency cap
+// doesn't eliminate (a single request can still transiently fail even when
+// the network isn't overloaded).
+async function withRetry<T extends { error: { message: string } | null }>(
+  fn: () => PromiseLike<T>,
+  attempts = 3,
+): Promise<T> {
+  let lastResult: T | undefined;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      lastResult = await fn();
+      if (!lastResult.error) return lastResult;
+    } catch (error) {
+      if (attempt === attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+      continue;
+    }
+    if (attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+    }
+  }
+
+  return lastResult!;
+}
+
+// Runs `tasks` with at most `limit` in flight at once -- unlike
+// Promise.all(tasks.map(...)), which starts everything immediately.
+async function runWithConcurrencyLimit<R>(
+  tasks: Array<() => Promise<R>>,
+  limit: number,
+): Promise<R[]> {
+  const results: R[] = new Array(tasks.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    for (;;) {
+      const index = nextIndex++;
+      if (index >= tasks.length) return;
+      results[index] = await tasks[index]();
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, worker));
+  return results;
+}
+
+const SKU_SELECT_COLUMNS = `
+  id,
+  card_printing_id,
+  finishes!inner(code),
+  product_statuses!inner(code),
+  card_printings!inner(
+    id, rarity, collector_number, border_color,
+    sets!inner(code),
+    oracle_cards(id, name, type_line, colors)
+  )
+`;
+
+// Paginated instead of a single unpaginated query (see SKU_PAGE_SIZE above).
+// The first page asks Postgrest for an exact count alongside its rows, which
+// tells us how many more pages exist -- letting every page after the first
+// be fetched in parallel instead of one at a time. For a set like Modern
+// Horizons 3 (~5,000 active skus, 5 pages) that's the difference between 5
+// sequential round trips and 2 (first page, then the rest concurrently).
 async function fetchAllSkuRows(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   setCode: string,
 ): Promise<SkuSelectRow[]> {
-  const rows: SkuSelectRow[] = [];
-  let offset = 0;
-
-  for (;;) {
-    const { data, error } = await supabase
+  function buildPage(offset: number, withCount: boolean) {
+    return supabase
       .from("sellable_skus")
-      .select(
-        `
-        id,
-        card_printing_id,
-        finishes!inner(code),
-        product_statuses!inner(code),
-        card_printings!inner(
-          id, rarity, collector_number, border_color,
-          sets!inner(code),
-          oracle_cards(id, name, type_line, colors)
-        )
-      `,
-      )
+      .select(SKU_SELECT_COLUMNS, withCount ? { count: "exact" } : undefined)
       .eq("card_printings.sets.code", setCode)
       .eq("product_statuses.code", "active")
       .range(offset, offset + SKU_PAGE_SIZE - 1)
       .returns<SkuSelectRow[]>();
-
-    if (error) {
-      throw new Error(`Failed to list set cards: ${error.message}`);
-    }
-
-    rows.push(...(data ?? []));
-
-    if (!data || data.length < SKU_PAGE_SIZE) {
-      return rows;
-    }
-    offset += SKU_PAGE_SIZE;
   }
+
+  const first = await withRetry(() => buildPage(0, true));
+  if (first.error) {
+    throw new Error(`Failed to list set cards: ${first.error.message}`);
+  }
+
+  const rows: SkuSelectRow[] = [...(first.data ?? [])];
+  const total = first.count ?? rows.length;
+
+  const remainingOffsets: number[] = [];
+  for (let offset = SKU_PAGE_SIZE; offset < total; offset += SKU_PAGE_SIZE) {
+    remainingOffsets.push(offset);
+  }
+
+  if (remainingOffsets.length > 0) {
+    const restPages = await runWithConcurrencyLimit(
+      remainingOffsets.map((offset) => () => withRetry(() => buildPage(offset, false))),
+      MAX_CONCURRENT_REQUESTS,
+    );
+    for (const page of restPages) {
+      if (page.error) {
+        throw new Error(`Failed to list set cards: ${page.error.message}`);
+      }
+      rows.push(...(page.data ?? []));
+    }
+  }
+
+  return rows;
 }
 
 export async function listSetCards(
@@ -217,35 +296,66 @@ export async function listSetCards(
   const printingIdBatches = chunk(Array.from(printingIds), ID_BATCH_SIZE);
   const skuIdBatches = chunk(skuIds, ID_BATCH_SIZE);
 
-  const [imageResults, priceResults, balanceResults] = await Promise.all([
-    Promise.all(
-      printingIdBatches.map((batch) =>
-        supabase
-          .from("card_images")
-          .select("card_printing_id, url")
-          .in("card_printing_id", batch)
-          .eq("image_type", "normal")
-          .eq("face", "front"),
+  type LookupResult = { data: unknown[] | null; error: { message: string } | null };
+  type ImageRow = { card_printing_id: string; url: string };
+  type PriceRow = { sellable_sku_id: string; final_amount: number; currency: string };
+  type BalanceRow = { sellable_sku_id: string; quantity_available_online: number };
+
+  // All three categories' chunk requests share one concurrency-limited pool
+  // rather than each firing its own batch of parallel requests -- three
+  // uncoordinated Promise.all groups can still add up to more simultaneous
+  // requests than the network can reliably hold open at once.
+  const imageTaskCount = printingIdBatches.length;
+  const priceTaskCount = skuIdBatches.length;
+
+  const allResults = await runWithConcurrencyLimit<LookupResult>(
+    [
+      ...printingIdBatches.map(
+        (batch) => () =>
+          withRetry(() =>
+            supabase
+              .from("card_images")
+              .select("card_printing_id, url")
+              .in("card_printing_id", batch)
+              .eq("image_type", "normal")
+              .eq("face", "front"),
+          ),
       ),
-    ),
-    Promise.all(
-      skuIdBatches.map((batch) =>
-        supabase
-          .from("published_prices")
-          .select("sellable_sku_id, final_amount, currency")
-          .in("sellable_sku_id", batch)
-          .eq("status", "active"),
+      ...skuIdBatches.map(
+        (batch) => () =>
+          withRetry(() =>
+            supabase
+              .from("published_prices")
+              .select("sellable_sku_id, final_amount, currency")
+              .in("sellable_sku_id", batch)
+              .eq("status", "active"),
+          ),
       ),
-    ),
-    Promise.all(
-      skuIdBatches.map((batch) =>
-        supabase
-          .from("inventory_balances")
-          .select("sellable_sku_id, quantity_available_online")
-          .in("sellable_sku_id", batch),
+      ...skuIdBatches.map(
+        (batch) => () =>
+          withRetry(() =>
+            supabase
+              .from("inventory_balances")
+              .select("sellable_sku_id, quantity_available_online")
+              .in("sellable_sku_id", batch),
+          ),
       ),
-    ),
-  ]);
+    ],
+    MAX_CONCURRENT_REQUESTS,
+  );
+
+  const imageResults = allResults.slice(0, imageTaskCount) as {
+    data: ImageRow[] | null;
+    error: { message: string } | null;
+  }[];
+  const priceResults = allResults.slice(imageTaskCount, imageTaskCount + priceTaskCount) as {
+    data: PriceRow[] | null;
+    error: { message: string } | null;
+  }[];
+  const balanceResults = allResults.slice(imageTaskCount + priceTaskCount) as {
+    data: BalanceRow[] | null;
+    error: { message: string } | null;
+  }[];
 
   const imageRows = imageResults.flatMap((result) => {
     if (result.error) throw new Error(`Failed to list set card images: ${result.error.message}`);
