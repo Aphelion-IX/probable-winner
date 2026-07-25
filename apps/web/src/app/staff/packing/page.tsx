@@ -1,6 +1,8 @@
 import { createServerSupabaseClient } from "@/server/supabase";
 import { Badge } from "@/components/ui/badge";
 import { logger, getRequestId } from "@/lib/logger";
+import { PageHeader } from "@/components/staff/page-header";
+import { StatusBadge } from "@/components/staff/status-badge";
 
 // Requires an authenticated staff session at request time — cannot be
 // statically prerendered.
@@ -65,15 +67,13 @@ export default async function StaffPackingPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Packing</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Pack completed pick batches and generate shipping labels.
-        </p>
-      </div>
+      <PageHeader
+        title="Packing"
+        description="Pack completed pick batches and generate shipping labels."
+      />
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
         </div>
       ) : batches.length === 0 ? (
@@ -92,26 +92,16 @@ export default async function StaffPackingPage() {
               <a
                 key={batch.id}
                 href={`/staff/packing/${batch.id}`}
-                className="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
+                className="block rounded-lg border bg-card p-4 transition-colors hover:bg-muted/50"
               >
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3">
                       <div className="font-mono text-sm font-semibold">{batch.id.slice(0, 8)}</div>
                       {hasShipment ? (
-                        <Badge
-                          className={
-                            shipment?.status === "shipped"
-                              ? "bg-green-600"
-                              : shipment?.status === "labeled"
-                                ? "bg-blue-600"
-                                : "bg-yellow-600"
-                          }
-                        >
-                          {shipment?.status || "pending"}
-                        </Badge>
+                        <StatusBadge status={shipment?.status ?? "pending"} />
                       ) : (
-                        <Badge className="bg-gray-600">Ready to Pack</Badge>
+                        <Badge variant="outline">Ready to Pack</Badge>
                       )}
                     </div>
                     <div className="mt-2 text-sm text-muted-foreground">

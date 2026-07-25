@@ -4,6 +4,7 @@ import {
 } from "@/features/staff/actions/handle-click-and-collect";
 import { getStaffContext } from "@/server/staff-context";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/staff/page-header";
 
 // Requires an authenticated staff session at request time — cannot be
 // statically prerendered.
@@ -14,7 +15,7 @@ export default async function StaffHandoverPage() {
 
   if (!staffContext) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
         Not authenticated as staff member
       </div>
     );
@@ -33,15 +34,13 @@ export default async function StaffHandoverPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Click &amp; Collect Handover</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Scan order barcodes to hand over completed orders to customers.
-        </p>
-      </div>
+      <PageHeader
+        title="Click & Collect Handover"
+        description="Scan order barcodes to hand over completed orders to customers."
+      />
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
         </div>
       ) : orders.length === 0 ? (
@@ -54,13 +53,13 @@ export default async function StaffHandoverPage() {
             <a
               key={order.order_id}
               href={`/staff/handover/${order.order_id}`}
-              className="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
+              className="block rounded-lg border bg-card p-4 transition-colors hover:bg-muted/50"
             >
               <div className="flex items-center justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-3">
                     <span className="font-mono text-sm font-semibold">{order.order_number}</span>
-                    <Badge className="bg-green-600">Ready</Badge>
+                    <Badge variant="success">Ready</Badge>
                   </div>
                   <div className="mt-2 text-sm text-muted-foreground">
                     Click to confirm handover to customer

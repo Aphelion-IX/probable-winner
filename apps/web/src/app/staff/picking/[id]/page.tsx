@@ -11,6 +11,8 @@ import {
 } from "@/features/staff/actions/handle-pick-exception";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { StatusBadge } from "@/components/staff/status-badge";
 
 export default function PickBatchPage() {
   const params = useParams();
@@ -93,7 +95,7 @@ export default function PickBatchPage() {
 
   if (error || !batch) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
         {error || "Batch not found"}
       </div>
     );
@@ -106,17 +108,7 @@ export default function PickBatchPage() {
       <div>
         <div className="mb-2 flex items-center gap-2">
           <h1 className="text-3xl font-bold tracking-tight">Pick Batch</h1>
-          <Badge
-            className={
-              batch.status === "in_progress"
-                ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
-                : batch.status === "completed"
-                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
-                  : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
-            }
-          >
-            {batch.status}
-          </Badge>
+          <StatusBadge status={batch.status} />
         </div>
         <p className="text-sm text-muted-foreground">
           {batch.node_name} • {batch.total_lines} items • {batch.completed_lines} of{" "}
@@ -134,7 +126,7 @@ export default function PickBatchPage() {
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full bg-green-600 transition-all duration-300"
+            className="h-full bg-primary transition-all duration-300"
             style={{ width: `${progress}%` }}
           ></div>
         </div>
@@ -144,22 +136,19 @@ export default function PickBatchPage() {
       {batch.status !== "completed" && (
         <form onSubmit={handleScan} className="space-y-3 rounded-lg border bg-muted/30 p-4">
           <div>
-            <label className="block text-sm font-medium mb-2">Scan SKU barcode</label>
-            <input
+            <label className="mb-2 block text-sm font-medium">Scan SKU barcode</label>
+            <Input
               type="text"
               value={scanInput}
               onChange={(e) => setScanInput(e.target.value)}
               placeholder="Scan or type SKU..."
               autoFocus
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:placeholder-gray-500"
+              className="h-10"
             />
           </div>
-          <button
-            type="submit"
-            className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 active:bg-blue-800"
-          >
+          <Button type="submit" className="w-full">
             Mark as Picked
-          </button>
+          </Button>
         </form>
       )}
 
@@ -190,14 +179,14 @@ export default function PickBatchPage() {
                     }}
                     className={`w-full rounded-lg border p-4 transition-colors text-left ${
                       isFilled
-                        ? "border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950"
+                        ? "border-emerald-500/30 bg-emerald-500/5"
                         : isPartial
-                          ? "border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950"
+                          ? "border-primary/30 bg-primary/5"
                           : isScanned
-                            ? "border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-950"
+                            ? "border-amber-500/30 bg-amber-500/5"
                             : hasExceptions
-                              ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950"
-                              : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+                              ? "border-destructive/30 bg-destructive/5"
+                              : "border-border bg-card"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -207,7 +196,7 @@ export default function PickBatchPage() {
                             {line.order_number}
                           </span>
                           <span className="text-sm font-medium">{line.card_name}</span>
-                          {hasExceptions && <Badge className="bg-red-600">Exceptions</Badge>}
+                          {hasExceptions && <Badge variant="destructive">Exceptions</Badge>}
                         </div>
                         <div className="mt-1 text-xs text-muted-foreground">
                           {line.set_code} #{line.collector_number} • {line.finish} • {line.language}
@@ -221,8 +210,8 @@ export default function PickBatchPage() {
                               <span
                                 className={
                                   line.condition_confirmed === "match"
-                                    ? "text-green-600 font-semibold"
-                                    : "text-orange-600 font-semibold"
+                                    ? "font-semibold text-emerald-600 dark:text-emerald-400"
+                                    : "font-semibold text-amber-600 dark:text-amber-400"
                                 }
                               >
                                 {line.condition_confirmed}
@@ -243,14 +232,14 @@ export default function PickBatchPage() {
                   </button>
 
                   {isExpanded && (
-                    <div className="rounded-b-lg border border-t-0 border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900 space-y-3">
+                    <div className="space-y-3 rounded-b-lg border border-t-0 bg-muted/30 p-4">
                       {hasExceptions && (
                         <div className="space-y-2">
                           <div className="text-sm font-semibold">Exceptions</div>
                           {lineExceptions.get(line.id)?.map((exc) => (
                             <div
                               key={exc.id}
-                              className="rounded bg-white dark:bg-gray-800 p-2 text-xs border-l-4 border-red-500"
+                              className="rounded border-l-4 border-destructive bg-card p-2 text-xs"
                             >
                               <div className="font-medium">{exc.exception_type.name}</div>
                               {exc.notes && (
@@ -270,13 +259,13 @@ export default function PickBatchPage() {
                           + Report Exception
                         </Button>
                       ) : (
-                        <div className="space-y-2 bg-white dark:bg-gray-800 p-3 rounded">
+                        <div className="space-y-2 rounded-lg bg-card p-3">
                           <div>
                             <label className="block text-xs font-medium mb-1">Exception Type</label>
                             <select
                               value={exceptionType}
                               onChange={(e) => setExceptionType(e.target.value)}
-                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-900"
+                              className="w-full rounded-lg border border-input bg-background px-2 py-1 text-xs"
                             >
                               <option value="">Select...</option>
                               <option value="missing_card">Card Missing</option>
@@ -294,7 +283,7 @@ export default function PickBatchPage() {
                               value={exceptionNotes}
                               onChange={(e) => setExceptionNotes(e.target.value)}
                               placeholder="Details about the exception..."
-                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-900"
+                              className="w-full rounded-lg border border-input bg-background px-2 py-1 text-xs"
                               rows={2}
                             />
                           </div>

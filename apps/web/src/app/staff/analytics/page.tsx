@@ -1,5 +1,7 @@
 import { getAnalyticsData } from "@/features/staff/actions/get-analytics";
 import { TrendingUp, AlertTriangle, Package, DollarSign } from "lucide-react";
+import { PageHeader } from "@/components/staff/page-header";
+import { StatCard } from "@/components/staff/stat-card";
 
 // Requires an authenticated staff session at request time — cannot be
 // statically prerendered.
@@ -18,8 +20,8 @@ export default async function AnalyticsDashboard() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+        <PageHeader title="Analytics Dashboard" />
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
         </div>
       </div>
@@ -29,7 +31,7 @@ export default async function AnalyticsDashboard() {
   if (!analytics) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
+        <PageHeader title="Analytics Dashboard" />
         <p className="text-muted-foreground">Loading...</p>
       </div>
     );
@@ -37,65 +39,33 @@ export default async function AnalyticsDashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Key metrics and insights for the last 30 days.
-        </p>
-      </div>
+      <PageHeader title="Analytics Dashboard" description="Key metrics and insights for the last 30 days." />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground">Total Orders</p>
-              <p className="mt-2 text-3xl font-bold">{analytics.totalOrders}</p>
-            </div>
-            <Package className="h-8 w-8 opacity-50" />
-          </div>
-        </div>
-
-        <div className="rounded-lg border p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground">Total Revenue</p>
-              <p className="mt-2 text-3xl font-bold">
-                {new Intl.NumberFormat("en-AU", {
-                  style: "currency",
-                  currency: "AUD",
-                }).format(analytics.totalRevenue)}
-              </p>
-            </div>
-            <DollarSign className="h-8 w-8 opacity-50" />
-          </div>
-        </div>
-
-        <div className="rounded-lg border p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground">Avg Margin</p>
-              <p className="mt-2 text-3xl font-bold">
-                {analytics.pricingStats.average_margin_percent.toFixed(1)}%
-              </p>
-            </div>
-            <TrendingUp className="h-8 w-8 opacity-50" />
-          </div>
-        </div>
-
-        <div className="rounded-lg border p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground">Exceptions</p>
-              <p className="mt-2 text-3xl font-bold">{analytics.exceptionCount}</p>
-            </div>
-            <AlertTriangle className="h-8 w-8 opacity-50" />
-          </div>
-        </div>
+        <StatCard label="Total Orders" value={analytics.totalOrders} icon={Package} />
+        <StatCard
+          label="Total Revenue"
+          value={new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(
+            analytics.totalRevenue,
+          )}
+          icon={DollarSign}
+        />
+        <StatCard
+          label="Avg Margin"
+          value={`${analytics.pricingStats.average_margin_percent.toFixed(1)}%`}
+          icon={TrendingUp}
+        />
+        <StatCard
+          label="Exceptions"
+          value={analytics.exceptionCount}
+          icon={AlertTriangle}
+          tone="destructive"
+        />
       </div>
 
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">Order Trends (Last 30 Days)</h2>
-        <div className="rounded-lg border p-6">
+        <div className="rounded-lg border bg-card p-6">
           {analytics.orderTrends.length === 0 ? (
             <p className="text-sm text-muted-foreground">No order data available</p>
           ) : (
@@ -105,7 +75,7 @@ export default async function AnalyticsDashboard() {
                   <div className="w-24 text-sm font-medium">{trend.date}</div>
                   <div className="flex-1">
                     <div
-                      className="h-8 rounded-lg bg-blue-100 dark:bg-blue-900"
+                      className="h-8 rounded-lg bg-primary/15"
                       style={{ width: `${Math.min(100, (trend.count / 10) * 100)}%` }}
                     />
                   </div>
@@ -127,7 +97,7 @@ export default async function AnalyticsDashboard() {
 
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">Popular Cards (Last 30 Days)</h2>
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="overflow-x-auto rounded-lg border bg-card">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -170,7 +140,7 @@ export default async function AnalyticsDashboard() {
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Pricing Statistics</h2>
-          <div className="rounded-lg border p-6 space-y-4">
+          <div className="rounded-lg border bg-card p-6 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Cards in Review</span>
               <span className="text-lg font-semibold">
@@ -200,7 +170,7 @@ export default async function AnalyticsDashboard() {
 
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Fulfillment Status</h2>
-          <div className="rounded-lg border p-6 space-y-4">
+          <div className="rounded-lg border bg-card p-6 space-y-4">
             {analytics.fulfillmentBreakdown.map((status) => (
               <div key={status.status}>
                 <div className="flex items-center justify-between text-sm">
@@ -209,9 +179,9 @@ export default async function AnalyticsDashboard() {
                     {status.count} ({status.percentage.toFixed(1)}%)
                   </span>
                 </div>
-                <div className="mt-2 h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+                <div className="mt-2 h-2 w-full rounded-full bg-muted">
                   <div
-                    className="h-2 rounded-full bg-blue-600"
+                    className="h-2 rounded-full bg-primary"
                     style={{ width: `${status.percentage}%` }}
                   />
                 </div>

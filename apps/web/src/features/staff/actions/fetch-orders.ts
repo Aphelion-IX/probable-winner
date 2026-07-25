@@ -111,7 +111,7 @@ export async function fetchStaffOrders(): Promise<StaffOrder[]> {
       updated_at,
       customer_id,
       fulfilment_node_id,
-      fulfillment_node:fulfilment_nodes(id, name, code),
+      fulfillment_node:fulfilment_nodes!orders_fulfilment_node_id_fkey(id, name, code),
       order_lines(
         id,
         quantity,

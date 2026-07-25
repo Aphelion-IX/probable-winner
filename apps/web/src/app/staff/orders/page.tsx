@@ -1,4 +1,6 @@
 import { fetchStaffOrders, type StaffOrder } from "@/features/staff/actions/fetch-orders";
+import { PageHeader } from "@/components/staff/page-header";
+import { StatusBadge } from "@/components/staff/status-badge";
 
 // Requires an authenticated staff session at request time — cannot be
 // statically prerendered.
@@ -16,15 +18,13 @@ export default async function StaffOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Orders</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Manage orders pending fulfillment. Click an order to begin picking.
-        </p>
-      </div>
+      <PageHeader
+        title="Orders"
+        description="Manage orders pending fulfillment. Click an order to begin picking."
+      />
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
         </div>
       ) : orders.length === 0 ? (
@@ -32,7 +32,7 @@ export default async function StaffOrdersPage() {
           No orders pending fulfillment in your scope.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="overflow-x-auto rounded-lg border bg-card">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -52,19 +52,7 @@ export default async function StaffOrdersPage() {
                     {order.order_number}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                        order.status === "pending"
-                          ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
-                          : order.status === "confirmed"
-                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
-                            : order.status === "shipped"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
-                              : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100"
-                      }`}
-                    >
-                      {order.status}
-                    </span>
+                    <StatusBadge status={order.status} />
                   </td>
                   <td className="px-4 py-3 text-xs">
                     {order.fulfilment_type === "click_and_collect"

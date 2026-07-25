@@ -10,6 +10,8 @@ import {
   type PricingReviewItem,
 } from "@/features/staff/actions/manage-pricing-review";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/staff/page-header";
 
 function formatAmount(amount: number, currency: string): string {
   return new Intl.NumberFormat("en-AU", { style: "currency", currency }).format(amount);
@@ -67,22 +69,19 @@ export default function StaffPricingPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Pricing review queue</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Suggested prices awaiting approval, override, or rejection. Requires the pricing.approve
-          or pricing.override permission.
-        </p>
-      </div>
+      <PageHeader
+        title="Pricing review queue"
+        description="Suggested prices awaiting approval, override, or rejection. Requires the pricing.approve or pricing.override permission."
+      />
 
       {loadError ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {loadError}
         </div>
       ) : null}
 
       {actionError ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {actionError}
         </div>
       ) : null}
@@ -94,7 +93,7 @@ export default function StaffPricingPage() {
       ) : (
         <div className="space-y-3">
           {items.map((item) => (
-            <div key={item.id} className="rounded-lg border p-4">
+            <div key={item.id} className="rounded-lg border bg-card p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium">{item.card_name}</div>
@@ -142,14 +141,14 @@ export default function StaffPricingPage() {
                   <label htmlFor={`override-${item.id}`} className="text-xs font-medium">
                     Override amount ({item.currency})
                   </label>
-                  <input
+                  <Input
                     id={`override-${item.id}`}
                     type="number"
                     step="0.01"
                     min="0"
                     value={overrideAmount}
                     onChange={(e) => setOverrideAmount(e.target.value)}
-                    className="w-28 rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-900"
+                    className="w-28"
                   />
                   <Button
                     disabled={pendingId === item.id || overrideAmount.trim() === ""}
