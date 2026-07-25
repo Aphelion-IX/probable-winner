@@ -2,6 +2,7 @@ import Image from "next/image";
 import { ImageOff } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { scryfallImageProxyUrl } from "@/lib/scryfall-image";
 import type { PopularCardItem } from "@/features/catalogue/queries/list-popular-cards";
 
 const SLOT_STYLES = [
@@ -30,7 +31,7 @@ export function HeroCardCollage({ cards }: { cards: PopularCardItem[] }) {
         >
           {card.imageUrl ? (
             <Image
-              src={card.imageUrl}
+              src={scryfallImageProxyUrl(card.imageUrl)}
               alt={card.name}
               fill
               sizes="(min-width: 640px) 240px, 45vw"

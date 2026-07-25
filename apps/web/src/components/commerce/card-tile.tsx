@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { WishlistButton } from "@/components/commerce/wishlist-button";
 import { SetIcon } from "@/components/commerce/set-icon";
 import { cn } from "@/lib/utils";
+import { scryfallImageProxyUrl } from "@/lib/scryfall-image";
 
 export type CardTileProps = {
   href: string;
@@ -48,7 +49,7 @@ export function CardTile({
       <div className="relative aspect-square w-full bg-muted">
         {imageSrc ? (
           <Image
-            src={imageSrc}
+            src={scryfallImageProxyUrl(imageSrc)}
             alt={name}
             fill
             sizes="(min-width: 1024px) 200px, 45vw"

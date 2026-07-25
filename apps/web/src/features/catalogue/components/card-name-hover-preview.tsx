@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
+import { scryfallImageProxyUrl } from "@/lib/scryfall-image";
 
 type CardNameHoverPreviewProps = {
   href: string;
@@ -54,7 +55,13 @@ export function CardNameHoverPreview({
           className="pointer-events-none fixed z-50 overflow-hidden rounded-lg border bg-card shadow-xl"
           style={{ top: preview.top, left: preview.left }}
         >
-          <Image src={imageUrl} alt={name} width={180} height={252} className="object-cover" />
+          <Image
+            src={scryfallImageProxyUrl(imageUrl)}
+            alt={name}
+            width={180}
+            height={252}
+            className="object-cover"
+          />
         </div>
       )}
     </>

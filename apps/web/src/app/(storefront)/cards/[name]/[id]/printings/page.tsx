@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { getCardIdentity } from "@/features/catalogue/queries/get-card-identity";
 import { listPrintingsForOracleCard } from "@/features/catalogue/queries/list-printings-for-oracle-card";
 import { SetIcon } from "@/components/commerce/set-icon";
+import { scryfallImageProxyUrl } from "@/lib/scryfall-image";
 
 type AllPrintingsPageProps = {
   params: Promise<{ name: string; id: string }>;
@@ -69,7 +70,7 @@ export default async function AllPrintingsPage({ params }: AllPrintingsPageProps
               <div className="relative aspect-[5/7] w-14 shrink-0 overflow-hidden rounded border bg-muted">
                 {printing.thumbnailUrl ? (
                   <Image
-                    src={printing.thumbnailUrl}
+                    src={scryfallImageProxyUrl(printing.thumbnailUrl)}
                     alt={`${card.name} — ${printing.setName}`}
                     fill
                     sizes="56px"
