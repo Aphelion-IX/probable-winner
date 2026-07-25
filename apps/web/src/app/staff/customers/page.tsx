@@ -1,7 +1,35 @@
-import { PlaceholderPage } from "@/components/layout/placeholder-page";
+import { searchCustomers, type CustomerSummary } from "@/features/staff/actions/fetch-customers";
+import { CustomerDirectory } from "@/features/staff/components/customer-directory";
+import { PageHeader } from "@/components/staff/page-header";
 
-export default function StaffCustomersPage() {
+// Requires an authenticated staff session at request time — cannot be
+// statically prerendered.
+export const dynamic = "force-dynamic";
+
+export default async function StaffCustomersPage() {
+  let customers: CustomerSummary[] = [];
+  let error: string | null = null;
+
+  try {
+    customers = await searchCustomers("");
+  } catch (err) {
+    error = err instanceof Error ? err.message : "Failed to load customers";
+  }
+
   return (
-    <PlaceholderPage title="Customers" description="Customer service tooling is backlog Step 18." />
+    <div className="space-y-6">
+      <PageHeader
+        title="Customers"
+        description="Look up a customer to see their profile, saved addresses, and orders placed with your stores."
+      />
+
+      {error ? (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          {error}
+        </div>
+      ) : (
+        <CustomerDirectory initialCustomers={customers} />
+      )}
+    </div>
   );
 }

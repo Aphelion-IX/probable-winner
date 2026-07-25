@@ -48,3 +48,6 @@ supabase/.temp
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude code agent worktrees (isolated scratch clones, not project content)
+.claude/worktrees/

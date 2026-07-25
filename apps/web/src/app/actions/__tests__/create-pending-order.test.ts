@@ -40,6 +40,15 @@ vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({ from: mockFrom, rpc: mockRpc }),
 }));
 
+// Only resolveCheckoutIdentity is stubbed (it reads the auth session and the
+// cookie jar, neither of which exists here). ownsResource stays real, so
+// these routing tests still run through the genuine ownership gate rather
+// than around it -- the fixture cart below is owned by this same customer.
+vi.mock("@/server/checkout-ownership", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/checkout-ownership")>()),
+  resolveCheckoutIdentity: () => Promise.resolve({ userId: "customer-1", guestToken: null }),
+}));
+
 function cartLine(skuId: string, nodeId: string, quantity: number) {
   return {
     id: `line-${skuId}`,
@@ -57,7 +66,13 @@ function setUpCart(
 ) {
   resultsByTable = {
     carts: {
-      data: { id: "cart-1", organisation_id: "org-1", cart_lines: cartLines },
+      data: {
+        id: "cart-1",
+        organisation_id: "org-1",
+        customer_id: "customer-1",
+        guest_token: null,
+        cart_lines: cartLines,
+      },
       error: null,
     },
     published_prices: {

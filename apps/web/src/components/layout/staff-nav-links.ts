@@ -11,6 +11,7 @@ import {
   Store,
   Tag,
   Target,
+  Truck,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -19,6 +20,12 @@ export interface StaffNavLink {
   href: string;
   label: string;
   icon: LucideIcon;
+  /**
+   * Permission required to see this link (blueprint §18). Omitted where a
+   * screen is safe for any staff member — the dashboard, and screens whose
+   * own queries are already scoped to what the viewer may read.
+   */
+  permission?: string;
 }
 
 export interface StaffNavSection {
@@ -27,9 +34,7 @@ export interface StaffNavSection {
 }
 
 // Grouped to mirror the permission namespaces in docs/architecture.md §18
-// (catalogue.*, inventory.*, orders.*, pricing.*, stores.*, users.*), even
-// though nav items aren't permission-gated yet (getStaffContext() doesn't
-// return a role/permission list -- see that function for the gap).
+// (catalogue.*, inventory.*, orders.*, pricing.*, stores.*, users.*).
 export const STAFF_NAV_SECTIONS: StaffNavSection[] = [
   {
     label: "Overview",
@@ -38,19 +43,30 @@ export const STAFF_NAV_SECTIONS: StaffNavSection[] = [
   {
     label: "Fulfilment",
     links: [
-      { href: "/staff/orders", label: "Orders", icon: Boxes },
-      { href: "/staff/picking", label: "Picking", icon: Target },
-      { href: "/staff/packing", label: "Packing", icon: PackageCheck },
-      { href: "/staff/handover", label: "Handover", icon: Handshake },
+      { href: "/staff/orders", label: "Orders", icon: Boxes, permission: "orders.view" },
+      { href: "/staff/picking", label: "Picking", icon: Target, permission: "orders.pick" },
+      { href: "/staff/packing", label: "Packing", icon: PackageCheck, permission: "orders.pack" },
+      { href: "/staff/shipping", label: "Shipping", icon: Truck, permission: "orders.pack" },
+      { href: "/staff/handover", label: "Handover", icon: Handshake, permission: "orders.view" },
     ],
   },
   {
     label: "Catalogue & Inventory",
     links: [
-      { href: "/staff/inventory", label: "Inventory", icon: Boxes },
-      { href: "/staff/receiving", label: "Receiving", icon: PackagePlus },
-      { href: "/staff/transfers", label: "Transfers", icon: ArrowLeftRight },
-      { href: "/staff/pricing", label: "Pricing", icon: Tag },
+      { href: "/staff/inventory", label: "Inventory", icon: Boxes, permission: "inventory.view" },
+      {
+        href: "/staff/receiving",
+        label: "Receiving",
+        icon: PackagePlus,
+        permission: "inventory.receive",
+      },
+      {
+        href: "/staff/transfers",
+        label: "Transfers",
+        icon: ArrowLeftRight,
+        permission: "inventory.transfer",
+      },
+      { href: "/staff/pricing", label: "Pricing", icon: Tag, permission: "pricing.view" },
     ],
   },
   {
@@ -63,8 +79,8 @@ export const STAFF_NAV_SECTIONS: StaffNavSection[] = [
   {
     label: "Organisation",
     links: [
-      { href: "/staff/stores", label: "Stores", icon: Store },
-      { href: "/staff/customers", label: "Customers", icon: Users },
+      { href: "/staff/stores", label: "Stores", icon: Store, permission: "stores.view" },
+      { href: "/staff/customers", label: "Customers", icon: Users, permission: "users.view" },
       { href: "/staff/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -73,3 +89,20 @@ export const STAFF_NAV_SECTIONS: StaffNavSection[] = [
 export const STAFF_NAV_LINKS: StaffNavLink[] = STAFF_NAV_SECTIONS.flatMap(
   (section) => section.links,
 );
+
+/**
+ * Drops links the viewer lacks the permission for, then drops any section
+ * left with nothing in it.
+ *
+ * This is presentation only — hiding a link is not access control. Each
+ * screen's own action still checks the permission, and RLS is the real
+ * boundary underneath both.
+ */
+export function visibleNavSections(permissions: string[]): StaffNavSection[] {
+  const granted = new Set(permissions);
+
+  return STAFF_NAV_SECTIONS.map((section) => ({
+    ...section,
+    links: section.links.filter((link) => !link.permission || granted.has(link.permission)),
+  })).filter((section) => section.links.length > 0);
+}

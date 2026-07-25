@@ -24,6 +24,20 @@ export async function getCartSessionId(): Promise<string> {
   return sessionId;
 }
 
+/**
+ * Reads the guest cart cookie without creating one.
+ *
+ * getCartSessionId() mints and sets a fresh token when the cookie is absent,
+ * which is right on a write path (add-to-cart needs a cart to exist) but
+ * wrong on an authorisation check: minting a token there would hand the
+ * caller a brand-new identity mid-check, and a newly minted token can never
+ * match an existing order anyway.
+ */
+export async function readCartSessionId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get(CART_SESSION_COOKIE)?.value ?? null;
+}
+
 export async function setCartSessionId(sessionId: string): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(CART_SESSION_COOKIE, sessionId, {

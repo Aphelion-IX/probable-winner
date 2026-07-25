@@ -3,6 +3,8 @@
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
 
+import { resolveCheckoutIdentity, ownsResource } from "@/server/checkout-ownership";
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 interface CreateSessionRequest {
@@ -32,14 +34,38 @@ export async function POST(request: Request): Promise<Response> {
     // Fetch order lines directly -- orders has no cart_id (an order isn't
     // linked back to the cart it was created from), so line items come
     // from order_lines (fixed at order-creation time), not the cart.
+    //
+    // customer_id/guest_token drive the ownership check below: orderId
+    // arrives from the browser and this client is the service-role one,
+    // which bypasses RLS, so without it anyone could start a Stripe
+    // checkout for any order id -- seeing its contents and totals in the
+    // hosted session, and able to pay for a stranger's order.
     const { data: order, error: orderError } = await supabase
       .from("orders")
-      .select("id, status")
+      .select("id, status, customer_id, guest_token")
       .eq("id", orderId)
       .single();
 
     if (orderError || !order) {
       return Response.json({ success: false, error: "Order not found" }, { status: 404 });
+    }
+
+    // Same 404 as a missing order: confirming that an id exists but belongs
+    // to someone else is itself a leak.
+    const identity = await resolveCheckoutIdentity();
+
+    if (!ownsResource(order, identity)) {
+      return Response.json({ success: false, error: "Order not found" }, { status: 404 });
+    }
+
+    // Paying twice for the same order would take a second real payment for
+    // goods already bought, and the Stripe webhook is keyed by event id, so
+    // the duplicate would not be reconciled away.
+    if (order.status !== "pending") {
+      return Response.json(
+        { success: false, error: "This order is no longer awaiting payment" },
+        { status: 409 },
+      );
     }
 
     const { data: orderLines, error: linesError } = await supabase

@@ -4,14 +4,28 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
-import { STAFF_NAV_SECTIONS } from "@/components/layout/staff-nav-links";
+import { visibleNavSections } from "@/components/layout/staff-nav-links";
 
-export function StaffSidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+/**
+ * Takes the viewer's permission codes and does the filtering here rather
+ * than receiving ready-made sections from the server: nav links carry a
+ * Lucide `icon` component, and React cannot serialise a function across the
+ * server/client boundary. Permission codes are plain strings, so they cross
+ * it fine and the icons never leave the client bundle.
+ */
+export function StaffSidebarNav({
+  permissions,
+  onNavigate,
+}: {
+  permissions: string[];
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
+  const sections = visibleNavSections(permissions);
 
   return (
     <nav className="flex flex-col gap-6">
-      {STAFF_NAV_SECTIONS.map((section) => (
+      {sections.map((section) => (
         <div key={section.label}>
           <p className="px-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {section.label}

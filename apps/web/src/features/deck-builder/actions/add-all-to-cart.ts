@@ -30,13 +30,23 @@ export async function addAllToCart(lines: AddAllToCartLine[]): Promise<AddAllToC
 
   const supabase = createServerSupabaseClient();
 
-  const { data: store, error: storeError } = await supabase
-    .from("fulfilment_nodes")
-    .select("id, organisation_id")
-    .eq("active", true)
-    .eq("allows_online_fulfilment", true)
-    .limit(1)
-    .maybeSingle<StoreRow>();
+  // Independent lookups -- the store row and the current user are only
+  // combined afterward in the get_or_create_cart() call below.
+  const [
+    { data: store, error: storeError },
+    {
+      data: { user },
+    },
+  ] = await Promise.all([
+    supabase
+      .from("fulfilment_nodes")
+      .select("id, organisation_id")
+      .eq("active", true)
+      .eq("allows_online_fulfilment", true)
+      .limit(1)
+      .maybeSingle<StoreRow>(),
+    supabase.auth.getUser(),
+  ]);
 
   if (storeError) {
     return { status: "error", message: `Failed to find a store: ${storeError.message}` };
@@ -44,10 +54,6 @@ export async function addAllToCart(lines: AddAllToCartLine[]): Promise<AddAllToC
   if (!store) {
     return { status: "error", message: "No store currently accepts online orders." };
   }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const { data: cart, error: cartError } = await supabase.rpc("get_or_create_cart", {
     p_organisation_id: store.organisation_id,
