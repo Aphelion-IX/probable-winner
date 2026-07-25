@@ -14,6 +14,24 @@ type CardIdentityPageProps = {
   params: Promise<{ name: string; id: string }>;
 };
 
+// This page's data (get-card-identity.ts/list-sku-options.ts) is already
+// wrapped in unstable_cache with a 1h revalidate, but that only caches the
+// *data fetch* -- Next still won't ISR-cache the rendered route itself for
+// an unlisted dynamic segment unless generateStaticParams returns (even an
+// empty array) or `dynamic = 'force-static'` is set (confirmed via the
+// bundled Next 16 docs and empirically: `revalidate` alone left every
+// request as Cache-Control: no-store). This is the "cached, stable
+// section" from blueprint §14/backlog B-100, whose whole point is to avoid
+// exactly that per-request cost -- no printings are known at build time
+// (there's no practical way to enumerate every card up front), so this
+// caches on first visit per path instead of pre-rendering everything.
+export const dynamic = "force-static";
+export const revalidate = 3600;
+
+export async function generateStaticParams() {
+  return [];
+}
+
 const LEGALITY_VARIANT: Record<string, "secondary" | "outline" | "destructive"> = {
   legal: "secondary",
   restricted: "outline",
