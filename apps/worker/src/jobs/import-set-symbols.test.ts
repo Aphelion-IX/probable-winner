@@ -69,6 +69,30 @@ describe("matchSetsByCode", () => {
     expect(matchSetsByCode([], [])).toEqual([]);
   });
 
+  it("only lets the first local set claim a shared scryfall_id, but gives every match the icon", () => {
+    const scryfallSets: ScryfallSet[] = [
+      {
+        id: "scry-1",
+        code: "dsc",
+        name: "Dominaria United Commander",
+        icon_svg_uri: "https://svgs.scryfall.io/sets/dsc.svg",
+      },
+    ];
+
+    const result = matchSetsByCode(
+      [
+        { id: "local-1", code: "dsc" },
+        { id: "local-2", code: "dsc" },
+      ],
+      scryfallSets,
+    );
+
+    expect(result).toEqual([
+      { id: "local-1", scryfallId: "scry-1", iconUrl: "https://svgs.scryfall.io/sets/dsc.svg" },
+      { id: "local-2", scryfallId: null, iconUrl: "https://svgs.scryfall.io/sets/dsc.svg" },
+    ]);
+  });
+
   it("processes multiple local sets independently", () => {
     const scryfallSets: ScryfallSet[] = [
       {

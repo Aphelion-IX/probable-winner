@@ -48,19 +48,23 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
   const { inStock, colors, finishes, treatments, sort } = await searchParams;
   const inStockOnly = inStock !== "false";
 
-  const set = await getSet(code);
+  // getSet and listSetCards both depend only on the route's `code`, not on
+  // each other, so there's no need to wait for the set's name/icon before
+  // starting the (much more expensive, paginated) card query.
+  const [set, cards] = await Promise.all([
+    getSet(code),
+    listSetCards(code, {
+      inStockOnly,
+      colors: parseList(colors),
+      finishes: parseList(finishes),
+      borderColors: parseList(treatments),
+      sort,
+    }),
+  ]);
   if (!set) {
     notFound();
   }
   const setCode = set.code;
-
-  const cards = await listSetCards(code, {
-    inStockOnly,
-    colors: parseList(colors),
-    finishes: parseList(finishes),
-    borderColors: parseList(treatments),
-    sort,
-  });
 
   // Toggling the stock filter should keep any colour/foil/treatment/sort
   // filters already applied, not reset them.
