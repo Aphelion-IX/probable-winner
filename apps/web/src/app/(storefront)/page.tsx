@@ -39,10 +39,14 @@ const UTILITY_TILES = [
 ];
 
 export default async function Home() {
+  // Each section below already has its own "nothing to show" fallback UI, so
+  // a failure in one independent fetch degrades just that section instead
+  // of crashing the whole page (backlog B-093: no bare blank screens/crashes
+  // during load) -- same reasoning as search-results.tsx's catch.
   const [popularCards, formats, stores] = await Promise.all([
-    listPopularCards(),
-    listFeaturedFormats(),
-    listClickAndCollectStores(),
+    listPopularCards().catch(() => []),
+    listFeaturedFormats().catch(() => []),
+    listClickAndCollectStores().catch(() => []),
   ]);
 
   return (

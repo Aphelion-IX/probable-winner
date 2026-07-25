@@ -13,7 +13,7 @@ interface PriceAlertRow {
   triggered_at: string | null;
   created_at: string;
   card_printings: Array<{
-    cards: { name: string } | null;
+    oracle_cards: { name: string } | null;
     sets: { name: string } | null;
   }>;
 }
@@ -27,7 +27,7 @@ interface RestockAlertRow {
   triggered_at: string | null;
   created_at: string;
   card_printings: Array<{
-    cards: { name: string } | null;
+    oracle_cards: { name: string } | null;
     sets: { name: string } | null;
   }>;
 }
@@ -74,7 +74,7 @@ export async function getCustomerAlerts() {
       .select(
         `
         id, card_printing_id, finish, alert_price, currency, status, triggered_at, created_at,
-        card_printings(cards(name), sets(name))
+        card_printings(oracle_cards(name), sets(name))
       `,
       )
       .eq("customer_id", user.id)
@@ -84,7 +84,7 @@ export async function getCustomerAlerts() {
       .select(
         `
         id, card_printing_id, finish, condition, status, triggered_at, created_at,
-        card_printings(cards(name), sets(name))
+        card_printings(oracle_cards(name), sets(name))
       `,
       )
       .eq("customer_id", user.id)
@@ -114,7 +114,7 @@ export async function getCustomerAlerts() {
   ).map((alert: PriceAlertRow) => ({
     id: alert.id,
     card_printing_id: alert.card_printing_id,
-    card_name: alert.card_printings?.[0]?.cards?.name || "Unknown",
+    card_name: alert.card_printings?.[0]?.oracle_cards?.name || "Unknown",
     set_name: alert.card_printings?.[0]?.sets?.name || "Unknown",
     finish: alert.finish,
     alert_price: alert.alert_price,
@@ -129,7 +129,7 @@ export async function getCustomerAlerts() {
   ).map((alert: RestockAlertRow) => ({
     id: alert.id,
     card_printing_id: alert.card_printing_id,
-    card_name: alert.card_printings?.[0]?.cards?.name || "Unknown",
+    card_name: alert.card_printings?.[0]?.oracle_cards?.name || "Unknown",
     set_name: alert.card_printings?.[0]?.sets?.name || "Unknown",
     finish: alert.finish,
     condition: alert.condition,

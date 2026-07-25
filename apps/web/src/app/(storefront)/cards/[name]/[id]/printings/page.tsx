@@ -13,6 +13,16 @@ type AllPrintingsPageProps = {
   params: Promise<{ name: string; id: string }>;
 };
 
+// Same reasoning as the parent card identity page: `revalidate` alone
+// doesn't make Next ISR-cache an unlisted dynamic segment; it also needs
+// generateStaticParams (even an empty array) or `dynamic = 'force-static'`.
+export const dynamic = "force-static";
+export const revalidate = 3600;
+
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: AllPrintingsPageProps): Promise<Metadata> {
   const { id } = await params;
   const card = await getCardIdentity(id);

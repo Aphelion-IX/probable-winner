@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { SkuOption } from "@/features/catalogue/queries/list-sku-options";
 import { RestockAlertButton } from "@/features/catalogue/components/restock-alert-button";
+import { SaveForLaterButton } from "@/features/catalogue/components/save-for-later-button";
 import { addToCart } from "@/app/actions/add-to-cart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -209,6 +210,8 @@ export function SkuSelector({ printingId, options }: SkuSelectorProps) {
                   : ""}
             </span>
           </div>
+
+          {liveData && <SaveForLaterButton key={selected.skuId} sellableSkuId={selected.skuId} />}
 
           {liveData && liveData.availableQuantity === 0 && (
             <RestockAlertButton

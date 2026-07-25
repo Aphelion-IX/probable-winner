@@ -8,6 +8,7 @@ import type { Sql } from "postgres";
 
 export type SkuSearchRow = {
   skuId: string;
+  printingId: string;
   oracleCardId: string;
   name: string;
   typeLine: string;
@@ -28,10 +29,12 @@ export type SkuSearchRow = {
   priceCurrency: string | null;
   quantityAvailable: number;
   quantityInStores: Record<string, number>;
+  cataloguedAt: number;
 };
 
 type SkuSearchRowSql = {
   sku_id: string;
+  printing_id: string;
   oracle_card_id: string;
   name: string;
   type_line: string;
@@ -52,6 +55,7 @@ type SkuSearchRowSql = {
   price_currency: string | null;
   quantity_available: string;
   quantity_in_stores: Record<string, number> | null;
+  catalogued_at: Date;
 };
 
 export async function fetchSkuSearchRows(sql: Sql, skuIds?: string[]): Promise<SkuSearchRow[]> {
@@ -89,6 +93,7 @@ export async function fetchSkuSearchRows(sql: Sql, skuIds?: string[]): Promise<S
     )
     select
       sk.id as sku_id,
+      cp.id as printing_id,
       cp.oracle_card_id,
       oc.name,
       oc.type_line,
@@ -108,7 +113,8 @@ export async function fetchSkuSearchRows(sql: Sql, skuIds?: string[]): Promise<S
       prices.final_amount as price_amount,
       prices.currency as price_currency,
       coalesce(balances.total_available, 0) as quantity_available,
-      coalesce(balances.by_store, '{}'::jsonb) as quantity_in_stores
+      coalesce(balances.by_store, '{}'::jsonb) as quantity_in_stores,
+      cp.created_at as catalogued_at
     from sellable_skus sk
     join card_printings cp on cp.id = sk.card_printing_id
     join oracle_cards oc on oc.id = cp.oracle_card_id
@@ -128,6 +134,7 @@ export async function fetchSkuSearchRows(sql: Sql, skuIds?: string[]): Promise<S
 
   return rows.map((row) => ({
     skuId: row.sku_id,
+    printingId: row.printing_id,
     oracleCardId: row.oracle_card_id,
     name: row.name,
     typeLine: row.type_line,
@@ -148,5 +155,6 @@ export async function fetchSkuSearchRows(sql: Sql, skuIds?: string[]): Promise<S
     priceCurrency: row.price_currency,
     quantityAvailable: Number(row.quantity_available),
     quantityInStores: row.quantity_in_stores ?? {},
+    cataloguedAt: row.catalogued_at.getTime(),
   }));
 }

@@ -26,42 +26,46 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     throw new Error("Not authenticated as staff");
   }
 
-  // Count pending orders
-  const { count: pending_orders } = await supabase
-    .from("orders")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "pending");
+  // These six reads are independent of one another once staff auth is
+  // confirmed above, so they run concurrently rather than one at a time.
+  const [
+    { count: pending_orders },
+    { count: active_pick_batches },
+    { count: pending_exceptions },
+    { count: ready_shipments },
+    { data: handoverOrders },
+    { data: recent_orders },
+  ] = await Promise.all([
+    // Count pending orders
+    supabase.from("orders").select("*", { count: "exact", head: true }).eq("status", "pending"),
+    // Count active pick batches
+    supabase
+      .from("pick_batches")
+      .select("*", { count: "exact", head: true })
+      .in("status", ["pending", "in_progress"]),
+    // Count unresolved exceptions
+    supabase
+      .from("pick_exceptions")
+      .select("*", { count: "exact", head: true })
+      .is("resolved_at", null),
+    // Count packing shipments ready to ship
+    supabase
+      .from("packing_shipments")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "labeled"),
+    // Count click-and-collect orders ready for handover
+    supabase.rpc("get_ready_for_handover_orders", {
+      p_fulfilment_node_id: staffContext.nodeId,
+    }),
+    // Get recent orders
+    supabase
+      .from("orders")
+      .select("id, order_number, status, fulfilment_type, created_at")
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ]);
 
-  // Count active pick batches
-  const { count: active_pick_batches } = await supabase
-    .from("pick_batches")
-    .select("*", { count: "exact", head: true })
-    .in("status", ["pending", "in_progress"]);
-
-  // Count unresolved exceptions
-  const { count: pending_exceptions } = await supabase
-    .from("pick_exceptions")
-    .select("*", { count: "exact", head: true })
-    .is("resolved_at", null);
-
-  // Count packing shipments ready to ship
-  const { count: ready_shipments } = await supabase
-    .from("packing_shipments")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "labeled");
-
-  // Count click-and-collect orders ready for handover
-  const { data: handoverOrders } = await supabase.rpc("get_ready_for_handover_orders", {
-    p_fulfilment_node_id: staffContext.nodeId,
-  });
   const ready_handovers = handoverOrders?.length || 0;
-
-  // Get recent orders
-  const { data: recent_orders } = await supabase
-    .from("orders")
-    .select("id, order_number, status, fulfilment_type, created_at")
-    .order("created_at", { ascending: false })
-    .limit(10);
 
   return {
     pending_orders: pending_orders || 0,
