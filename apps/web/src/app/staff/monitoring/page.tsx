@@ -1,6 +1,8 @@
 import { getSystemHealth } from "@/features/staff/actions/get-system-health";
 import { Badge } from "@/components/ui/badge";
 import { Activity, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { PageHeader } from "@/components/staff/page-header";
+import { StatCard } from "@/components/staff/stat-card";
 
 // Requires an authenticated staff session at request time — cannot be
 // statically prerendered.
@@ -31,8 +33,8 @@ export default async function SystemMonitoringPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight">System Monitoring</h1>
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+        <PageHeader title="System Monitoring" />
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
         </div>
       </div>
@@ -42,7 +44,7 @@ export default async function SystemMonitoringPage() {
   if (!health) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight">System Monitoring</h1>
+        <PageHeader title="System Monitoring" />
         <p className="text-muted-foreground">Loading...</p>
       </div>
     );
@@ -53,41 +55,24 @@ export default async function SystemMonitoringPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">System Monitoring</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Queue backlog age and import pipeline health (backlog B-202).
-        </p>
-      </div>
+      <PageHeader
+        title="System Monitoring"
+        description="Queue backlog age and import pipeline health (backlog B-202)."
+      />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-lg border p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground">Queues Over Threshold</p>
-              <p className="mt-2 text-3xl font-bold">{unhealthyQueueCount}</p>
-            </div>
-            {unhealthyQueueCount > 0 ? (
-              <AlertTriangle className="h-8 w-8 text-orange-500" />
-            ) : (
-              <CheckCircle2 className="h-8 w-8 text-green-500" />
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-lg border p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-muted-foreground">Failed Imports (24h)</p>
-              <p className="mt-2 text-3xl font-bold">{totalFailedRuns}</p>
-            </div>
-            {totalFailedRuns > 0 ? (
-              <AlertTriangle className="h-8 w-8 text-orange-500" />
-            ) : (
-              <CheckCircle2 className="h-8 w-8 text-green-500" />
-            )}
-          </div>
-        </div>
+        <StatCard
+          label="Queues Over Threshold"
+          value={unhealthyQueueCount}
+          icon={unhealthyQueueCount > 0 ? AlertTriangle : CheckCircle2}
+          tone={unhealthyQueueCount > 0 ? "destructive" : "primary"}
+        />
+        <StatCard
+          label="Failed Imports (24h)"
+          value={totalFailedRuns}
+          icon={totalFailedRuns > 0 ? AlertTriangle : CheckCircle2}
+          tone={totalFailedRuns > 0 ? "destructive" : "primary"}
+        />
       </div>
 
       <div className="space-y-4">
@@ -95,7 +80,7 @@ export default async function SystemMonitoringPage() {
           <Activity className="h-5 w-5" />
           Queue Backlog
         </h2>
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="overflow-x-auto rounded-lg border bg-card">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -117,13 +102,9 @@ export default async function SystemMonitoringPage() {
                   </td>
                   <td className="px-6 py-3">
                     {queue.healthy ? (
-                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-                        Healthy
-                      </Badge>
+                      <Badge variant="success">Healthy</Badge>
                     ) : (
-                      <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100">
-                        Stale
-                      </Badge>
+                      <Badge variant="warning">Stale</Badge>
                     )}
                   </td>
                 </tr>
@@ -135,7 +116,7 @@ export default async function SystemMonitoringPage() {
 
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">Import Pipeline Failures (Last 24h)</h2>
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="overflow-x-auto rounded-lg border bg-card">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
@@ -154,7 +135,7 @@ export default async function SystemMonitoringPage() {
                     {failure.failedRunCount === 0 ? (
                       <span className="text-muted-foreground">0</span>
                     ) : (
-                      <span className="font-semibold text-orange-600">
+                      <span className="font-semibold text-destructive">
                         {failure.failedRunCount}
                       </span>
                     )}

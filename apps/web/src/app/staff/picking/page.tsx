@@ -1,6 +1,8 @@
 import { createServerSupabaseClient } from "@/server/supabase";
 import { logger, getRequestId } from "@/lib/logger";
 import { GeneratePickBatchButton } from "@/features/staff/components/generate-pick-batch-button";
+import { PageHeader } from "@/components/staff/page-header";
+import { StatusBadge } from "@/components/staff/status-badge";
 
 // Requires an authenticated staff session at request time — cannot be
 // statically prerendered.
@@ -61,18 +63,14 @@ export default async function StaffPickingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Picking</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Select a batch to begin picking items for fulfillment.
-          </p>
-        </div>
-        <GeneratePickBatchButton />
-      </div>
+      <PageHeader
+        title="Picking"
+        description="Select a batch to begin picking items for fulfillment."
+        actions={<GeneratePickBatchButton />}
+      />
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
         </div>
       ) : batches.length === 0 ? (
@@ -91,21 +89,16 @@ export default async function StaffPickingPage() {
               <a
                 key={batch.id}
                 href={`/staff/picking/${batch.id}`}
-                className="block rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
+                className="block rounded-lg border bg-card p-4 transition-colors hover:bg-muted/50"
               >
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3">
                       <div className="font-mono text-sm font-semibold">{batch.id.slice(0, 8)}</div>
-                      <span
-                        className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                          isInProgress
-                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
-                            : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
-                        }`}
-                      >
-                        {batch.status === "in_progress" ? "In Progress" : "Pending"}
-                      </span>
+                      <StatusBadge
+                        status={batch.status}
+                        label={isInProgress ? "In Progress" : "Pending"}
+                      />
                     </div>
                     <div className="mt-2 text-sm text-muted-foreground">
                       {node?.code} • {lineCount} items

@@ -1,21 +1,26 @@
 import Link from "next/link";
 import {
+  AlertTriangle,
+  ArrowRight,
+  Boxes,
+  Handshake,
+  PackageCheck,
+  Settings,
+  Target,
+  Truck,
+} from "lucide-react";
+
+import {
   getDashboardStats,
   type DashboardStats,
 } from "@/features/staff/actions/get-dashboard-stats";
-import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/staff/page-header";
+import { StatCard } from "@/components/staff/stat-card";
+import { StatusBadge } from "@/components/staff/status-badge";
 
 // Requires an authenticated staff session at request time — cannot be
 // statically prerendered.
 export const dynamic = "force-dynamic";
-
-interface StatCard {
-  label: string;
-  value: number;
-  href: string;
-  color: string;
-  icon: string;
-}
 
 const defaultStats: DashboardStats = {
   pending_orders: 0,
@@ -25,6 +30,15 @@ const defaultStats: DashboardStats = {
   ready_handovers: 0,
   recent_orders: [],
 };
+
+const QUICK_LINKS = [
+  { href: "/staff/orders", icon: Boxes, title: "View Orders", description: "See all orders in your scope" },
+  { href: "/staff/picking", icon: Target, title: "Pick Batches", description: "Active picking tasks" },
+  { href: "/staff/packing", icon: PackageCheck, title: "Packing", description: "Prepare orders for shipment" },
+  { href: "/staff/handover", icon: Handshake, title: "Handover", description: "Click & collect pickups" },
+  { href: "/staff/inventory", icon: Boxes, title: "Inventory", description: "Check stock levels" },
+  { href: "/staff/settings", icon: Settings, title: "Settings", description: "Account & preferences" },
+];
 
 export default async function StaffDashboardPage() {
   let stats = defaultStats;
@@ -36,107 +50,75 @@ export default async function StaffDashboardPage() {
     error = err instanceof Error ? err.message : "Failed to load dashboard";
   }
 
-  const statCards: StatCard[] = [
-    {
-      label: "Pending Orders",
-      value: stats.pending_orders,
-      href: "/staff/orders",
-      color: "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-900",
-      icon: "📦",
-    },
+  const statCards = [
+    { label: "Pending Orders", value: stats.pending_orders, href: "/staff/orders", icon: Boxes },
     {
       label: "Active Pick Batches",
       value: stats.active_pick_batches,
       href: "/staff/picking",
-      color: "bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-900",
-      icon: "🎯",
+      icon: Target,
     },
     {
       label: "Exceptions to Resolve",
       value: stats.pending_exceptions,
       href: "/staff/picking",
-      color: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-900",
-      icon: "⚠️",
+      icon: AlertTriangle,
+      tone: "destructive" as const,
     },
-    {
-      label: "Ready to Ship",
-      value: stats.ready_shipments,
-      href: "/staff/packing",
-      color: "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-900",
-      icon: "🚚",
-    },
+    { label: "Ready to Ship", value: stats.ready_shipments, href: "/staff/packing", icon: Truck },
     {
       label: "Ready for Handover",
       value: stats.ready_handovers,
       href: "/staff/handover",
-      color: "bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-900",
-      icon: "🤝",
+      icon: Handshake,
     },
   ];
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-4xl font-bold tracking-tight">Staff Dashboard</h1>
-        <p className="mt-2 text-lg text-muted-foreground">
-          Fulfillment workflow overview and quick access to active tasks.
-        </p>
-      </div>
+      <PageHeader
+        title="Staff Dashboard"
+        description="Fulfillment workflow overview and quick access to active tasks."
+      />
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      {/* Workflow Visualization */}
-      <div className="rounded-lg border bg-white p-6 dark:bg-gray-900">
-        <h2 className="text-sm font-semibold text-muted-foreground mb-4">Fulfillment Pipeline</h2>
+      <div className="rounded-lg border bg-card p-6">
+        <h2 className="mb-4 text-sm font-semibold text-muted-foreground">Fulfillment Pipeline</h2>
         <div className="flex items-center justify-between">
           <div className="text-center">
-            <div className="text-3xl font-bold text-blue-600">{stats.pending_orders}</div>
+            <div className="text-3xl font-bold text-primary">{stats.pending_orders}</div>
             <div className="mt-1 text-xs font-medium">Orders</div>
           </div>
-          <div className="text-2xl text-muted-foreground">→</div>
+          <ArrowRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
           <div className="text-center">
-            <div className="text-3xl font-bold text-purple-600">{stats.active_pick_batches}</div>
+            <div className="text-3xl font-bold text-primary">{stats.active_pick_batches}</div>
             <div className="mt-1 text-xs font-medium">Picking</div>
           </div>
-          <div className="text-2xl text-muted-foreground">→</div>
+          <ArrowRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
           <div className="text-center">
-            <div className="text-3xl font-bold text-green-600">{stats.ready_shipments}</div>
+            <div className="text-3xl font-bold text-primary">{stats.ready_shipments}</div>
             <div className="mt-1 text-xs font-medium">Packing</div>
           </div>
-          <div className="text-2xl text-muted-foreground">→</div>
+          <ArrowRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
           <div className="text-center">
-            <div className="text-3xl font-bold text-amber-600">{stats.ready_handovers}</div>
+            <div className="text-3xl font-bold text-primary">{stats.ready_handovers}</div>
             <div className="mt-1 text-xs font-medium">Handover</div>
           </div>
         </div>
       </div>
 
-      {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         {statCards.map((card) => (
-          <Link
-            key={card.label}
-            href={card.href}
-            className={`rounded-lg border p-6 transition-all hover:shadow-lg hover:-translate-y-1 cursor-pointer ${card.color}`}
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
-                <p className="mt-2 text-3xl font-bold">{card.value}</p>
-              </div>
-              <div className="text-3xl">{card.icon}</div>
-            </div>
-          </Link>
+          <StatCard key={card.label} {...card} />
         ))}
       </div>
 
-      {/* Recent Orders */}
-      <div className="rounded-lg border bg-white dark:bg-gray-900">
+      <div className="rounded-lg border bg-card">
         <div className="border-b px-6 py-4">
           <h2 className="text-lg font-semibold">Recent Orders</h2>
         </div>
@@ -169,17 +151,7 @@ export default async function StaffDashboardPage() {
                         : "Online Shipping"}
                     </td>
                     <td className="px-6 py-3">
-                      <Badge
-                        className={
-                          order.status === "pending"
-                            ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
-                            : order.status === "confirmed"
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
-                              : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
-                        }
-                      >
-                        {order.status}
-                      </Badge>
+                      <StatusBadge status={order.status} />
                     </td>
                     <td className="px-6 py-3 text-xs text-muted-foreground">
                       {new Date(order.created_at).toLocaleDateString("en-AU", {
@@ -197,50 +169,22 @@ export default async function StaffDashboardPage() {
         </div>
       </div>
 
-      {/* Quick Links */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Link
-          href="/staff/orders"
-          className="rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
-        >
-          <h3 className="font-semibold">📋 View Orders</h3>
-          <p className="mt-1 text-sm text-muted-foreground">See all orders in your scope</p>
-        </Link>
-        <Link
-          href="/staff/picking"
-          className="rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
-        >
-          <h3 className="font-semibold">🎯 Pick Batches</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Active picking tasks</p>
-        </Link>
-        <Link
-          href="/staff/packing"
-          className="rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
-        >
-          <h3 className="font-semibold">📦 Packing</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Prepare orders for shipment</p>
-        </Link>
-        <Link
-          href="/staff/handover"
-          className="rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
-        >
-          <h3 className="font-semibold">🤝 Handover</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Click & collect pickups</p>
-        </Link>
-        <Link
-          href="/staff/inventory"
-          className="rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
-        >
-          <h3 className="font-semibold">📊 Inventory</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Check stock levels</p>
-        </Link>
-        <Link
-          href="/staff/settings"
-          className="rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-800"
-        >
-          <h3 className="font-semibold">⚙️ Settings</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Account & preferences</p>
-        </Link>
+        {QUICK_LINKS.map(({ href, icon: Icon, title, description }) => (
+          <Link
+            key={href}
+            href={href}
+            className="flex items-start gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-muted/50"
+          >
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Icon className="size-4" aria-hidden />
+            </span>
+            <div>
+              <h3 className="font-semibold">{title}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+            </div>
+          </Link>
+        ))}
       </div>
     </div>
   );
