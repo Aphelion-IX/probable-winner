@@ -5,6 +5,7 @@ import type { CollectionCreateSchema, CollectionFieldSchema } from "typesense";
 
 export interface CardSearchDocument {
   id: string; // SKU ID
+  printing_id: string; // card_printings ID -- the card identity page's route param, distinct from the SKU id above
   oracle_id: string; // Oracle card ID for grouping printings
   name: string; // Card name (for text search)
   set_code: string; // Set code (e.g., "MH2")
@@ -28,10 +29,12 @@ export interface CardSearchDocument {
   quantity_in_stores: Record<string, number>; // Quantity per store ID
   popularity_score: number; // Computed popularity (0-100 scale for ranking)
   last_updated_at: number; // Unix timestamp of last price/inventory update
+  catalogued_at: number; // Unix timestamp the printing was catalogued (card_printings.created_at) -- backs the "recently added" feed (B-193)
 }
 
 const fields: CollectionFieldSchema[] = [
   { name: "id", type: "string", facet: false },
+  { name: "printing_id", type: "string", facet: false },
   { name: "oracle_id", type: "string", facet: true },
   { name: "name", type: "string", facet: false },
   { name: "set_code", type: "string", facet: true },
@@ -55,6 +58,7 @@ const fields: CollectionFieldSchema[] = [
   { name: "quantity_in_stores", type: "object", facet: false },
   { name: "popularity_score", type: "float", facet: false },
   { name: "last_updated_at", type: "int64", facet: false },
+  { name: "catalogued_at", type: "int64", facet: false },
 ];
 
 export const typesenseCollectionSchema: CollectionCreateSchema = {

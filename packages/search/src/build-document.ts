@@ -5,6 +5,7 @@ import type { CardSearchDocument } from "./typesense-schema";
 
 export type SkuSearchInput = {
   skuId: string;
+  printingId: string;
   oracleCardId: string;
   name: string;
   typeLine: string;
@@ -26,11 +27,13 @@ export type SkuSearchInput = {
   quantityAvailable: number;
   quantityInStores: Record<string, number>;
   popularityScore?: number;
+  cataloguedAt: number;
 };
 
 export function buildCardSearchDocument(input: SkuSearchInput): CardSearchDocument {
   return {
     id: input.skuId,
+    printing_id: input.printingId,
     oracle_id: input.oracleCardId,
     name: input.name,
     set_code: input.setCode,
@@ -54,5 +57,6 @@ export function buildCardSearchDocument(input: SkuSearchInput): CardSearchDocume
     quantity_in_stores: input.quantityInStores,
     popularity_score: input.popularityScore ?? 0,
     last_updated_at: Date.now(),
+    catalogued_at: input.cataloguedAt,
   };
 }
