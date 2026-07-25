@@ -34,6 +34,8 @@ interface PricingRow {
   id: string;
   status: string;
   metadata: PricingMetadata | null;
+  base_amount: number;
+  margin_amount: number;
   created_at?: string;
 }
 
@@ -165,7 +167,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
   // Get pricing stats
   const { data: pricingData, error: pricingError } = await supabase
     .from("calculated_prices")
-    .select("id, status, metadata")
+    .select("id, status, metadata, base_amount, margin_amount")
     .gte("created_at", thirtyDaysAgo.toISOString());
 
   if (pricingError) {
@@ -188,8 +190,18 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     (p: PricingRow) => p.status === "suggested",
   ).length;
 
+  const { totalBase, totalMargin } = (
+    (pricingData || []) as unknown as PricingRow[]
+  ).reduce(
+    (acc: { totalBase: number; totalMargin: number }, p: PricingRow) => ({
+      totalBase: acc.totalBase + p.base_amount,
+      totalMargin: acc.totalMargin + p.margin_amount,
+    }),
+    { totalBase: 0, totalMargin: 0 },
+  );
+
   const pricingStats: PricingStats = {
-    average_margin_percent: 25, // Placeholder - would calculate from actual prices
+    average_margin_percent: totalBase > 0 ? (totalMargin / totalBase) * 100 : 0,
     cards_in_review: cardsInReview,
     auto_approved_count: autoApproved,
     manual_approved_count: manualApproved,
