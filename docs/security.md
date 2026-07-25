@@ -49,6 +49,44 @@ enforcement" below for what keeps it true as the codebase grows.
    `.env.example` in the repo; when one is added (tracked separately), it
    must list variable names only, never real values.
 
+## Staff permissions (blueprint §18)
+
+`staff_has_permission(code)` resolves a permission through the signed-in
+user's active `staff_memberships` row → `role_permissions` → `permissions`.
+It is the gate on privileged database functions (pricing approval/override)
+and on the staff screens' server actions.
+
+**The role × permission matrix is seeded in migrations, not managed at
+runtime.** `20260724221000_seed_pricing_role_permissions.sql` seeded the
+`pricing.*` grants; `20260725160000_seed_role_permission_matrix.sql` seeded
+every other domain. Before the latter, `role_permissions` held only pricing
+rows, so `staff_has_permission()` returned false for `inventory.*`,
+`orders.*`, `stores.*` and `users.*` for **every** role including `owner` —
+any surface gated on them was unreachable. Adding a new permission to the
+`permissions` table is therefore only half the job: it must also be granted
+to the roles that need it, in the same migration.
+
+Three layers enforce access, and only the first two are real:
+
+1. **RLS** — the boundary. Policies use `staff_has_node_access()` /
+   `staff_has_org_access()` / `staff_has_permission()`.
+2. **Server actions** — check the permission before calling an RPC, so a
+   refusal is a readable message rather than a policy violation.
+3. **Nav filtering** (`visibleNavSections()` in
+   `apps/web/src/components/layout/staff-nav-links.ts`) — presentation only.
+   Hiding a link is *not* access control; it stops the sidebar advertising
+   screens whose every action would be refused.
+
+Two caveats worth knowing when writing a staff query:
+
+- **`inventory_balances` has a public read policy** for every active node
+  (`20260725120000`, so the storefront can show availability). RLS will
+  *not* scope it to the viewer's stores — staff queries against it must
+  filter on `staffContext.nodeIds` explicitly.
+- **`profiles` / `customer_addresses` are staff-readable only with
+  `users.view`** (`20260725170000`), and read-only: customers remain the
+  sole writers of their own records.
+
 ## Ongoing enforcement
 
 A hand-audit doesn't stay true on its own, so it's backed by an automated
