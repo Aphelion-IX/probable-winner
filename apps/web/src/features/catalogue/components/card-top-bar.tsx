@@ -2,16 +2,8 @@
 
 import { cn } from "@/lib/utils";
 import { useQueryParam, useQueryParamList } from "@/features/catalogue/lib/use-query-params";
-import { CARD_COLORS, CARD_TYPES, type CardColor } from "@/features/catalogue/queries/list-cards";
-
-const COLOR_SWATCH_CLASSES: Record<CardColor, string> = {
-  W: "bg-amber-50 text-amber-900 border-amber-300",
-  U: "bg-sky-500 text-white border-sky-600",
-  B: "bg-neutral-800 text-white border-neutral-900",
-  R: "bg-red-500 text-white border-red-600",
-  G: "bg-green-600 text-white border-green-700",
-  C: "bg-muted text-muted-foreground border-border",
-};
+import { CARD_COLORS, CARD_TYPES } from "@/features/catalogue/queries/list-cards";
+import { COLOR_SWATCH_CLASSES } from "@/features/catalogue/lib/color-swatches";
 
 function ToggleChip({
   label,
