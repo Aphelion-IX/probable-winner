@@ -125,6 +125,64 @@ The following scenarios must be tested under load at seeded-data scale. See B-21
 9. **1000-line picking**: Warehouse worker picking 1000 order lines from multiple locations
 10. **Repricing 100k products**: Recalculate and publish pricing for 100k SKUs
 
+## Known Postgrest/RLS performance traps
+
+Two patterns caused the largest measured regressions on the real database
+(816k `sellable_skus`, 1.2M `inventory_balances`). Both are easy to
+reintroduce, so they are recorded here rather than only in a commit message.
+
+### 1. Filtering on a nested embedded resource
+
+Postgrest compiles a filter on a *nested* resource — `.eq("card_printings.
+sets.code", code)` — into a correlated `LATERAL` join it cannot push down
+into the outer table. It therefore scans **every** row of the outer table and
+runs the join per row, just to keep the few thousand that match.
+
+Measured on `listSetCards` (the `/sets/[code]` page): **~830–1,080 ms per
+call**, ~218 calls, ~186 s of total database time — the single largest
+recurring application cost in `pg_stat_statements`. The same logical query as
+a plain join over indexed columns plans as three index scans and runs in
+**~18 ms**.
+
+The fix is to resolve the filter to ids first, then filter on an indexed
+column *of the table being scanned*: `sets.code` → `set_id` →
+`card_printings.id`, then `sellable_skus.in("card_printing_id", ids)`, which
+makes `sellable_skus_printing_idx` available. Two cheap extra round trips buy
+back an order of magnitude.
+
+**Rule of thumb: filter on a column of the table you are selecting from. If
+the predicate lives two levels down an embed, resolve it to ids first.**
+
+### 2. Overlapping permissive RLS policies
+
+Postgres evaluates **every** permissive policy for a role and ORs the
+results — it does not stop at the first one that passes. A table with both a
+cheap public policy and an expensive staff policy therefore pays for the
+staff predicate on every row, even when the public one already allowed it.
+
+Measured on `inventory_balances` over 5,000 rows: the staff predicate alone
+(`staff_has_node_access`, an `EXISTS` over `staff_memberships`) cost
+**156.6 ms**; merged into one policy with the cheap predicate written first,
+**31.9 ms** — the planner collapses the cheap branch into a hashed subplan
+and only reaches the staff function for rows it did not already allow.
+
+Fixed for `fulfilment_nodes`, `store_addresses`, `published_prices` and
+`inventory_balances` in `20260725190000_merge_duplicate_permissive_policies.sql`.
+
+**Rule of thumb: one permissive SELECT policy per table per role. If a table
+needs both a public and a staff rule, write them as one policy with the cheap
+condition first, not as two policies.**
+
+### Not a trap: "unused index" advisories
+
+The performance advisor reports ~125 unused indexes. These were checked and
+are **not** actionable: there are no duplicate or redundant indexes on the
+schema (verified by grouping `pg_index` on `indrelid, indkey`), and "never
+scanned" mostly means the query path has not been exercised on this database
+yet, not that the index is useless. Dropping them would break the staff
+screens and transfer flows they were added for. Re-evaluate only against
+production traffic.
+
 ## Monitoring and Regression Detection
 
 Performance is monitored continuously in staging and production:
