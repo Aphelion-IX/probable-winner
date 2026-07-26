@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { OAuthButtons } from "@/features/auth/components/oauth-buttons";
+import { EmailSignInForm } from "@/features/auth/components/email-sign-in-form";
 import { redirectIfSignedIn } from "@/server/auth-context";
 import { safeRedirectPath } from "@/features/auth/safe-redirect";
 
@@ -18,8 +18,9 @@ export default async function LoginPage({
 }) {
   const params = await searchParams;
 
-  // Validated here as well as in the callback: this value is echoed into the
-  // OAuth redirect, so it must not be trusted just because it came back to us.
+  // Validated here as well as in /auth/complete: this value is handed to the
+  // sign-in form and echoed back into a redirect, so it is never trusted just
+  // because it arrived in a URL.
   const next = params.next ? safeRedirectPath(params.next, "") || undefined : undefined;
 
   // Guest-only: an already-signed-in user gets sent on rather than shown a
@@ -33,12 +34,12 @@ export default async function LoginPage({
           <span className="text-lg font-semibold tracking-tight">Probable Winner</span>
           <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
           <p className="text-sm text-muted-foreground">
-            Use your Google or Apple account to continue.
+            Enter your email and we&apos;ll send you a sign-in code. No password needed.
           </p>
         </div>
 
         <div className="mt-8">
-          <OAuthButtons returnTo={next} initialError={params.error} />
+          <EmailSignInForm returnTo={next} initialError={params.error} />
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">

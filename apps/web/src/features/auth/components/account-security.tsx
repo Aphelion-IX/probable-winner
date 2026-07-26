@@ -3,28 +3,28 @@ import { createServerSupabaseClient } from "@/server/supabase";
 import { signOut } from "../actions/sign-out";
 
 const PROVIDER_LABELS: Record<string, string> = {
-  google: "Google",
-  apple: "Apple",
   email: "Email",
 };
 
+// Falls through to the raw provider name rather than hiding an unrecognised
+// identity: an account showing a sign-in method nobody expected is exactly
+// the thing a user needs to be able to see.
 function formatProvider(provider: string): string {
   return PROVIDER_LABELS[provider] ?? provider;
 }
 
 /**
- * Shows which login methods are connected to this account, and offers sign
+ * Shows which sign-in methods are connected to this account, and offers sign
  * out.
  *
  * Identities come from Supabase (`getUserIdentities`), which is the only
- * authority on what is actually linked. Supabase links two providers itself
- * when they return the same verified email; when Apple returns a Hide My
- * Email relay address it does not match, so that becomes a separate identity
- * and, if the user signed in with it first, a separate account.
+ * authority on what is actually linked. With email sign-in this is normally a
+ * single `email` identity, but it is read rather than assumed — an account
+ * that picked up another identity should show it here rather than silently.
  *
- * No automatic merging is attempted. Merging accounts on the strength of an
- * unverified match is an account-takeover primitive, and Apple's relay
- * addresses mean "same person" is exactly what we cannot establish here.
+ * Read-only by design. Linking and unlinking are deliberately absent: they
+ * change how an account can be accessed, which deserves its own verified flow
+ * rather than a button next to a list.
  */
 export async function AccountSecurity() {
   const supabase = await createServerSupabaseClient();

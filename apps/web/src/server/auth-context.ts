@@ -22,11 +22,10 @@ export interface AuthContext {
   displayName: string | null;
   /**
    * True when the profile row is missing or has no display name yet. Drives
-   * the one-time profile setup step after a first OAuth sign-in.
+   * the one-time profile setup step after a first sign-in.
    *
-   * Apple in particular may never give us a name — it only returns one on the
-   * very first authorisation, and users can decline it — so this cannot be
-   * inferred from provider data.
+   * Email sign-in supplies nothing but an address, so every new account starts
+   * here — there is no provider metadata to guess a name from.
    */
   needsProfileSetup: boolean;
   /**

@@ -1,8 +1,8 @@
 /**
  * Validates a post-login return path.
  *
- * OAuth return paths arrive as untrusted input — they come back through a
- * query string that anyone can craft and put in a link. Without validation
+ * Return paths arrive as untrusted input — they travel through a query string
+ * that anyone can craft and put in a link. Without validation
  * this is a textbook open redirect: `/login?next=https://evil.example` would
  * hand a freshly-authenticated user straight to an attacker's page, which is
  * exactly the moment they are most likely to trust what they see.
