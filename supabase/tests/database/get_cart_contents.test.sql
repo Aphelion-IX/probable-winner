@@ -67,7 +67,8 @@ select add_to_cart(
   (select id from test_ids_gcc where key = 'guest_cart'),
   (select id from test_ids_gcc where key = 'node'),
   (select id from test_ids_gcc where key = 'sku'),
-  2
+  2,
+  '00000000-0000-0000-0000-00000000c101'::uuid
 );
 reset role;
 

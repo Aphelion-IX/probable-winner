@@ -55,10 +55,12 @@ export async function addAllToCart(lines: AddAllToCartLine[]): Promise<AddAllToC
     return { status: "error", message: "No store currently accepts online orders." };
   }
 
+  const guestToken = user ? null : await getCartSessionId();
+
   const { data: cart, error: cartError } = await supabase.rpc("get_or_create_cart", {
     p_organisation_id: store.organisation_id,
     p_customer_id: user?.id ?? null,
-    p_guest_token: user ? null : await getCartSessionId(),
+    p_guest_token: guestToken,
   });
 
   if (cartError || !cart) {
@@ -77,6 +79,7 @@ export async function addAllToCart(lines: AddAllToCartLine[]): Promise<AddAllToC
       p_fulfilment_node_id: store.id,
       p_sellable_sku_id: line.skuId,
       p_quantity: line.quantity,
+      p_guest_token: guestToken,
     });
 
     if (error) {

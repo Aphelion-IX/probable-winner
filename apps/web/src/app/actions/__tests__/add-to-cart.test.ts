@@ -5,14 +5,17 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const mockRpc = vi.fn();
 const mockResolveDefaultStore = vi.fn();
 const mockGetOrCreateCart = vi.fn();
+const mockGetUser = vi.fn().mockResolvedValue({ data: { user: null } });
+const mockGetCartSessionId = vi.fn().mockResolvedValue("11111111-1111-1111-1111-111111111111");
 
 vi.mock("@/server/supabase", () => ({
-  createServerSupabaseClient: () => ({ rpc: mockRpc }),
+  createServerSupabaseClient: () => ({ rpc: mockRpc, auth: { getUser: mockGetUser } }),
 }));
 
 vi.mock("@/lib/cart-session", () => ({
   resolveDefaultStore: () => mockResolveDefaultStore(),
   getOrCreateCart: (organisationId: string) => mockGetOrCreateCart(organisationId),
+  getCartSessionId: () => mockGetCartSessionId(),
 }));
 
 vi.mock("next/cache", () => ({
@@ -27,6 +30,9 @@ describe("addToCart", () => {
     mockRpc.mockReset();
     mockResolveDefaultStore.mockReset();
     mockGetOrCreateCart.mockReset();
+    mockGetUser.mockClear();
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    mockGetCartSessionId.mockClear();
   });
 
   it("rejects a non-positive quantity without touching the database", async () => {
@@ -69,6 +75,7 @@ describe("addToCart", () => {
       p_fulfilment_node_id: "store-1",
       p_sellable_sku_id: "sku-1",
       p_quantity: 3,
+      p_guest_token: "11111111-1111-1111-1111-111111111111",
     });
     expect(result).toEqual({ success: true, cartLineId: "line-1" });
   });

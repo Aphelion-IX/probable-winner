@@ -224,3 +224,99 @@ same policy shape as `published_prices`) but has no direct-write policy —
 `record_audit_event()` is a `security definer` function locked down to be
 callable only from other `security definer` atomic functions, not directly
 from the Data API.
+
+## Re-audit (2026-07-26): the inventory/order trust boundary
+
+A follow-up audit found that the checkout ownership checks above (route
+handlers, `createPendingOrder()`) were sound, but several lower-level
+Supabase RPC functions were still directly callable over the Data API and
+bypassed them. Fixed in `20260726030000`, `20260726040000` and
+`20260726050000`:
+
+1. **`reserve_inventory()`/`release_inventory_reservation()` had no caller
+   check at all** — deliberately deferred when they were written
+   (`20260723055815`) until `carts` existed to check ownership against.
+   Carts have existed since `20260723070153`, but the deferred revoke never
+   happened: an anonymous caller could reserve arbitrary stock (making a SKU
+   look sold out) or release *any* reservation by guessing its uuid,
+   freeing a stranger's cart. Both functions are now revoked from
+   `anon`/`authenticated` entirely — every legitimate caller reaches them
+   only through the cart functions below (or `create_pending_order()`),
+   which are themselves `SECURITY DEFINER` and so are unaffected by the
+   revoke.
+
+2. **Guest-cart IDOR**: `add_to_cart()`, `update_cart_line_quantity()`,
+   `remove_cart_line()` and `merge_guest_cart_into_customer_cart()` only
+   checked ownership `if v_cart.customer_id is not null` — unconditionally
+   skipped for every guest cart, since a guest cart's `customer_id` is null
+   by definition. Anyone who obtained a guest cart id or cart-line id (plain
+   uuids, already visible to the browser) could mutate another guest's
+   basket. Fixed by adding the same `p_guest_token` parameter
+   `get_cart_contents()` already used for reads (`20260724230000`) to every
+   guest-cart write, verified against the httpOnly `cart_session_id` cookie
+   server-side — never accepted as free-form browser input.
+
+3. **`persist_order_allocations()` was granted to `authenticated`** despite
+   its own comment claiming it was server/service-role-only. Superseded
+   entirely (see below) rather than re-granted.
+
+4. **`confirm_order_payment()`/`release_failed_order_reservations()` matched
+   a reservation by `sellable_sku_id` alone**, joining `order_lines` to
+   *any* cart holding that SKU — flagged as a known limitation when first
+   written (`20260724160000`) and, separately, still declared their
+   parameter as bare `order_id`, which is ambiguous against
+   `order_lines.order_id` under plpgsql's `variable_conflict = error` — so
+   every real call raised an exception before completing anything.
+   Payment confirmation had, in effect, never worked. Fixed by having
+   `order_lines` carry `inventory_reservation_id` directly (see below) and
+   renaming parameters `p_`-prefixed, the same fix already applied to
+   `get_order_allocations()`/`customer_has_orders()` in `20260725210000`.
+   The reservation → allocation conversion is now inlined rather than
+   calling `allocate_order_inventory()`, because that function gates on
+   `staff_has_node_access()` — meaningless for a service-role webhook, which
+   has no `auth.uid()`, so it would have failed that check on every call
+   even after the parameter fix. `confirm_order_payment()`'s trust boundary
+   is its `EXECUTE` grant (`service_role` only), not a staff check — the
+   same shape `reserve_inventory()` already uses.
+
+5. **Order creation was five separate privileged writes**, not one
+   transaction: address, order, order lines, `persist_order_allocations()`,
+   then a total update. A failure partway through any of them left partial
+   rows behind (an address with no order, an order stuck at its $0
+   placeholder, lines with no allocations). Replaced with one
+   `SECURITY DEFINER` function, `create_pending_order()` — one transaction,
+   nothing to roll back by hand.
+
+6. **Click-and-collect allocations were rewritten to the customer's chosen
+   store regardless of which node the line's stock was actually reserved
+   at** (cart lines are always reserved from a single default online store
+   today — there's no "pick your store" flow before checkout yet), so an
+   allocation could claim stock at a store that never held it.
+   `create_pending_order()` now releases the original reservation and
+   reserves the same quantity at the collection store instead when they
+   differ, which fails (and rolls back the whole order, via the same
+   check-constraint oversell guard `reserve_inventory()` always enforced) if
+   that store doesn't actually have the stock.
+
+Regression tests: `supabase/tests/database/reserve_and_release_inventory.test.sql`
+(permission boundary), `cart_functions.test.sql` (guest-token IDOR),
+`atomic_pending_order_creation.test.sql` (atomicity, click-and-collect
+re-reservation, exact reservation matching in `confirm_order_payment()`),
+plus `apps/web/src/app/actions/__tests__/create-pending-order*.test.ts` and
+`apps/web/src/app/api/webhooks/stripe/route.test.ts` on the application side.
+
+**Not fixed in this pass** (tracked as follow-up work, not because they're
+lower severity than the above — they're larger, separable projects):
+
+- The Stripe webhook now returns `5xx` when `confirm_order_payment()`/
+  `release_failed_order_reservations()` fail, so Stripe retries instead of
+  considering the event delivered — but nothing yet moves verified events
+  into a durable inbox processed by a retryable worker, which blueprint §16
+  calls for eventually.
+- Picking only updates local React state (`apps/web/src/app/staff/picking/[id]/page.tsx`);
+  no Server Action calls `begin_inventory_pick()`/`complete_inventory_pick()`
+  yet, and there is no packing-detail route. An order cannot travel from
+  `paid` to `shipped` through the application today.
+- CI does not run `supabase test db` (pgTAP/RLS regression) or make the
+  Playwright checkout E2E suite blocking — real backend coverage in CI
+  remains a gap.

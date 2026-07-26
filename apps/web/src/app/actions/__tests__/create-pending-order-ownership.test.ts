@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Proves the checkout IDOR is closed: createPendingOrder must refuse a cart
-// id the caller does not own, before any order is created. Kept separate
-// from create-pending-order.test.ts (routing) because the identity mock
-// differs per test here.
+// id the caller does not own, before ever calling create_pending_order()
+// (the database function that actually converts the cart into an order).
+// Kept separate from create-pending-order.test.ts (RPC parameter mapping)
+// because the identity mock differs per test here.
 function chainable(result: { data: unknown; error: unknown }) {
   const obj: {
     then: (resolve: (value: unknown) => void) => void;
@@ -11,16 +12,12 @@ function chainable(result: { data: unknown; error: unknown }) {
     eq: () => typeof obj;
     in: () => typeof obj;
     single: () => typeof obj;
-    insert: () => typeof obj;
-    update: () => typeof obj;
   } = {
     then: (resolve) => resolve(result),
     select: () => obj,
     eq: () => obj,
     in: () => obj,
     single: () => obj,
-    insert: () => obj,
-    update: () => obj,
   };
   return obj;
 }
@@ -28,7 +25,7 @@ function chainable(result: { data: unknown; error: unknown }) {
 const NODE = "11111111-1111-1111-1111-111111111111";
 
 let resultsByTable: Record<string, { data: unknown; error: unknown }> = {};
-const mockRpc = vi.fn().mockResolvedValue({ data: null, error: null });
+const mockRpc = vi.fn().mockResolvedValue({ data: { order_id: "order-1" }, error: null });
 const mockFrom = vi.fn((table: string) => chainable(resultsByTable[table]));
 const mockResolveIdentity = vi.fn();
 
@@ -65,10 +62,6 @@ function setUpCart(owner: { customer_id: string | null; guest_token: string | nu
       data: [{ sellable_sku_id: "sku-1", final_amount: 10 }],
       error: null,
     },
-    fulfilment_nodes: { data: [{ id: NODE, type: "store" }], error: null },
-    addresses: { data: { id: "address-1" }, error: null },
-    orders: { data: { id: "order-1" }, error: null },
-    order_lines: { data: null, error: null },
   };
 }
 
@@ -82,6 +75,7 @@ const DELIVERY_ADDRESS = {
 describe("createPendingOrder ownership (checkout IDOR)", () => {
   beforeEach(() => {
     mockRpc.mockClear();
+    mockRpc.mockResolvedValue({ data: { order_id: "order-1" }, error: null });
     mockFrom.mockClear();
     mockResolveIdentity.mockReset();
   });
@@ -96,7 +90,6 @@ describe("createPendingOrder ownership (checkout IDOR)", () => {
     expect(result.success).toBe(false);
     // Same message as a genuinely missing cart — existence must not leak.
     expect(result.errors).toEqual([{ field: "cart", message: "Cart not found" }]);
-    expect(mockFrom).not.toHaveBeenCalledWith("orders");
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
@@ -108,7 +101,7 @@ describe("createPendingOrder ownership (checkout IDOR)", () => {
     const result = await createPendingOrder("cart-1", "delivery", DELIVERY_ADDRESS);
 
     expect(result.success).toBe(false);
-    expect(mockFrom).not.toHaveBeenCalledWith("orders");
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 
   it("refuses a guest cart when the caller holds no cookie at all", async () => {
@@ -117,7 +110,7 @@ describe("createPendingOrder ownership (checkout IDOR)", () => {
     const { createPendingOrder } = await import("../create-pending-order");
 
     expect((await createPendingOrder("cart-1", "delivery", DELIVERY_ADDRESS)).success).toBe(false);
-    expect(mockFrom).not.toHaveBeenCalledWith("orders");
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 
   it("allows the owning customer through and creates the order", async () => {
@@ -128,7 +121,14 @@ describe("createPendingOrder ownership (checkout IDOR)", () => {
     const result = await createPendingOrder("cart-1", "delivery", DELIVERY_ADDRESS);
 
     expect(result).toEqual({ success: true, orderId: "order-1" });
-    expect(mockFrom).toHaveBeenCalledWith("orders");
+    expect(mockRpc).toHaveBeenCalledWith("create_pending_order", {
+      p_cart_id: "cart-1",
+      p_customer_id: "customer-1",
+      p_guest_token: null,
+      p_fulfilment_type: "online_shipping",
+      p_address: DELIVERY_ADDRESS,
+      p_collection_store_id: null,
+    });
   });
 
   it("allows the owning guest through", async () => {
@@ -137,28 +137,9 @@ describe("createPendingOrder ownership (checkout IDOR)", () => {
     const { createPendingOrder } = await import("../create-pending-order");
 
     expect((await createPendingOrder("cart-1", "delivery", DELIVERY_ADDRESS)).success).toBe(true);
-  });
-
-  it("carries the cart's owner onto the order so it is not created ownerless", async () => {
-    setUpCart({ customer_id: "customer-1", guest_token: null });
-    mockResolveIdentity.mockResolvedValue({ userId: "customer-1", guestToken: null });
-
-    // Capture what actually gets inserted into orders.
-    let insertedOrder: Record<string, unknown> | null = null;
-    mockFrom.mockImplementation((table: string) => {
-      const chain = chainable(resultsByTable[table]);
-      if (table === "orders") {
-        chain.insert = ((values: Record<string, unknown>) => {
-          insertedOrder ??= values;
-          return chain;
-        }) as unknown as typeof chain.insert;
-      }
-      return chain;
-    });
-
-    const { createPendingOrder } = await import("../create-pending-order");
-    await createPendingOrder("cart-1", "delivery", DELIVERY_ADDRESS);
-
-    expect(insertedOrder).toMatchObject({ customer_id: "customer-1", guest_token: null });
+    expect(mockRpc).toHaveBeenCalledWith(
+      "create_pending_order",
+      expect.objectContaining({ p_customer_id: null, p_guest_token: "token-1" }),
+    );
   });
 });

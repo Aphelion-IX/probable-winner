@@ -2,7 +2,6 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-import { classify_allocation_reason } from "@probable-winner/routing";
 import { resolveCheckoutIdentity, ownsResource } from "@/server/checkout-ownership";
 
 interface CheckoutValidationError {
@@ -31,6 +30,15 @@ interface CartData {
   }>;
 }
 
+// Validates the cart and hands the actual checkout conversion to the
+// create_pending_order() database function (backlog B-130/B-131, hardened
+// per the 2026-07-26 security re-audit's items 5/6/8), which performs the
+// address/order/order_lines/order_allocations writes -- plus, for
+// click-and-collect, re-reserving stock at the customer's chosen store when
+// it differs from where the cart's lines were originally reserved -- in one
+// atomic transaction. This action's own job is read-only: check ownership
+// and surface friendly, field-level validation errors before ever calling
+// that function, exactly as before.
 export async function createPendingOrder(
   cartId: string,
   fulfillmentType: "delivery" | "collect",
@@ -154,7 +162,9 @@ export async function createPendingOrder(
   }
 
   // Fetch current published prices for every line's SKU (fresh lookup,
-  // not a stored value on the cart line).
+  // not a stored value on the cart line) -- purely for a friendly
+  // per-line error here; create_pending_order() looks these up again
+  // itself at write time.
   const priceBySkuId = new Map<string, number>();
   if (cartData?.cart_lines?.length) {
     const skuIds = cartData.cart_lines.map((line) => line.sellable_sku_id);
@@ -197,212 +207,35 @@ export async function createPendingOrder(
     return { success: false, errors };
   }
 
-  try {
-    // Determine the order's fulfilment node from where its lines are
-    // *already* reserved (B-130/B-131, blueprint §11) -- reserve_inventory()
-    // pins each cart line to a specific node at add-to-cart time, so by
-    // checkout there's no live choice left among nodes for those units;
-    // route_order()'s priority scoring is only meaningful when a genuine
-    // choice exists. What matters here is recording an accurate,
-    // auditable routing_reason for the node(s) that already hold the
-    // stock, using the same priority vocabulary (blueprint §11 /
-    // classify_allocation_reason), not re-deciding a fixed outcome. Full
-    // multi-node split-shipment support would need orders/shipments to
-    // stop assuming one fulfilment node per order -- out of scope here;
-    // when a cart's lines span multiple nodes, the node covering the
-    // most quantity becomes the order's primary node.
-    const quantityByNode = new Map<string, number>();
-    for (const line of cartData.cart_lines) {
-      quantityByNode.set(
-        line.fulfilment_node_id,
-        (quantityByNode.get(line.fulfilment_node_id) ?? 0) + line.quantity,
-      );
-    }
+  const { data, error: rpcError } = await supabase.rpc("create_pending_order", {
+    p_cart_id: cartId,
+    p_customer_id: identity.userId,
+    p_guest_token: identity.guestToken,
+    p_fulfilment_type: fulfillmentType === "delivery" ? "online_shipping" : "click_and_collect",
+    p_address:
+      fulfillmentType === "delivery"
+        ? {
+            line1: address!.line1,
+            line2: address!.line2,
+            suburb: address!.suburb,
+            state: address!.state,
+            postcode: address!.postcode,
+          }
+        : null,
+    p_collection_store_id: fulfillmentType === "collect" ? storeId : null,
+  });
 
-    let shippingAddressId: string | null = null;
-    let collectionStoreId: string | null = null;
-
-    // Create address record if delivery
-    if (fulfillmentType === "delivery" && address) {
-      const { data: newAddress, error: addressError } = await supabase
-        .from("addresses")
-        .insert({
-          organisation_id: cartData.organisation_id,
-          // The checkout address form doesn't collect a recipient name yet
-          // (a pre-existing gap in this UI, not something this fix adds) --
-          // recipient_name is NOT NULL with no default, so fall back rather
-          // than fail the insert outright.
-          recipient_name: "Customer",
-          line_1: address.line1,
-          line_2: address.line2 || null,
-          suburb_city: address.suburb,
-          state_province: address.state,
-          postcode_zip: address.postcode,
-          country_code: "AU",
-        })
-        .select("id")
-        .single();
-
-      if (addressError || !newAddress) {
-        return {
-          success: false,
-          errors: [
-            {
-              field: "address",
-              message: "Failed to save address",
-            },
-          ],
-        };
-      }
-
-      shippingAddressId = newAddress.id;
-    }
-
-    // Map fulfilment node for collection (storeId is required and
-    // validated above whenever fulfillmentType === "collect").
-    if (fulfillmentType === "collect") {
-      collectionStoreId = storeId!;
-    }
-
-    // The primary node: the customer's chosen collection store, or -- for
-    // delivery -- whichever node the cart's lines are predominantly
-    // reserved at (see comment above on the single-node limitation).
-    const primaryNodeId =
-      collectionStoreId ??
-      [...quantityByNode.entries()].reduce((best, current) =>
-        current[1] > best[1] ? current : best,
-      )[0];
-
-    // Fetch node types for every distinct node the cart's lines are
-    // reserved at, to classify each allocation's routing_reason correctly
-    // (a warehouse line is "warehouse_priority" even if it isn't the
-    // order's primary node).
-    const distinctNodeIds = [...quantityByNode.keys()];
-    const { data: nodeRows } = await supabase
-      .from("fulfilment_nodes")
-      .select("id, type")
-      .in("id", distinctNodeIds.length > 0 ? distinctNodeIds : [primaryNodeId]);
-
-    const nodeTypeById = new Map((nodeRows ?? []).map((n) => [n.id, n.type]));
-    const isSingleNodeOrder = fulfillmentType === "collect" || distinctNodeIds.length <= 1;
-
-    // Generate order number
-    const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-
-    // Create order
-    const { data: order, error: orderError } = await supabase
-      .from("orders")
-      .insert({
-        organisation_id: cartData.organisation_id,
-        // Carried across from the cart, which the check above proved this
-        // caller owns. Without this the order would be created ownerless:
-        // orders_select_customer (`customer_id = auth.uid()`) would match
-        // nothing, so the customer could never see their own order, and
-        // there would be no fact to authorise the payment step against.
-        customer_id: cartData.customer_id,
-        guest_token: cartData.guest_token,
-        fulfilment_node_id: primaryNodeId,
-        order_number: orderNumber,
-        status: "pending",
-        fulfilment_type: fulfillmentType === "delivery" ? "online_shipping" : "click_and_collect",
-        shipping_address_id: shippingAddressId,
-        collection_store_id: collectionStoreId,
-        total_amount: 0,
-        currency: "AUD",
-      })
-      .select("id")
-      .single();
-
-    if (orderError || !order) {
-      return {
-        success: false,
-        errors: [
-          {
-            field: "order",
-            message: "Failed to create order. Please try again.",
-          },
-        ],
-      };
-    }
-
-    // Create order lines from cart lines, at the price validated above.
-    const orderLines = cartData.cart_lines.map((line) => {
-      const unitPrice = priceBySkuId.get(line.sellable_sku_id) ?? 0;
-      return {
-        order_id: order.id,
-        sellable_sku_id: line.sellable_sku_id,
-        quantity: line.quantity,
-        unit_price: unitPrice,
-        line_total: Math.round(unitPrice * line.quantity * 100) / 100,
-      };
-    });
-
-    const { error: linesError } = await supabase.from("order_lines").insert(orderLines);
-
-    if (linesError) {
-      return {
-        success: false,
-        errors: [
-          {
-            field: "order",
-            message: "Failed to create order lines",
-          },
-        ],
-      };
-    }
-
-    // Persist the routing decision for every line (B-130's AC: every
-    // allocation is persisted and auditable, not recomputed after the
-    // fact). A collect order's lines all resolve to the customer's chosen
-    // store regardless of each line's raw reservation node.
-    const allocations = cartData.cart_lines.map((line) => {
-      const nodeId = fulfillmentType === "collect" ? collectionStoreId! : line.fulfilment_node_id;
-      const nodeType = nodeTypeById.get(nodeId);
-      return {
-        sku_id: line.sellable_sku_id,
-        node_id: nodeId,
-        quantity: line.quantity,
-        reason: classify_allocation_reason(
-          { type: nodeType ?? "store" },
-          fulfillmentType === "delivery" ? "online_shipping" : "click_and_collect",
-          isSingleNodeOrder,
-        ),
-      };
-    });
-
-    const { error: allocationsError } = await supabase.rpc("persist_order_allocations", {
-      p_order_id: order.id,
-      p_allocations: allocations,
-    });
-
-    if (allocationsError) {
-      return {
-        success: false,
-        errors: [
-          {
-            field: "order",
-            message: "Failed to record order routing decision",
-          },
-        ],
-      };
-    }
-
-    // Roll up the lines just inserted into the order's total (created
-    // with a 0 placeholder above since the total depends on them).
-    const totalAmount =
-      Math.round(orderLines.reduce((sum, line) => sum + line.line_total, 0) * 100) / 100;
-    await supabase.from("orders").update({ total_amount: totalAmount }).eq("id", order.id);
-
-    return { success: true, orderId: order.id };
-  } catch (error) {
+  if (rpcError || !data) {
     return {
       success: false,
       errors: [
         {
           field: "order",
-          message: error instanceof Error ? error.message : "Unknown error",
+          message: rpcError?.message ?? "Failed to create order. Please try again.",
         },
       ],
     };
   }
+
+  return { success: true, orderId: (data as { order_id: string }).order_id };
 }

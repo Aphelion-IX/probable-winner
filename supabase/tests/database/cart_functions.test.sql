@@ -7,7 +7,7 @@
 -- BEGIN/ROLLBACK so no fixture data was left behind).
 begin;
 
-select plan(12);
+select plan(15);
 
 create temp table test_ids_cart (key text primary key, id uuid);
 grant select, insert on test_ids_cart to authenticated, anon;
@@ -98,7 +98,8 @@ with l as (
     (select id from test_ids_cart where key = 'guest_cart'),
     (select id from test_ids_cart where key = 'node'),
     (select id from test_ids_cart where key = 'sku_a'),
-    2
+    2,
+    '00000000-0000-0000-0000-00000000c001'::uuid
   ) as line
 )
 insert into test_ids_cart (key, id) select 'guest_line_a', (line).id from l;
@@ -107,7 +108,8 @@ select add_to_cart(
   (select id from test_ids_cart where key = 'guest_cart'),
   (select id from test_ids_cart where key = 'node'),
   (select id from test_ids_cart where key = 'sku_b'),
-  3
+  3,
+  '00000000-0000-0000-0000-00000000c001'::uuid
 );
 reset role;
 
@@ -121,7 +123,35 @@ select add_to_cart(
   (select id from test_ids_cart where key = 'guest_cart'),
   (select id from test_ids_cart where key = 'node'),
   (select id from test_ids_cart where key = 'sku_a'),
-  1
+  1,
+  '00000000-0000-0000-0000-00000000c001'::uuid
+);
+reset role;
+
+-- IDOR regression: a caller who doesn't hold the guest cart's token cannot
+-- touch it, even with the correct cart id.
+set local role anon;
+select throws_ok(
+  format(
+    $$select add_to_cart('%s', '%s', '%s', 1, '00000000-0000-0000-0000-00000000dead'::uuid)$$,
+    (select id from test_ids_cart where key = 'guest_cart'),
+    (select id from test_ids_cart where key = 'node'),
+    (select id from test_ids_cart where key = 'sku_a')
+  ),
+  null,
+  format('add_to_cart: access denied for cart %s', (select id from test_ids_cart where key = 'guest_cart')),
+  'add_to_cart refuses a guest cart write when the caller''s guest_token does not match'
+);
+select throws_ok(
+  format(
+    $$select add_to_cart('%s', '%s', '%s', 1)$$,
+    (select id from test_ids_cart where key = 'guest_cart'),
+    (select id from test_ids_cart where key = 'node'),
+    (select id from test_ids_cart where key = 'sku_a')
+  ),
+  null,
+  format('add_to_cart: access denied for cart %s', (select id from test_ids_cart where key = 'guest_cart')),
+  'add_to_cart refuses a guest cart write with no guest_token at all'
 );
 reset role;
 
@@ -154,9 +184,21 @@ select add_to_cart(
   1
 );
 
+-- IDOR regression: this customer does not hold the guest cart's token and
+-- must not be able to claim it just by knowing its id.
+select throws_ok(
+  format(
+    $$select merge_guest_cart_into_customer_cart('%s', '00000000-0000-0000-0000-000000001304', '00000000-0000-0000-0000-00000000dead'::uuid)$$,
+    (select id from test_ids_cart where key = 'guest_cart')
+  ),
+  null,
+  'merge_guest_cart_into_customer_cart: access denied',
+  'merge_guest_cart_into_customer_cart refuses to merge a guest cart without its matching guest_token'
+);
+
 -- Merge: sku_a collides (3 guest + 1 customer = 4), sku_b has no collision.
 with m as (
-  select merge_guest_cart_into_customer_cart((select id from test_ids_cart where key = 'guest_cart'), '00000000-0000-0000-0000-000000001304'::uuid) as cart
+  select merge_guest_cart_into_customer_cart((select id from test_ids_cart where key = 'guest_cart'), '00000000-0000-0000-0000-000000001304'::uuid, '00000000-0000-0000-0000-00000000c001'::uuid) as cart
 )
 select (cart).id from m;
 

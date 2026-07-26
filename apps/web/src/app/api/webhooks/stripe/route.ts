@@ -34,15 +34,21 @@ export async function POST(request: Request) {
       if (orderId) {
         // Call RPC to confirm payment (handles allocation conversion, event storage with idempotency)
         const { error: rpcError } = await supabase.rpc("confirm_order_payment", {
-          order_id: orderId,
-          stripe_event_id: event.id,
+          p_order_id: orderId,
+          p_stripe_event_id: event.id,
         });
 
         if (rpcError) {
           console.error(`Failed to confirm payment for order ${orderId}:`, rpcError);
-        } else {
-          console.log(`Order ${orderId} payment confirmed via webhook`);
+          // AGENTS.md rule 10 / blueprint §16: confirmation is durable state
+          // (inventory allocation, order status) that must actually
+          // complete. A 200 here would tell Stripe the event was delivered,
+          // so it would never retry and this order would be stuck paid-in-
+          // Stripe but still 'pending' with its reservation unconverted.
+          return Response.json({ received: false, error: rpcError.message }, { status: 500 });
         }
+
+        console.log(`Order ${orderId} payment confirmed via webhook`);
       }
     }
 
@@ -53,14 +59,19 @@ export async function POST(request: Request) {
       if (orderId) {
         // Call RPC to release reservations
         const { error: rpcError } = await supabase.rpc("release_failed_order_reservations", {
-          order_id: orderId,
+          p_order_id: orderId,
         });
 
         if (rpcError) {
           console.error(`Failed to release reservations for order ${orderId}:`, rpcError);
-        } else {
-          console.log(`Order ${orderId} payment failed/expired, reservations released`);
+          // Same reasoning as above: a failed release leaves stock stuck
+          // reserved against a dead order, unable to be sold, until the
+          // reservation's own expiry eventually clears it -- Stripe must
+          // retry this rather than being told it succeeded.
+          return Response.json({ received: false, error: rpcError.message }, { status: 500 });
         }
+
+        console.log(`Order ${orderId} payment failed/expired, reservations released`);
       }
     }
 

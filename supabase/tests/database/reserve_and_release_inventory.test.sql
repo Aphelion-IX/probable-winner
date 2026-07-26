@@ -18,19 +18,23 @@
 -- rejected -- the same rejection a genuinely concurrent second caller would
 -- hit after losing the lock race.
 --
--- Note on role switching: inventory_balances/inventory_reservations are
--- staff-only for SELECT (migrations 20260723054635/20260723055728), so
--- `role anon` (used deliberately below, since reserve_inventory/
--- release_inventory_reservation must be callable by a guest cart) cannot
--- read them back afterward -- every assertion below runs `reset role`
--- first, after making the actual reserve/release call as anon.
+-- Note on role: as of 20260726030000_lock_down_inventory_and_guest_cart_rpcs.sql,
+-- reserve_inventory()/release_inventory_reservation() are no longer granted
+-- to anon/authenticated at all -- a guest cart now reaches them only
+-- indirectly, through add_to_cart()/update_cart_line_quantity()/
+-- remove_cart_line() (see cart_functions.test.sql), which are themselves
+-- SECURITY DEFINER and so reach these two regardless of grants on the
+-- calling role. The functional assertions below therefore call
+-- reserve_inventory/release_inventory_reservation directly as the test's
+-- own (superuser) role rather than switching to anon first; the permission
+-- boundary itself is pinned separately near the end of this file.
 --
 -- Run via `supabase test db` once the local Supabase CLI/Docker stack is
 -- available. Verified directly against the remote project (wrapped in
 -- BEGIN/ROLLBACK so no fixture data was left behind).
 begin;
 
-select plan(9);
+select plan(10);
 
 create temp table test_ids_rr (key text primary key, id uuid);
 grant select, insert on test_ids_rr to authenticated, anon;
@@ -83,8 +87,6 @@ select receive_inventory(
 );
 reset role;
 
--- Reservations happen as an unauthenticated (guest cart) caller.
-set local role anon;
 with r as (
   select reserve_inventory(
     (select id from test_ids_rr where key = 'node'),
@@ -93,7 +95,6 @@ with r as (
   ) as res
 )
 insert into test_ids_rr (key, id) select 'reservation', (res).id from r;
-reset role;
 
 select ok(
   (select status = 'active' and quantity = 1 from inventory_reservations where id = (select id from test_ids_rr where key = 'reservation')),
@@ -111,7 +112,6 @@ select ok(
 
 -- The oversell-prevention proof: a second reservation for the same (now
 -- unavailable) unit is rejected.
-set local role anon;
 select throws_ok(
   format(
     $$select reserve_inventory('%s', '%s', 1)$$,
@@ -122,7 +122,6 @@ select throws_ok(
   null,
   'a second reservation for the last (already-reserved) unit is rejected -- exactly one reservation succeeds'
 );
-reset role;
 
 select ok(
   (
@@ -145,9 +144,7 @@ select ok(
 );
 
 -- Releasing restores availability.
-set local role anon;
 select release_inventory_reservation((select id from test_ids_rr where key = 'reservation'));
-reset role;
 
 select ok(
   (select status = 'released' from inventory_reservations where id = (select id from test_ids_rr where key = 'reservation')),
@@ -164,12 +161,10 @@ select ok(
 );
 
 -- Releasing an already-released reservation is a no-op, not an error.
-set local role anon;
 select lives_ok(
   format($$select release_inventory_reservation('%s')$$, (select id from test_ids_rr where key = 'reservation')),
   'releasing an already-released reservation does not error'
 );
-reset role;
 
 select ok(
   (
@@ -180,6 +175,23 @@ select ok(
   ),
   'double-releasing does not double-credit availability'
 );
+
+-- Permission-boundary regression (2026-07-26 security re-audit item 1):
+-- these are now internal primitives only, reached through the ownership-
+-- checked cart functions -- neither anon nor authenticated may call either
+-- one directly any more.
+set local role anon;
+select throws_ok(
+  format(
+    $$select reserve_inventory('%s', '%s', 1)$$,
+    (select id from test_ids_rr where key = 'node'),
+    (select id from test_ids_rr where key = 'sku')
+  ),
+  '42501',
+  null,
+  'anon can no longer call reserve_inventory directly'
+);
+reset role;
 
 select finish();
 

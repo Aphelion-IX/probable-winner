@@ -1,9 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const mockRpc = vi.fn();
+const mockGetUser = vi.fn().mockResolvedValue({ data: { user: null } });
 
 vi.mock("@/server/supabase", () => ({
-  createServerSupabaseClient: () => ({ rpc: mockRpc }),
+  createServerSupabaseClient: () => ({ rpc: mockRpc, auth: { getUser: mockGetUser } }),
+}));
+
+vi.mock("@/lib/cart-session", () => ({
+  getCartSessionId: vi.fn().mockResolvedValue("11111111-1111-1111-1111-111111111111"),
 }));
 
 vi.mock("next/cache", () => ({
@@ -13,6 +18,8 @@ vi.mock("next/cache", () => ({
 describe("updateCartLineQuantity", () => {
   beforeEach(() => {
     mockRpc.mockReset();
+    mockGetUser.mockClear();
+    mockGetUser.mockResolvedValue({ data: { user: null } });
   });
 
   it("rejects a negative quantity without touching the database", async () => {
@@ -36,6 +43,7 @@ describe("updateCartLineQuantity", () => {
     expect(mockRpc).toHaveBeenCalledWith("update_cart_line_quantity", {
       p_cart_line_id: "line-1",
       p_new_quantity: 5,
+      p_guest_token: "11111111-1111-1111-1111-111111111111",
     });
     expect(result).toEqual({ success: true });
   });
@@ -62,6 +70,8 @@ describe("updateCartLineQuantity", () => {
 describe("removeCartLine", () => {
   beforeEach(() => {
     mockRpc.mockReset();
+    mockGetUser.mockClear();
+    mockGetUser.mockResolvedValue({ data: { user: null } });
   });
 
   it("calls remove_cart_line with the line id", async () => {
@@ -70,7 +80,10 @@ describe("removeCartLine", () => {
 
     const result = await removeCartLine("line-1");
 
-    expect(mockRpc).toHaveBeenCalledWith("remove_cart_line", { p_cart_line_id: "line-1" });
+    expect(mockRpc).toHaveBeenCalledWith("remove_cart_line", {
+      p_cart_line_id: "line-1",
+      p_guest_token: "11111111-1111-1111-1111-111111111111",
+    });
     expect(result).toEqual({ success: true });
   });
 
