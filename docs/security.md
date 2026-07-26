@@ -49,6 +49,63 @@ enforcement" below for what keeps it true as the codebase grows.
    `.env.example` in the repo; when one is added (tracked separately), it
    must list variable names only, never real values.
 
+## SECURITY DEFINER functions are the hole next to RLS
+
+RLS coverage on this schema is complete — every table in `public` has RLS
+enabled, and the handful with no policies (`catalogue_staging_*`,
+`integration_events`, `price_*`) are worker-internal and therefore deny-all
+to `anon`/`authenticated`. The weak spot is not the policies; it is the
+functions that deliberately step around them.
+
+A `SECURITY DEFINER` function runs as its owner and **bypasses RLS**. If it
+is also `EXECUTE`-able by `anon`, it is an unauthenticated read of whatever
+it touches, no matter how good the policies are.
+
+**Prefer `SECURITY INVOKER`.** A function that only reads tables which
+already carry correct policies does not need `DEFINER` — running as the
+invoker gets the right answer from RLS for free, with no bespoke check to
+keep in sync. Reach for `DEFINER` only when the function must do something
+the caller genuinely cannot (write the immutable ledger, bypass a guest
+cart's absent RLS), and then authorise inside the body.
+
+### Never let a parameter share a name with a column
+
+This is what went wrong in practice. `20260724080000` declared:
+
+```sql
+create function get_order_allocations(order_id uuid) ...
+  from order_lines ol where ol.order_id = order_id;   -- BOTH SIDES ARE THE COLUMN
+```
+
+The predicate reads `ol.order_id = ol.order_id` — true for every row. As a
+`SECURITY DEFINER` function granted to `anon`, a single unauthenticated RPC
+with any uuid returned **every order line in the database** (confirmed
+against the live project: 325,305 rows for an order id that did not exist).
+`customer_has_orders()` had the identical defect.
+
+Note *why* it survived review: the sibling `verify_order_allocation_complete()`
+was written with a `p_` prefix, because it is **plpgsql**, where an ambiguous
+reference raises under the default `variable_conflict = error`. The two
+broken functions are **`LANGUAGE SQL`**, which has no such guard — the column
+silently wins. The safety net that caught the collision in one function does
+not exist in the other.
+
+**Rule: prefix every function parameter with `p_`.** It costs nothing and is
+the only reliable defence in `LANGUAGE SQL` functions. Fixed in
+`20260725210000`, with regression tests in
+`supabase/tests/database/order_function_parameter_shadowing.test.sql`.
+
+### Keep EXECUTE grants tight
+
+- Trigger and event-trigger functions should not be callable over the Data
+  API at all. Revoking `EXECUTE` does not affect trigger firing — Postgres
+  checks that privilege when the trigger is created, not each time it fires.
+- RLS helpers (`staff_has_node_access`, `staff_has_org_access`,
+  `staff_has_permission`) follow one pattern: `revoke ... from public, anon`
+  then `grant ... to authenticated`, because policies calling them are
+  evaluated as the invoking role. `staff_has_permission` was added later than
+  its siblings and missed this until `20260725210000`.
+
 ## Checkout resource ownership
 
 Carts and orders are reached by an id supplied by the browser, and the
