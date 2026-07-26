@@ -102,7 +102,9 @@ export async function requireUser(returnTo?: string): Promise<AuthContext> {
  * table the staff portal reads is covered by RLS policies that re-check the
  * same membership server-side, so a missed guard cannot leak rows.
  */
-export async function requireStaff(permission?: string): Promise<AuthContext & { staff: StaffContext }> {
+export async function requireStaff(
+  permission?: string,
+): Promise<AuthContext & { staff: StaffContext }> {
   const context = await getAuthContext();
 
   if (!context) {

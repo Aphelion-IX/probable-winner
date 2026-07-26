@@ -36,9 +36,7 @@ export async function AccountSecurity() {
     <section className="flex flex-col gap-4 rounded-lg border p-4">
       <div>
         <h2 className="text-lg font-medium">Sign-in methods</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          The accounts you can use to sign in.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">The accounts you can use to sign in.</p>
       </div>
 
       {identities.length === 0 ? (
@@ -52,7 +50,9 @@ export async function AccountSecurity() {
             >
               <span className="font-medium">{formatProvider(identity.provider)}</span>
               {identity.identity_data?.email ? (
-                <span className="text-muted-foreground">{String(identity.identity_data.email)}</span>
+                <span className="text-muted-foreground">
+                  {String(identity.identity_data.email)}
+                </span>
               ) : null}
             </li>
           ))}

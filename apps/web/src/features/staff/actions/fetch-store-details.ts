@@ -123,7 +123,12 @@ export async function fetchStoreDetails(): Promise<StoreDetail[]> {
         }[]
       | null;
     store_hours:
-      | { day_of_week: number; opens_at: string | null; closes_at: string | null; closed: boolean }[]
+      | {
+          day_of_week: number;
+          opens_at: string | null;
+          closes_at: string | null;
+          closed: boolean;
+        }[]
       | null;
     storage_locations: { id: string }[] | null;
   }

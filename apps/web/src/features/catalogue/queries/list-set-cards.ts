@@ -30,10 +30,7 @@ export type SetCardRow = {
 // standing in for full-art/showcase-style prints.
 import { CARD_BORDER_COLORS } from "@/features/catalogue/lib/card-facets";
 
-export {
-  CARD_BORDER_COLORS,
-  SET_CARD_SORTS,
-} from "@/features/catalogue/lib/card-facets";
+export { CARD_BORDER_COLORS, SET_CARD_SORTS } from "@/features/catalogue/lib/card-facets";
 export type { CardBorderColor, SetCardSort } from "@/features/catalogue/lib/card-facets";
 
 type SkuRow = {

@@ -101,7 +101,10 @@ export async function getStaffContext(): Promise<StaffContext | null> {
 
   const [nodeIds, { data: rolePermissions }] = await Promise.all([
     resolveNodeIds(supabase, membership),
-    supabase.from("role_permissions").select("permission_code").eq("role_code", membership.role_code),
+    supabase
+      .from("role_permissions")
+      .select("permission_code")
+      .eq("role_code", membership.role_code),
   ]);
 
   return {

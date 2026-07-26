@@ -50,13 +50,7 @@ export interface TransferActionResult {
 }
 
 /** Statuses a human advances by hand; dispatch/receipt use their own RPCs. */
-const MANUAL_STATUSES = new Set([
-  "requested",
-  "accepted",
-  "picking",
-  "in_transit",
-  "cancelled",
-]);
+const MANUAL_STATUSES = new Set(["requested", "accepted", "picking", "in_transit", "cancelled"]);
 
 const TRANSFER_SELECT = `
   id,

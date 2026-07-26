@@ -4,9 +4,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 const mockSignInWithOAuth = vi.fn();
 
 vi.mock("../sign-in-with-oauth", async () => {
-  const actual = await vi.importActual<typeof import("../sign-in-with-oauth")>(
-    "../sign-in-with-oauth",
-  );
+  const actual =
+    await vi.importActual<typeof import("../sign-in-with-oauth")>("../sign-in-with-oauth");
   return { ...actual, signInWithOAuth: mockSignInWithOAuth };
 });
 
