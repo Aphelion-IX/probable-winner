@@ -29,7 +29,7 @@ export interface StaffContext {
  * application layer agrees with RLS.
  */
 async function resolveNodeIds(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
   membership: {
     id: string;
     organisation_id: string;
@@ -70,7 +70,7 @@ async function resolveNodeIds(
 }
 
 export async function getStaffContext(): Promise<StaffContext | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },

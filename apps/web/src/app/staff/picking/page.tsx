@@ -23,7 +23,7 @@ interface PickBatch {
 }
 
 async function getActiveBatches(): Promise<PickBatch[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: batches, error } = await supabase
     .from("pick_batches")

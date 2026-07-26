@@ -33,7 +33,7 @@ const FEATURED_FORMAT_CODES = [
 ];
 
 async function fetchFormats(): Promise<StorefrontFormat[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("formats")

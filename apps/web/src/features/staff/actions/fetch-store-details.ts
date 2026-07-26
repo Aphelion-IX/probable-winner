@@ -50,7 +50,7 @@ export async function fetchStoreDetails(): Promise<StoreDetail[]> {
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("fulfilment_nodes")

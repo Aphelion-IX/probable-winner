@@ -48,7 +48,7 @@ type CartContentsRow = {
 // 20260723070153_carts.sql), so this RPC, not a direct .from("cart_lines")
 // select, is the only correct read path here.
 export async function getCartContents(): Promise<CartContents> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },

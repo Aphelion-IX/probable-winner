@@ -44,7 +44,7 @@ function single<T>(value: T | T[]): T {
 // (calculated_prices_select, using true) -- pricing.approve/pricing.override
 // gate the mutating actions below, not visibility of the queue itself.
 export async function getPricingReviewQueue(): Promise<PricingReviewItem[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("calculated_prices")
@@ -105,7 +105,7 @@ export async function getPricingReviewQueue(): Promise<PricingReviewItem[]> {
 // silent no-op, so the caller can show it to the user.
 
 export async function approvePrice(calculatedPriceId: string): Promise<void> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("approve_suggested_price", {
     calculated_price_id: calculatedPriceId,
@@ -125,7 +125,7 @@ export async function overridePrice(
   calculatedPriceId: string,
   overrideAmount: number,
 ): Promise<void> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("override_suggested_price", {
     calculated_price_id: calculatedPriceId,
@@ -144,7 +144,7 @@ export async function overridePrice(
 }
 
 export async function rejectPrice(calculatedPriceId: string): Promise<void> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("reject_suggested_price", {
     calculated_price_id: calculatedPriceId,

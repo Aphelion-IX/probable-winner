@@ -83,7 +83,7 @@ export async function getAnalyticsData(): Promise<AnalyticsData> {
     throw new Error("Not authenticated as staff");
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   // Get order trends (last 30 days)
   const thirtyDaysAgo = new Date();

@@ -28,7 +28,7 @@ export async function searchCardPrintings(query: string): Promise<CardPrintingSe
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("card_browse")

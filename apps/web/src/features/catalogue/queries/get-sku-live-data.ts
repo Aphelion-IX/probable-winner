@@ -17,7 +17,7 @@ type PublishedPriceRow = {
 };
 
 export async function getSkuLiveData(skuId: string): Promise<SkuLiveData | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const [
     { data: sku, error: skuError },

@@ -58,7 +58,7 @@ export interface CustomerRestockAlert {
 }
 
 export async function getCustomerAlerts() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
@@ -147,7 +147,7 @@ export async function createPriceAlert(
   alertPrice: number,
   currency: string,
 ): Promise<string> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
@@ -182,7 +182,7 @@ export async function createRestockAlert(
   finish: string,
   condition: string,
 ): Promise<string> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
@@ -212,7 +212,7 @@ export async function createRestockAlert(
 }
 
 export async function deleteAlert(alertId: string, type: "price" | "restock"): Promise<void> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },

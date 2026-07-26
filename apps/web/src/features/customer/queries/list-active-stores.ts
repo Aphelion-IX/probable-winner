@@ -23,7 +23,7 @@ type StoreRow = {
 };
 
 async function fetchActiveStores(): Promise<ActiveStore[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("fulfilment_nodes")

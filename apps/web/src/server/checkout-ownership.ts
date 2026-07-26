@@ -21,7 +21,7 @@ export interface OwnedResource {
 }
 
 export async function resolveCheckoutIdentity(): Promise<CheckoutIdentity> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },

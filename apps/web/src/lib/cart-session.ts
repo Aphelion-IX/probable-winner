@@ -80,7 +80,7 @@ export type CartRow = {
 // unauthenticated add-to-cart flow reserves from the same sensible
 // default: the first active store that accepts online orders.
 export async function resolveDefaultStore(): Promise<ActiveStore | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: store, error } = await supabase
     .from("fulfilment_nodes")
@@ -103,7 +103,7 @@ export async function resolveDefaultStore(): Promise<ActiveStore | null> {
 // correct way to obtain a cart id for either an authenticated customer or
 // a guest.
 export async function getOrCreateCart(organisationId: string): Promise<CartRow> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },

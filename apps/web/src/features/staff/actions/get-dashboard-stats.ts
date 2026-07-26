@@ -19,7 +19,7 @@ export interface DashboardStats {
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const staffContext = await getStaffContext();
 
   if (!staffContext) {

@@ -22,7 +22,7 @@ export interface OrderHandover {
 }
 
 export async function getReadyForHandoverOrders(nodeId: string): Promise<OrderForHandover[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: orders, error } = await supabase.rpc("get_ready_for_handover_orders", {
     p_fulfilment_node_id: nodeId,
@@ -45,7 +45,7 @@ export async function recordOrderHandover(
   nodeId: string,
   notes?: string,
 ): Promise<OrderHandover> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: handover, error } = await supabase.rpc("record_order_handover", {
     p_order_id: orderId,
@@ -71,7 +71,7 @@ export async function recordOrderHandover(
 }
 
 export async function getOrderHandover(orderId: string): Promise<OrderHandover | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: handover, error } = await supabase
     .from("order_handovers")

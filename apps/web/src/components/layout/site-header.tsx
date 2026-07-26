@@ -115,13 +115,26 @@ export function SiteHeader() {
             <ShoppingCart />
             <CartBadge />
           </Button>
+          {/*
+            Points at sign-in rather than straight at /staff/dashboard. The
+            old link advertised the staff portal to every visitor including
+            signed-out ones, which is both confusing and needless surface.
+            Staff are routed to the portal automatically after signing in
+            (see auth-context destinationFor), and /staff is guarded anyway.
+
+            Deliberately not session-aware: SiteHeader is a server component
+            rendered on every storefront page, so reading the session here
+            would opt the whole storefront into dynamic rendering and blow the
+            performance budget in docs/performance.md. Signed-in users reach
+            their account through the account button beside this one.
+          */}
           <Button
             variant="ghost"
             size="icon"
             nativeButton={false}
-            render={<Link href="/staff/dashboard" aria-label="Admin Dashboard" />}
+            render={<Link href="/login" aria-label="Sign in" />}
             className="hidden sm:inline-flex"
-            title="Admin Dashboard"
+            title="Sign in"
           >
             <LogIn />
           </Button>

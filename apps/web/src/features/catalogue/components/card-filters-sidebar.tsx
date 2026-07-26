@@ -2,7 +2,7 @@
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQueryParamList } from "@/features/catalogue/lib/use-query-params";
-import { CARD_FINISHES, CARD_RARITIES } from "@/features/catalogue/queries/list-cards";
+import { CARD_FINISHES, CARD_RARITIES } from "@/features/catalogue/lib/card-facets";
 import { SetIcon } from "@/components/commerce/set-icon";
 
 const FINISH_LABELS: Record<string, string> = {

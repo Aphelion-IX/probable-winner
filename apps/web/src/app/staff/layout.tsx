@@ -1,7 +1,21 @@
 import type { ReactNode } from "react";
 
 import { StaffShell } from "@/components/layout/staff-shell";
+import { requireStaff } from "@/server/auth-context";
 
-export default function StaffLayout({ children }: { children: ReactNode }) {
+// Staff access depends on the request's session and the caller's
+// staff_memberships row, so these pages cannot be prerendered.
+export const dynamic = "force-dynamic";
+
+export default async function StaffLayout({ children }: { children: ReactNode }) {
+  // Signed out -> /login with a return path. Signed in but not staff -> home.
+  //
+  // Membership is read from staff_memberships, never from the OAuth provider,
+  // the email domain, or user_metadata: signing in with Google or Apple grants
+  // nothing here on its own. Individual screens additionally check their own
+  // permission code, and every table behind them is protected by RLS policies
+  // that re-check the same membership.
+  await requireStaff();
+
   return <StaffShell>{children}</StaffShell>;
 }

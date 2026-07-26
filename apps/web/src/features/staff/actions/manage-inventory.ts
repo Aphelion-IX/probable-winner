@@ -142,7 +142,7 @@ export async function searchInventory(options: {
       ? [options.nodeId]
       : staffContext.nodeIds;
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   let query = supabase
     .from("inventory_balances")
@@ -178,7 +178,7 @@ export async function listQuarantinedStock(): Promise<QuarantineRow[]> {
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("quarantined_inventory")
@@ -290,7 +290,7 @@ export async function adjustStock(input: {
     return { success: false, error: "A reason is required for every adjustment" };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("adjust_inventory", {
     p_fulfilment_node_id: input.nodeId,
@@ -342,7 +342,7 @@ export async function quarantineStock(input: {
     return { success: false, error: "A reason is required to quarantine stock" };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("quarantine_inventory", {
     p_fulfilment_node_id: input.nodeId,
@@ -376,7 +376,7 @@ export async function releaseQuarantine(quarantineId: string): Promise<Inventory
     return { success: false, error: "You do not have the inventory.adjust permission" };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("release_inventory_quarantine", {
     p_quarantine_id: quarantineId,

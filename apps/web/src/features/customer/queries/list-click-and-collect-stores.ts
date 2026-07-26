@@ -62,7 +62,7 @@ export function mapStoreRow(row: StoreRow): ClickAndCollectStore {
 }
 
 async function fetchClickAndCollectStores(): Promise<ClickAndCollectStore[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("fulfilment_nodes")

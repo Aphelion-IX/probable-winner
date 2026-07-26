@@ -38,7 +38,7 @@ interface ImportFailureRow {
 }
 
 export async function getSystemHealth(): Promise<SystemHealth> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const [queueResult, importResult] = await Promise.all([
     supabase.rpc("get_queue_health_metrics"),

@@ -109,7 +109,7 @@ export async function listTransferOrders(): Promise<TransferSummary[]> {
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("transfer_orders")
@@ -135,7 +135,7 @@ export async function getTransferOrder(transferId: string): Promise<TransferDeta
     return null;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const [{ data: order, error: orderError }, { data: receipts, error: receiptsError }] =
     await Promise.all([
@@ -295,7 +295,7 @@ export async function createTransferOrder(input: {
     return { success: false, error: "Add at least one line with a positive quantity" };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: order, error: orderError } = await supabase
     .from("transfer_orders")
@@ -368,7 +368,7 @@ export async function updateTransferStatus(
     return { success: false, error: `${status} is not a status you can set by hand` };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase
     .from("transfer_orders")
@@ -399,7 +399,7 @@ export async function dispatchTransfer(transferId: string): Promise<TransferActi
     return { success: false, error: "You do not have the inventory.transfer permission" };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("dispatch_transfer", {
     p_transfer_order_id: transferId,
@@ -447,7 +447,7 @@ export async function receiveTransfer(
     return { success: false, error: "Enter a quantity against at least one line" };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("receive_transfer", {
     p_transfer_order_id: transferId,

@@ -47,7 +47,7 @@ export async function getSubstitutionCandidatesByOracleCard(
     return new Map();
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: printingRows, error: printingsError } = await supabase
     .from("card_printings")

@@ -30,7 +30,7 @@ export async function addToCart(sellableSkuId: string, quantity: number): Promis
 
     const cart = await getOrCreateCart(store.organisation_id);
 
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     const { data: line, error } = await supabase.rpc("add_to_cart", {
       p_cart_id: cart.id,
       p_fulfilment_node_id: store.id,

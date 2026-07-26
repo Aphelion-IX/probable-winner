@@ -28,18 +28,13 @@ export type SetCardRow = {
 // The schema has no dedicated "full art"/frame-effects column -- border_color
 // is the closest real attribute to a visual "treatment", with "borderless"
 // standing in for full-art/showcase-style prints.
-export const CARD_BORDER_COLORS = [
-  "black",
-  "white",
-  "borderless",
-  "gold",
-  "silver",
-  "yellow",
-] as const;
-export type CardBorderColor = (typeof CARD_BORDER_COLORS)[number];
+import { CARD_BORDER_COLORS } from "@/features/catalogue/lib/card-facets";
 
-export const SET_CARD_SORTS = ["name-asc", "price-desc", "price-asc"] as const;
-export type SetCardSort = (typeof SET_CARD_SORTS)[number];
+export {
+  CARD_BORDER_COLORS,
+  SET_CARD_SORTS,
+} from "@/features/catalogue/lib/card-facets";
+export type { CardBorderColor, SetCardSort } from "@/features/catalogue/lib/card-facets";
 
 type SkuRow = {
   sku_id: string;
@@ -211,7 +206,7 @@ const SKU_SELECT_COLUMNS = `
 // column of the table actually being scanned (sellable_skus_printing_idx),
 // which is what makes that index scan available.
 async function fetchSetPrintingIds(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
   setCode: string,
 ): Promise<string[]> {
   const setResult = await withRetry(() =>
@@ -262,7 +257,7 @@ async function fetchSetPrintingIds(
 // Horizons 3 (~5,000 active skus, 5 pages) that's the difference between 5
 // sequential round trips and 2 (first page, then the rest concurrently).
 async function fetchSkuRowsForPrintings(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
   printingIds: string[],
 ): Promise<SkuSelectRow[]> {
   function buildPage(offset: number, withCount: boolean) {
@@ -305,7 +300,7 @@ async function fetchSkuRowsForPrintings(
 }
 
 async function fetchAllSkuRows(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
   setCode: string,
 ): Promise<SkuSelectRow[]> {
   const printingIds = await fetchSetPrintingIds(supabase, setCode);
@@ -336,7 +331,7 @@ export async function listSetCards(
   setCode: string,
   options: ListSetCardsOptions = {},
 ): Promise<SetCardRow[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const skuRows = await fetchAllSkuRows(supabase, setCode);
 

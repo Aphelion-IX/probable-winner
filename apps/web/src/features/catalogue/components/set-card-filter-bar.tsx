@@ -12,8 +12,11 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useQueryParam, useQueryParamList } from "@/features/catalogue/lib/use-query-params";
-import { CARD_COLORS, CARD_FINISHES } from "@/features/catalogue/queries/list-cards";
-import { CARD_BORDER_COLORS } from "@/features/catalogue/queries/list-set-cards";
+import {
+  CARD_COLORS,
+  CARD_FINISHES,
+  CARD_BORDER_COLORS,
+} from "@/features/catalogue/lib/card-facets";
 import { COLOR_SWATCH_CLASSES } from "@/features/catalogue/lib/color-swatches";
 import { ToggleChip } from "@/features/catalogue/components/toggle-chip";
 

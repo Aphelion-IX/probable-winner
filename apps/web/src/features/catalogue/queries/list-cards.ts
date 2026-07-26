@@ -1,30 +1,31 @@
 import { createServerSupabaseClient } from "@/server/supabase";
 import { sanitizeForIlike } from "@/features/catalogue/lib/postgrest-filters";
+import {
+  CARD_COLORS,
+  CARD_TYPES,
+  CARD_RARITIES,
+  CARD_FINISHES,
+} from "@/features/catalogue/lib/card-facets";
+import type { CardColor, CardType } from "@/features/catalogue/lib/card-facets";
 
-export const CARD_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
-export type CardColor = (typeof CARD_COLORS)[number];
-
-export const CARD_TYPES = [
-  "Artifact",
-  "Battle",
-  "Creature",
-  "Enchantment",
-  "Instant",
-  "Land",
-  "Planeswalker",
-  "Sorcery",
-  "Kindred",
-] as const;
-export type CardType = (typeof CARD_TYPES)[number];
-
-export const CARD_RARITIES = ["common", "uncommon", "rare", "mythic", "special", "bonus"] as const;
-export type CardRarity = (typeof CARD_RARITIES)[number];
-
-export const CARD_FINISHES = ["nonfoil", "foil", "etched"] as const;
-export type CardFinish = (typeof CARD_FINISHES)[number];
-
-export const CARD_SORTS = ["name-asc", "name-desc", "newest", "oldest", "rarity"] as const;
-export type CardSort = (typeof CARD_SORTS)[number];
+// Facet values live in lib/card-facets so the client-side filter bars can
+// import them without dragging the server-only Supabase client (and
+// next/headers) into the browser bundle. Re-exported here so existing
+// server-side imports of this module are unaffected.
+export {
+  CARD_COLORS,
+  CARD_TYPES,
+  CARD_RARITIES,
+  CARD_FINISHES,
+  CARD_SORTS,
+} from "@/features/catalogue/lib/card-facets";
+export type {
+  CardColor,
+  CardType,
+  CardRarity,
+  CardFinish,
+  CardSort,
+} from "@/features/catalogue/lib/card-facets";
 
 export type ListCardsFilters = {
   sets?: string[];
@@ -100,7 +101,7 @@ export function buildTypeFilter(types: CardType[]): string | null {
 }
 
 export async function listCards(filters: ListCardsFilters = {}): Promise<CardBrowseItem[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   let query = supabase.from("card_browse").select("*");
 
