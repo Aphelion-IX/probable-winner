@@ -18,10 +18,7 @@ export function PopularCardsRail({ cards }: { cards: PopularCardItem[] }) {
 
   return (
     <div className="relative">
-      <div
-        ref={scrollerRef}
-        className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2"
-      >
+      <div ref={scrollerRef} className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
         {cards.map((card) => (
           <CardTile
             key={card.printingId}

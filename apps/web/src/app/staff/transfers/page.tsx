@@ -2,7 +2,10 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { fetchScopedNodes, type ScopedNode } from "@/features/staff/actions/fetch-scoped-nodes";
-import { listTransferOrders, type TransferSummary } from "@/features/staff/actions/manage-transfers";
+import {
+  listTransferOrders,
+  type TransferSummary,
+} from "@/features/staff/actions/manage-transfers";
 import { TransferCreateForm } from "@/features/staff/components/transfer-create-form";
 import { PageHeader } from "@/components/staff/page-header";
 import { StatusBadge } from "@/components/staff/status-badge";

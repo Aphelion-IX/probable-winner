@@ -25,7 +25,9 @@ export function StatCard({
       <span
         className={cn(
           "flex size-10 shrink-0 items-center justify-center rounded-full",
-          tone === "destructive" ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary",
+          tone === "destructive"
+            ? "bg-destructive/10 text-destructive"
+            : "bg-primary/10 text-primary",
         )}
       >
         <Icon className="size-5" aria-hidden />

@@ -11,7 +11,11 @@ import {
   type CardSearchDocument,
 } from "@probable-winner/search";
 
-import { buildFilterBy, buildSortBy, type SearchQueryParams } from "@/features/catalogue/lib/build-search-query";
+import {
+  buildFilterBy,
+  buildSortBy,
+  type SearchQueryParams,
+} from "@/features/catalogue/lib/build-search-query";
 
 export interface SearchCardsResult {
   hits: {

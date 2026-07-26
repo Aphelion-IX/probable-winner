@@ -39,7 +39,9 @@ describe("visibleNavSections", () => {
 
   it("returns every section for a viewer holding all permissions", () => {
     const everyPermission = STAFF_NAV_SECTIONS.flatMap((section) =>
-      section.links.map((link) => link.permission).filter((value): value is string => Boolean(value)),
+      section.links
+        .map((link) => link.permission)
+        .filter((value): value is string => Boolean(value)),
     );
 
     const sections = visibleNavSections(everyPermission);

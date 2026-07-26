@@ -1,6 +1,9 @@
 import { ShieldCheck } from "lucide-react";
 
-import { fetchStaffSettings, type StaffSettings } from "@/features/staff/actions/fetch-staff-settings";
+import {
+  fetchStaffSettings,
+  type StaffSettings,
+} from "@/features/staff/actions/fetch-staff-settings";
 import { PageHeader } from "@/components/staff/page-header";
 import { Badge } from "@/components/ui/badge";
 
