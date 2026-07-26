@@ -57,6 +57,34 @@ Override precedence (highest to lowest):
 
 When a price is published to the price book (B-164), all affected prices must have a status of 'approved' or 'overridden' — suggested prices cannot be published until reviewed and either approved or overridden by a user with `pricing.approve` or `pricing.override` permission.
 
+### Where this is enforced
+
+Every pricing mutation is gated inside its database function, before any state
+changes, and raises `42501` when the caller lacks the permission:
+
+| Function | Required permission |
+| --- | --- |
+| `approve_suggested_price` | `pricing.approve` |
+| `publish_suggested_price` | `pricing.approve` |
+| `reject_suggested_price` | `pricing.approve` or `pricing.override` |
+| `override_suggested_price` | `pricing.override` |
+| `set_price_override` | `pricing.override` |
+| `clear_price_override` | `pricing.override` |
+
+The gate lives in the function rather than in a Server Action because these are
+`SECURITY DEFINER` functions exposed over the Data API — anything that relies on
+the caller being the staff UI is not a control. `EXECUTE` is granted to
+`authenticated` only; `public` and `anon` hold no grant.
+
+Publishing is gated on `pricing.approve` rather than a dedicated
+`pricing.publish`: only `pricing.view`, `pricing.approve` and
+`pricing.override` exist, and publishing is the continuation of approving.
+Split it out if the two ever need to diverge.
+
+Until `20260726000000`, `publish_suggested_price`, `set_price_override` and
+`clear_price_override` had no permission check at all and were callable
+anonymously — the rule above was documented but not enforced.
+
 ## Historical Price Tracking
 
 All calculated prices (including intermediate amounts: base, converted, margin, condition modifier, stock modifier, final) are stored immutably in `calculated_prices`. This enables the "staff can explain any price" requirement (blueprint §17 done criterion) — any retail price row includes a link back to the calculation that produced it.
