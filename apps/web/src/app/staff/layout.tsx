@@ -10,9 +10,9 @@ export const dynamic = "force-dynamic";
 export default async function StaffLayout({ children }: { children: ReactNode }) {
   // Signed out -> /login with a return path. Signed in but not staff -> home.
   //
-  // Membership is read from staff_memberships, never from the OAuth provider,
-  // the email domain, or user_metadata: signing in with Google or Apple grants
-  // nothing here on its own. Individual screens additionally check their own
+  // Membership is read from staff_memberships, never from the email address,
+  // the email domain, or user_metadata: signing in grants nothing here on its
+  // own. Individual screens additionally check their own
   // permission code, and every table behind them is protected by RLS policies
   // that re-check the same membership.
   await requireStaff();

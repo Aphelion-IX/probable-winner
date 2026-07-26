@@ -79,13 +79,13 @@ describe("auth-context", () => {
       expect(await getAuthContext()).toBeNull();
     });
 
-    it("gives a new OAuth user no staff access by default", async () => {
+    it("gives a newly signed-in user no staff access by default", async () => {
       signedIn();
       mockGetStaffContext.mockResolvedValue(null);
 
       const context = await getAuthContext();
 
-      // Signing in with Google or Apple must never confer internal access.
+      // Simply having an account must never confer internal access.
       expect(context?.staff).toBeNull();
     });
 
@@ -106,8 +106,8 @@ describe("auth-context", () => {
     });
 
     it("flags profile setup when no display name was supplied", async () => {
-      // Apple only returns a name on first authorisation and users may
-      // decline it, so this is the normal Apple path rather than an edge case.
+      // Email sign-in supplies only an address, so this is the normal path
+      // for every new account rather than an edge case.
       signedIn(null);
       expect((await getAuthContext())?.needsProfileSetup).toBe(true);
     });
