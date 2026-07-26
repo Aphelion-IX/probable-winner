@@ -28,7 +28,7 @@ export async function addAllToCart(lines: AddAllToCartLine[]): Promise<AddAllToC
     return { status: "error", message: "Nothing to add." };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   // Independent lookups -- the store row and the current user are only
   // combined afterward in the get_or_create_cart() call below.

@@ -19,7 +19,7 @@ export async function updateCartLineQuantity(
     return { success: false, error: "Quantity must be a non-negative whole number" };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { error } = await supabase.rpc("update_cart_line_quantity", {
     p_cart_line_id: cartLineId,
     p_new_quantity: quantity,
@@ -34,7 +34,7 @@ export async function updateCartLineQuantity(
 }
 
 export async function removeCartLine(cartLineId: string): Promise<UpdateCartLineResult> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { error } = await supabase.rpc("remove_cart_line", { p_cart_line_id: cartLineId });
 
   if (error) {

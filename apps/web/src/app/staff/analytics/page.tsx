@@ -39,7 +39,10 @@ export default async function AnalyticsDashboard() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Analytics Dashboard" description="Key metrics and insights for the last 30 days." />
+      <PageHeader
+        title="Analytics Dashboard"
+        description="Key metrics and insights for the last 30 days."
+      />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total Orders" value={analytics.totalOrders} icon={Package} />

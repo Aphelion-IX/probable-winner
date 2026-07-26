@@ -116,7 +116,10 @@ export function ShippingQueue({ shipments }: { shipments: ShipmentQueueItem[] })
                   ) : null}
                 </td>
                 <td className="px-4 py-3">
-                  <StatusBadge status={shipment.status} label={shipment.status.replace(/_/g, " ")} />
+                  <StatusBadge
+                    status={shipment.status}
+                    label={shipment.status.replace(/_/g, " ")}
+                  />
                 </td>
                 <td className="px-4 py-3 text-xs">{shipment.nodeName}</td>
                 <td className="px-4 py-3 text-xs">{shipment.carrierName ?? "—"}</td>

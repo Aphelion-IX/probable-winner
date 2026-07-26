@@ -93,7 +93,7 @@ export interface CustomerOrderDetail extends CustomerOrderSummary {
 }
 
 export async function fetchCustomerOrders(limit: number = 20): Promise<CustomerOrderSummary[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
@@ -139,7 +139,7 @@ export async function fetchCustomerOrders(limit: number = 20): Promise<CustomerO
 }
 
 export async function fetchCustomerOrderDetail(orderId: string): Promise<CustomerOrderDetail> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },

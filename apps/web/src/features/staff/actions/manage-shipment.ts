@@ -57,7 +57,7 @@ export async function listShipments(): Promise<ShipmentQueueItem[]> {
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("packing_shipments")
@@ -121,7 +121,7 @@ export async function listShipments(): Promise<ShipmentQueueItem[]> {
 }
 
 export async function getAvailableCarriers(): Promise<ShipmentCarrier[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: carriers, error } = await supabase
     .from("shipment_carriers")
@@ -143,7 +143,7 @@ export async function createShipmentForBatch(
   batchId: string,
   carrierCode?: string,
 ): Promise<Shipment> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: shipment, error } = await supabase.rpc("create_shipment", {
     p_pick_batch_id: batchId,
@@ -172,7 +172,7 @@ export async function generateShipmentLabel(
   trackingNumber?: string,
   labelUrl?: string,
 ): Promise<void> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("generate_shipment_label", {
     p_shipment_id: shipmentId,
@@ -191,7 +191,7 @@ export async function generateShipmentLabel(
 }
 
 export async function markShipmentShipped(shipmentId: string): Promise<void> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("mark_shipment_shipped", {
     p_shipment_id: shipmentId,
@@ -208,7 +208,7 @@ export async function markShipmentShipped(shipmentId: string): Promise<void> {
 }
 
 export async function getShipmentsForBatch(batchId: string): Promise<Shipment[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: shipments, error } = await supabase
     .from("packing_shipments")

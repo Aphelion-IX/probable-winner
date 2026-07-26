@@ -47,7 +47,7 @@ export async function searchSellableSkus(query: string): Promise<SkuSearchResult
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("sellable_skus")
@@ -106,7 +106,7 @@ export async function listRecentReceipts(): Promise<ReceiptRow[]> {
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("inventory_movements")
@@ -195,7 +195,7 @@ export async function receiveStock(input: {
     return { success: false, error: "Enter a positive whole quantity" };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("receive_inventory", {
     p_fulfilment_node_id: input.nodeId,

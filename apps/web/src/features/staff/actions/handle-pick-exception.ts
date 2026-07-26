@@ -24,7 +24,7 @@ export async function recordPickException(
   notes?: string,
   severity: "info" | "warning" | "critical" = "warning",
 ): Promise<void> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("record_pick_exception", {
     p_pick_line_id: pickLineId,
@@ -48,7 +48,7 @@ export async function resolvePickException(
   exceptionId: string,
   resolution: "substitute" | "refund" | "contact_customer" | "resolved",
 ): Promise<void> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { error } = await supabase.rpc("resolve_pick_exception", {
     p_exception_id: exceptionId,
@@ -79,7 +79,7 @@ interface ExceptionRow {
 }
 
 export async function getPickLineExceptions(pickLineId: string): Promise<PickException[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: exceptions, error } = await supabase
     .from("pick_exceptions")
@@ -123,7 +123,7 @@ export async function getPickLineExceptions(pickLineId: string): Promise<PickExc
 }
 
 export async function getUnresolvedExceptions(batchId: string): Promise<PickException[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: exceptions, error } = await supabase
     .from("pick_exceptions")

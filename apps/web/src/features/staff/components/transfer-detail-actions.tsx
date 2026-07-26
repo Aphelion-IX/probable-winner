@@ -168,9 +168,7 @@ export function TransferDetailActions({ transfer }: { transfer: TransferDetail }
                           step="1"
                           value={draftFor(line.skuId)[field]}
                           aria-label={`${field} quantity for ${line.cardName}`}
-                          onChange={(event) =>
-                            setDraftField(line.skuId, field, event.target.value)
-                          }
+                          onChange={(event) => setDraftField(line.skuId, field, event.target.value)}
                           className="w-20"
                         />
                       </td>

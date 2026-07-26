@@ -95,7 +95,7 @@ interface OrderRow {
 // - Regional managers see all orders in their region
 // - Org managers see all orders
 export async function fetchStaffOrders(): Promise<StaffOrder[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: orders, error } = await supabase
     .from("orders")

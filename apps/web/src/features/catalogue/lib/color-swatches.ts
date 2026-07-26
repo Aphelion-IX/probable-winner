@@ -1,4 +1,4 @@
-import type { CardColor } from "@/features/catalogue/queries/list-cards";
+import type { CardColor } from "@/features/catalogue/lib/card-facets";
 
 // WUBRG colour-identity swatches, shared between the filter chips
 // (card-top-bar.tsx) and anywhere else a card's colour needs a small visual

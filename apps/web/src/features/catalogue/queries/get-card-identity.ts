@@ -116,7 +116,7 @@ type RelatedPrintingRow = {
 };
 
 async function fetchCardIdentity(printingId: string): Promise<CardIdentity | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: printing, error: printingError } = await supabase
     .from("card_printings")

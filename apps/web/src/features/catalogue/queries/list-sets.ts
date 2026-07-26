@@ -32,7 +32,7 @@ export function buildSearchFilter(search: string): string {
 }
 
 export async function listSets(options: ListSetsOptions = {}): Promise<SetSummary[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   let query = supabase
     .from("sets")
@@ -62,7 +62,7 @@ export async function listSets(options: ListSetsOptions = {}): Promise<SetSummar
 
 // Single-set lookup for the set-detail ("set opened") page's header.
 export async function getSet(code: string): Promise<SetSummary | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("sets")

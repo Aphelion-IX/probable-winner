@@ -106,7 +106,7 @@ export async function searchCustomers(query: string): Promise<CustomerSummary[]>
     throw new Error("You do not have the users.view permission");
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   let profileQuery = supabase
     .from("profiles")
@@ -172,7 +172,7 @@ export async function getCustomerDetail(customerId: string): Promise<CustomerDet
     throw new Error("You do not have the users.view permission");
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const [{ data: profile }, { data: orders }, { data: addresses }] = await Promise.all([
     supabase

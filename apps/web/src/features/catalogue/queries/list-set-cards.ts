@@ -28,18 +28,10 @@ export type SetCardRow = {
 // The schema has no dedicated "full art"/frame-effects column -- border_color
 // is the closest real attribute to a visual "treatment", with "borderless"
 // standing in for full-art/showcase-style prints.
-export const CARD_BORDER_COLORS = [
-  "black",
-  "white",
-  "borderless",
-  "gold",
-  "silver",
-  "yellow",
-] as const;
-export type CardBorderColor = (typeof CARD_BORDER_COLORS)[number];
+import { CARD_BORDER_COLORS } from "@/features/catalogue/lib/card-facets";
 
-export const SET_CARD_SORTS = ["name-asc", "price-desc", "price-asc"] as const;
-export type SetCardSort = (typeof SET_CARD_SORTS)[number];
+export { CARD_BORDER_COLORS, SET_CARD_SORTS } from "@/features/catalogue/lib/card-facets";
+export type { CardBorderColor, SetCardSort } from "@/features/catalogue/lib/card-facets";
 
 type SkuRow = {
   sku_id: string;
@@ -181,6 +173,9 @@ async function runWithConcurrencyLimit<R>(
   return results;
 }
 
+// No sets join: the set is resolved to its printing ids up front (see
+// fetchSetPrintingIds), so nothing here needs to reach through to sets.code,
+// and none of the mapping below ever read it.
 const SKU_SELECT_COLUMNS = `
   id,
   card_printing_id,
@@ -188,10 +183,69 @@ const SKU_SELECT_COLUMNS = `
   product_statuses!inner(code),
   card_printings!inner(
     id, rarity, collector_number, border_color,
-    sets!inner(code),
     oracle_cards(id, name, type_line, colors)
   )
 `;
+
+// Resolves a set code to the ids of its printings.
+//
+// This exists to keep the sku query off a full-table scan. Postgrest turns a
+// filter on a *nested* resource (`card_printings.sets.code`) into a
+// correlated LATERAL join, which it cannot push down into the outer table --
+// so it walks all ~816k sellable_skus rows and runs the join per row just to
+// keep the few thousand belonging to one set. Measured on the real database
+// that costs ~830-1,080 ms per call; the same logical query written as a
+// plain join over indexed columns (sets.code -> card_printings.set_id ->
+// sellable_skus.card_printing_id) plans as three index scans and runs in
+// ~18 ms.
+//
+// Filtering on card_printing_id instead means the predicate is on an indexed
+// column of the table actually being scanned (sellable_skus_printing_idx),
+// which is what makes that index scan available.
+async function fetchSetPrintingIds(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  setCode: string,
+): Promise<string[]> {
+  const setResult = await withRetry(() =>
+    supabase.from("sets").select("id").eq("code", setCode).limit(1).maybeSingle(),
+  );
+
+  if (setResult.error) {
+    throw new Error(`Failed to list set cards: ${setResult.error.message}`);
+  }
+
+  const setId = (setResult.data as { id: string } | null)?.id;
+  if (!setId) {
+    return [];
+  }
+
+  // Paged for the same max_rows reason as the sku query below. Real sets top
+  // out in the hundreds of printings, so this is normally a single request.
+  const printingIds: string[] = [];
+  for (let offset = 0; ; offset += SKU_PAGE_SIZE) {
+    const page = await withRetry(() =>
+      supabase
+        .from("card_printings")
+        .select("id")
+        .eq("set_id", setId)
+        .range(offset, offset + SKU_PAGE_SIZE - 1)
+        .returns<{ id: string }[]>(),
+    );
+
+    if (page.error) {
+      throw new Error(`Failed to list set cards: ${page.error.message}`);
+    }
+
+    const rows = page.data ?? [];
+    printingIds.push(...rows.map((row) => row.id));
+
+    if (rows.length < SKU_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  return printingIds;
+}
 
 // Paginated instead of a single unpaginated query (see SKU_PAGE_SIZE above).
 // The first page asks Postgrest for an exact count alongside its rows, which
@@ -199,15 +253,15 @@ const SKU_SELECT_COLUMNS = `
 // be fetched in parallel instead of one at a time. For a set like Modern
 // Horizons 3 (~5,000 active skus, 5 pages) that's the difference between 5
 // sequential round trips and 2 (first page, then the rest concurrently).
-async function fetchAllSkuRows(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
-  setCode: string,
+async function fetchSkuRowsForPrintings(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  printingIds: string[],
 ): Promise<SkuSelectRow[]> {
   function buildPage(offset: number, withCount: boolean) {
     return supabase
       .from("sellable_skus")
       .select(SKU_SELECT_COLUMNS, withCount ? { count: "exact" } : undefined)
-      .eq("card_printings.sets.code", setCode)
+      .in("card_printing_id", printingIds)
       .eq("product_statuses.code", "active")
       .range(offset, offset + SKU_PAGE_SIZE - 1)
       .returns<SkuSelectRow[]>();
@@ -242,11 +296,39 @@ async function fetchAllSkuRows(
   return rows;
 }
 
+async function fetchAllSkuRows(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  setCode: string,
+): Promise<SkuSelectRow[]> {
+  const printingIds = await fetchSetPrintingIds(supabase, setCode);
+
+  if (printingIds.length === 0) {
+    return [];
+  }
+
+  // Chunked for the same reason as the image/price/balance lookups below:
+  // an `in` list becomes part of the request URL, so it has a practical
+  // ceiling. Real sets sit well inside one chunk; the loop is here so a
+  // hypothetical huge set degrades into extra requests rather than a
+  // truncated result.
+  const chunks: string[][] = [];
+  for (let index = 0; index < printingIds.length; index += ID_BATCH_SIZE) {
+    chunks.push(printingIds.slice(index, index + ID_BATCH_SIZE));
+  }
+
+  const chunkResults = await runWithConcurrencyLimit(
+    chunks.map((chunk) => () => fetchSkuRowsForPrintings(supabase, chunk)),
+    MAX_CONCURRENT_REQUESTS,
+  );
+
+  return chunkResults.flat();
+}
+
 export async function listSetCards(
   setCode: string,
   options: ListSetCardsOptions = {},
 ): Promise<SetCardRow[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const skuRows = await fetchAllSkuRows(supabase, setCode);
 

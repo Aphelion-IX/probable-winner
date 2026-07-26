@@ -8,7 +8,10 @@ import { Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ScopedNode } from "@/features/staff/actions/fetch-scoped-nodes";
-import { searchSellableSkus, type SkuSearchResult } from "@/features/staff/actions/manage-receiving";
+import {
+  searchSellableSkus,
+  type SkuSearchResult,
+} from "@/features/staff/actions/manage-receiving";
 import { createTransferOrder } from "@/features/staff/actions/manage-transfers";
 
 const SELECT_CLASS = "rounded-lg border border-input bg-background px-3 py-2 text-sm";

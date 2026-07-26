@@ -33,7 +33,7 @@ export async function fetchScopedNodes(): Promise<ScopedNode[]> {
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("fulfilment_nodes")

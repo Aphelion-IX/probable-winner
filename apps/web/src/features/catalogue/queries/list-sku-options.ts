@@ -36,7 +36,7 @@ type SkuOptionRow = {
 };
 
 async function fetchSkuOptions(printingId: string): Promise<SkuOption[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("sellable_skus")

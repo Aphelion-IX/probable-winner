@@ -40,7 +40,7 @@ function single<T>(value: T | T[]): T {
   return Array.isArray(value) ? value[0] : value;
 }
 
-async function requireCustomerId(supabase: ReturnType<typeof createServerSupabaseClient>) {
+async function requireCustomerId(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -57,7 +57,7 @@ async function requireCustomerId(supabase: ReturnType<typeof createServerSupabas
 // EXISTS join to saved_lists.customer_id) is the only scoping here, same
 // as order_lines relying on a join back to orders.
 export async function getSavedList(): Promise<SavedListItem[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const customerId = await requireCustomerId(supabase);
 
   const { data: lines, error: linesError } = await supabase
@@ -166,7 +166,7 @@ export async function getSavedList(): Promise<SavedListItem[]> {
 }
 
 export async function addToSavedList(sellableSkuId: string): Promise<void> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const customerId = await requireCustomerId(supabase);
 
   const { error } = await supabase.rpc("add_to_saved_list", {
@@ -185,7 +185,7 @@ export async function addToSavedList(sellableSkuId: string): Promise<void> {
 }
 
 export async function removeFromSavedList(sellableSkuId: string): Promise<void> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const customerId = await requireCustomerId(supabase);
 
   const { error } = await supabase.rpc("remove_from_saved_list", {

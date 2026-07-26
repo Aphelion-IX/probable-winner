@@ -69,7 +69,7 @@ interface BatchFulfilmentNode {
 }
 
 export async function getPickBatch(batchId: string): Promise<PickBatchDetail> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: batch, error: batchError } = await supabase
     .from("pick_batches")

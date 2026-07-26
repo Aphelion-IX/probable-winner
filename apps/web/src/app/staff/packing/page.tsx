@@ -27,7 +27,7 @@ interface CompletedBatch {
 }
 
 async function getCompletedBatches(): Promise<CompletedBatch[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: batches, error } = await supabase
     .from("pick_batches")

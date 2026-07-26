@@ -21,7 +21,7 @@ export async function generatePickBatch(): Promise<GeneratePickBatchResult> {
     return { success: false, error: "Not authenticated as staff" };
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase.rpc("create_pick_batch", {
     p_fulfilment_node_id: staffContext.nodeId,

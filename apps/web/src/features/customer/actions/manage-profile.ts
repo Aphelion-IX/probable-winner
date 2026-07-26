@@ -41,7 +41,7 @@ interface AddressRow {
   is_default: boolean;
 }
 
-async function requireCustomerId(supabase: ReturnType<typeof createServerSupabaseClient>) {
+async function requireCustomerId(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -54,7 +54,7 @@ async function requireCustomerId(supabase: ReturnType<typeof createServerSupabas
 }
 
 export async function getProfile(): Promise<CustomerProfile> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const customerId = await requireCustomerId(supabase);
 
   const { data, error } = await supabase
@@ -85,7 +85,7 @@ export async function updateProfile(input: {
   phone: string;
   preferredFulfilmentNodeId: string | null;
 }): Promise<void> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const customerId = await requireCustomerId(supabase);
 
   const { error } = await supabase
@@ -108,7 +108,7 @@ export async function updateProfile(input: {
 }
 
 export async function listAddresses(): Promise<CustomerAddress[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const customerId = await requireCustomerId(supabase);
 
   const { data, error } = await supabase
@@ -150,7 +150,7 @@ export async function createAddress(input: {
   postalCode: string;
   country: string;
 }): Promise<string> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const customerId = await requireCustomerId(supabase);
 
   const { data, error } = await supabase
@@ -181,7 +181,7 @@ export async function createAddress(input: {
 }
 
 export async function deleteAddress(addressId: string): Promise<void> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const customerId = await requireCustomerId(supabase);
 
   const { error } = await supabase

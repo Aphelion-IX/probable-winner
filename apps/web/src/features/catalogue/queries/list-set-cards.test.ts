@@ -6,10 +6,13 @@ vi.mock("@/server/supabase", () => ({
   createServerSupabaseClient: () => ({ from: mockFrom }),
 }));
 
+// sellable_skus is now filtered by `.in("card_printing_id", ids)` rather than
+// by the nested `card_printings.sets.code`, so the chain is
+// select -> in -> eq -> range -> returns.
 function skusChain(returnValue: { data: unknown; error: unknown; count?: number }) {
   return {
     select: () => ({
-      eq: () => ({
+      in: () => ({
         eq: () => ({
           range: () => ({
             returns: () => Promise.resolve(returnValue),
@@ -18,6 +21,44 @@ function skusChain(returnValue: { data: unknown; error: unknown; count?: number 
       }),
     }),
   };
+}
+
+// The set code is resolved to a set id, then to that set's printing ids,
+// before sellable_skus is queried at all (see fetchSetPrintingIds).
+function setsChain(returnValue: { data: unknown; error: unknown }) {
+  return {
+    select: () => ({
+      eq: () => ({
+        limit: () => ({
+          maybeSingle: () => Promise.resolve(returnValue),
+        }),
+      }),
+    }),
+  };
+}
+
+function printingsChain(returnValue: { data: unknown; error: unknown }) {
+  return {
+    select: () => ({
+      eq: () => ({
+        range: () => ({
+          returns: () => Promise.resolve(returnValue),
+        }),
+      }),
+    }),
+  };
+}
+
+// Every test needs the same set -> printing-ids resolution before it reaches
+// the behaviour it is actually asserting, so it is answered centrally rather
+// than restated in each mockImplementation. Returns null for other tables so
+// the caller's own handling takes over.
+function setResolution(table: string) {
+  if (table === "sets") return setsChain({ data: { id: "set-1" }, error: null });
+  if (table === "card_printings") {
+    return printingsChain({ data: [{ id: "printing-1" }], error: null });
+  }
+  return null;
 }
 
 function imagesChain(returnValue: { data: unknown; error: unknown }) {
@@ -69,6 +110,8 @@ function fakeSkuRow(overrides: Record<string, unknown> = {}) {
 // For tests that only care about which sellable_skus rows survive
 // filtering -- images/prices/balances are irrelevant to the assertion.
 function noopDownstream(table: string) {
+  const resolved = setResolution(table);
+  if (resolved) return resolved;
   if (table === "card_images") return imagesChain({ data: [], error: null });
   if (table === "published_prices") return pricesChain({ data: [], error: null });
   if (table === "inventory_balances") return balancesChain({ data: [], error: null });
@@ -82,6 +125,8 @@ describe("listSetCards", () => {
 
   it("returns an empty array without querying prices/balances when the set has no SKUs", async () => {
     mockFrom.mockImplementation((table: string) => {
+      const resolved = setResolution(table);
+      if (resolved) return resolved;
       if (table === "sellable_skus") return skusChain({ data: [], error: null });
       throw new Error(`unexpected table: ${table}`);
     });
@@ -90,11 +135,28 @@ describe("listSetCards", () => {
     const result = await listSetCards("2X2");
 
     expect(result).toEqual([]);
+    // sets -> card_printings -> sellable_skus, then it stops: no images,
+    // prices or balances are fetched for a set with no SKUs.
+    expect(mockFrom).toHaveBeenCalledTimes(3);
+    expect(mockFrom).not.toHaveBeenCalledWith("published_prices");
+    expect(mockFrom).not.toHaveBeenCalledWith("inventory_balances");
+  });
+
+  it("stops before querying sellable_skus when the set code does not exist", async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "sets") return setsChain({ data: null, error: null });
+      throw new Error(`unexpected table: ${table}`);
+    });
+    const { listSetCards } = await import("./list-set-cards");
+
+    await expect(listSetCards("NOPE")).resolves.toEqual([]);
     expect(mockFrom).toHaveBeenCalledTimes(1);
   });
 
   it("throws when the SKU query fails", async () => {
     mockFrom.mockImplementation((table: string) => {
+      const resolved = setResolution(table);
+      if (resolved) return resolved;
       if (table === "sellable_skus") return skusChain({ data: null, error: { message: "boom" } });
       throw new Error(`unexpected table: ${table}`);
     });
@@ -105,6 +167,8 @@ describe("listSetCards", () => {
 
   it("aggregates conditions into one row per printing+finish, picking the cheapest active price", async () => {
     mockFrom.mockImplementation((table: string) => {
+      const resolved = setResolution(table);
+      if (resolved) return resolved;
       if (table === "sellable_skus") {
         return skusChain({
           data: [
@@ -186,6 +250,8 @@ describe("listSetCards", () => {
 
   it("filters out zero-stock rows when inStockOnly is set", async () => {
     mockFrom.mockImplementation((table: string) => {
+      const resolved = setResolution(table);
+      if (resolved) return resolved;
       if (table === "sellable_skus") {
         return skusChain({ data: [fakeSkuRow()], error: null });
       }
@@ -234,6 +300,8 @@ describe("listSetCards", () => {
 
     const callCounts = { sellable_skus: 0, card_images: 0, published_prices: 0 };
     mockFrom.mockImplementation((table: string) => {
+      const resolved = setResolution(table);
+      if (resolved) return resolved;
       if (table === "sellable_skus") {
         callCounts.sellable_skus += 1;
         if (callCounts.sellable_skus === 1) {
@@ -268,6 +336,8 @@ describe("listSetCards", () => {
   it("retries a transient network failure and still returns correct data", async () => {
     let priceAttempts = 0;
     mockFrom.mockImplementation((table: string) => {
+      const resolved = setResolution(table);
+      if (resolved) return resolved;
       if (table === "sellable_skus") return skusChain({ data: [fakeSkuRow()], error: null });
       if (table === "card_images") return imagesChain({ data: [], error: null });
       if (table === "published_prices") {
@@ -304,6 +374,8 @@ describe("listSetCards", () => {
 
   it("gives up after exhausting retries on a persistent network failure", async () => {
     mockFrom.mockImplementation((table: string) => {
+      const resolved = setResolution(table);
+      if (resolved) return resolved;
       if (table === "sellable_skus") return skusChain({ data: [fakeSkuRow()], error: null });
       if (table === "card_images") return imagesChain({ data: [], error: null });
       if (table === "published_prices") {
@@ -325,6 +397,8 @@ describe("listSetCards", () => {
 
   it("filters by colour, including the colourless option", async () => {
     mockFrom.mockImplementation((table: string) => {
+      const resolved = setResolution(table);
+      if (resolved) return resolved;
       if (table === "sellable_skus") {
         return skusChain({
           data: [
@@ -391,6 +465,8 @@ describe("listSetCards", () => {
 
   it("filters by finish", async () => {
     mockFrom.mockImplementation((table: string) => {
+      const resolved = setResolution(table);
+      if (resolved) return resolved;
       if (table === "sellable_skus") {
         return skusChain({
           data: [
@@ -428,6 +504,8 @@ describe("listSetCards", () => {
 
   it("filters by treatment (border colour)", async () => {
     mockFrom.mockImplementation((table: string) => {
+      const resolved = setResolution(table);
+      if (resolved) return resolved;
       if (table === "sellable_skus") {
         return skusChain({
           data: [
@@ -464,6 +542,8 @@ describe("listSetCards", () => {
 
   it("sorts by price when requested, putting rows with no active price last", async () => {
     mockFrom.mockImplementation((table: string) => {
+      const resolved = setResolution(table);
+      if (resolved) return resolved;
       if (table === "sellable_skus") {
         return skusChain({
           data: [

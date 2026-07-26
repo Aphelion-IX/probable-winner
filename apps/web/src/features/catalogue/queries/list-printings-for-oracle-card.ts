@@ -41,7 +41,7 @@ type PrintingSummaryRow = {
 };
 
 async function fetchPrintingsForOracleCard(oracleCardId: string): Promise<PrintingSummary[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("card_printings")

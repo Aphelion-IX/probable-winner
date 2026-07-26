@@ -47,7 +47,7 @@ export async function fetchStaffSettings(): Promise<StaffSettings | null> {
     return null;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const [
     { data: nodes },

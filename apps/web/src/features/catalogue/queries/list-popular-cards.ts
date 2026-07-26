@@ -13,7 +13,7 @@ export type PopularCardItem = CardBrowseItem & {
 };
 
 export async function listPopularCards(limit = 6): Promise<PopularCardItem[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data: cards, error: cardsError } = await supabase
     .from("card_browse")

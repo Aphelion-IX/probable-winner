@@ -2,6 +2,7 @@ import { getProfile, listAddresses } from "@/features/customer/actions/manage-pr
 import { listActiveStores } from "@/features/customer/queries/list-active-stores";
 import { ProfileEditor } from "@/features/customer/components/profile-editor";
 import { AddressManager } from "@/features/customer/components/address-manager";
+import { AccountSecurity } from "@/features/auth/components/account-security";
 
 // Requires an authenticated user's session at request time — cannot be
 // statically prerendered.
@@ -57,6 +58,8 @@ export default async function AccountPage() {
               <h2 className="text-lg font-semibold">Addresses</h2>
               <AddressManager initialAddresses={addresses} />
             </section>
+
+            <AccountSecurity />
           </>
         )
       )}

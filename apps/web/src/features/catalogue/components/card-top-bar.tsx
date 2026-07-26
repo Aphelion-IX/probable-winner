@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryParam, useQueryParamList } from "@/features/catalogue/lib/use-query-params";
-import { CARD_COLORS, CARD_TYPES } from "@/features/catalogue/queries/list-cards";
+import { CARD_COLORS, CARD_TYPES } from "@/features/catalogue/lib/card-facets";
 import { COLOR_SWATCH_CLASSES } from "@/features/catalogue/lib/color-swatches";
 import { ToggleChip } from "@/features/catalogue/components/toggle-chip";
 

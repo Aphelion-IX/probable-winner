@@ -32,12 +32,37 @@ const defaultStats: DashboardStats = {
 };
 
 const QUICK_LINKS = [
-  { href: "/staff/orders", icon: Boxes, title: "View Orders", description: "See all orders in your scope" },
-  { href: "/staff/picking", icon: Target, title: "Pick Batches", description: "Active picking tasks" },
-  { href: "/staff/packing", icon: PackageCheck, title: "Packing", description: "Prepare orders for shipment" },
-  { href: "/staff/handover", icon: Handshake, title: "Handover", description: "Click & collect pickups" },
+  {
+    href: "/staff/orders",
+    icon: Boxes,
+    title: "View Orders",
+    description: "See all orders in your scope",
+  },
+  {
+    href: "/staff/picking",
+    icon: Target,
+    title: "Pick Batches",
+    description: "Active picking tasks",
+  },
+  {
+    href: "/staff/packing",
+    icon: PackageCheck,
+    title: "Packing",
+    description: "Prepare orders for shipment",
+  },
+  {
+    href: "/staff/handover",
+    icon: Handshake,
+    title: "Handover",
+    description: "Click & collect pickups",
+  },
   { href: "/staff/inventory", icon: Boxes, title: "Inventory", description: "Check stock levels" },
-  { href: "/staff/settings", icon: Settings, title: "Settings", description: "Account & preferences" },
+  {
+    href: "/staff/settings",
+    icon: Settings,
+    title: "Settings",
+    description: "Account & preferences",
+  },
 ];
 
 export default async function StaffDashboardPage() {
