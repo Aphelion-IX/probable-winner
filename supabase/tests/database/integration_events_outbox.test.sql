@@ -80,8 +80,10 @@ select ok(
 
 -- A rolled-back atomic-function call leaves no orphaned event: the failed
 -- call below (insufficient available inventory) must not have inserted an
--- integration_events row for this attempt.
-set local role authenticated;
+-- integration_events row for this attempt. reserve_inventory() is no
+-- longer granted to authenticated/anon (2026-07-26 security re-audit item
+-- 1), so this runs as the default (superuser) role, same as every other
+-- call in this section since the reset role above.
 select throws_ok(
   format(
     $$select reserve_inventory('%s', '%s', 999)$$,
@@ -92,7 +94,6 @@ select throws_ok(
   null,
   'reserving far more than available fails as expected, setting up the orphan-event check'
 );
-reset role;
 select ok(
   (
     -- Still exactly 1 (from the successful receive_inventory call above) --

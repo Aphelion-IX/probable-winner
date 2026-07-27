@@ -388,3 +388,50 @@ and a migration-ordering fix:
 Regression tests: `supabase/tests/database/cross_tenant_checkout_scoping.test.sql`
 (price scoping, collection-store organisation/active/click-and-collect
 validation, and that a valid store still succeeds).
+
+## A third, much larger gap the `rls_auto_enable` fix exposed: table grants were never migrated at all
+
+Fixing `supabase start` was necessary but not sufficient — with it actually
+reaching `supabase test db` for the first time, **20 of 34 pgTAP files
+failed**, almost all with `permission denied for table X` for
+`anon`/`authenticated`, across domains with nothing to do with checkout:
+pricing, transfers, stocktakes, quarantine, inventory, catalogue, customer
+profiles.
+
+The reason: `CREATE POLICY` only decides which *rows* a role may see once
+Postgres has already decided that role may touch the table *at all* — that
+prior decision is an ordinary `GRANT`, and this repository's migrations
+never issued one. A script cross-referencing every `GRANT ... ON TABLE`
+against every `CREATE POLICY ... FOR <cmd> ... TO <role>` in this history
+found exactly one table (`card_browse`, a view) with a matching explicit
+grant. Every other table — the whole schema — was relying on a grant that
+exists only on the live project, applied by hand at some point outside any
+migration, the same way `rls_auto_enable()` and the `seed_demo_catalogue`
+fixtures were. It went unnoticed for the same reason those two did: the
+app reaches almost every table through a `SECURITY DEFINER` function
+(bypasses grants entirely) or a service-role connection (already has its
+own baseline), and pgTAP had never actually been run through a full fresh
+reset before this pass made that possible.
+
+Fixed in `20260727010000_grant_missing_baseline_table_privileges.sql`:
+every grant was derived mechanically from that table's own existing
+policies (the same script, run again to generate `GRANT` statements
+instead of just diffing them) — so it grants exactly what each table's
+policies already intend for `anon`/`authenticated`, nothing broader.
+Deliberately untouched: function `EXECUTE` grants (managed individually and
+carefully throughout this history, several as recently as this same pass)
+and `service_role` (already works without these).
+
+Also fixed, surfaced by the same first-ever full run: several pgTAP files
+called `reserve_inventory()`/`release_inventory_reservation()` directly as
+`anon`/`authenticated` — broken by this pass's own item-1 fix, which
+correctly revoked that access — plus a handful of unrelated stale bugs
+(`published_prices.test.sql` used non-uuid literals for uuid columns;
+`pricing_review_queue.test.sql`/`pricing_publish_reindex.test.sql` inserted
+a `pricing_rules.source_price_type` value outside its check constraint; an
+ambiguous `quantity` column reference across a two-table join; `json`
+compared with `=`, which has no such operator, only `jsonb` does; and one
+test leaving a stale `request.jwt.claim.sub` from an earlier fixture set in
+the same transaction, making a later "must be unauthenticated" case not
+actually unauthenticated). None of these had ever been exercised for real
+before this pass's CI fix made a genuine fresh-database run possible.

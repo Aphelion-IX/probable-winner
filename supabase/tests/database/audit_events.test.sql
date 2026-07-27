@@ -77,10 +77,17 @@ select ok(
   'adjust_inventory() writes one audit_events row'
 );
 
+-- reserve_inventory()/release_inventory_reservation() are no longer
+-- granted to authenticated/anon (2026-07-26 security re-audit item 1) --
+-- called here as the default (superuser) role for the rest of this
+-- section, restoring authenticated afterward for the staff-gated calls
+-- and audit_events reads that still need it.
+reset role;
 with r as (
   select reserve_inventory((select id from test_ids_ae where key = 'source'), (select id from test_ids_ae where key = 'sku'), 5) as res
 )
 insert into test_ids_ae (key, id) select 'reservation', (res).id from r;
+set local role authenticated;
 select ok(
   (select count(*) = 1 from audit_events where action = 'inventory.reserve' and entity_id = (select id from test_ids_ae where key = 'reservation')),
   'reserve_inventory() writes one audit_events row keyed to the reservation'
@@ -108,11 +115,13 @@ select ok(
 );
 
 -- Separate reserve/release pair (independent of the allocate/pick one above).
+reset role;
 with r2 as (
   select reserve_inventory((select id from test_ids_ae where key = 'source'), (select id from test_ids_ae where key = 'sku'), 2) as res
 )
 insert into test_ids_ae (key, id) select 'reservation2', (res).id from r2;
 select release_inventory_reservation((select id from test_ids_ae where key = 'reservation2'));
+set local role authenticated;
 select ok(
   (select count(*) = 1 from audit_events where action = 'inventory.release_reservation' and entity_id = (select id from test_ids_ae where key = 'reservation2')),
   'release_inventory_reservation() writes one audit_events row'
@@ -134,6 +143,7 @@ select ok(
 );
 
 -- A rolled-back atomic-function call leaves no orphaned audit row.
+reset role;
 select throws_ok(
   format(
     $$select reserve_inventory('%s', '%s', 999999)$$,
@@ -144,6 +154,7 @@ select throws_ok(
   null,
   'reserving far more than available fails as expected, setting up the orphan-audit-row check'
 );
+set local role authenticated;
 select ok(
   (select count(*) = 0 from audit_events where action = 'inventory.reserve' and metadata ->> 'quantity' = '999999'),
   'the rolled-back reserve_inventory call left no orphaned audit_events row'

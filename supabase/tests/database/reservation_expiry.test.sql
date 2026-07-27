@@ -71,8 +71,9 @@ select receive_inventory((select id from test_ids_exp where key = 'node'), (sele
 reset role;
 
 -- One reservation already expired (15 minutes ago), one still active
--- (15 minutes from now).
-set local role anon;
+-- (15 minutes from now). reserve_inventory() is no longer granted to
+-- authenticated/anon (2026-07-26 security re-audit item 1) -- called here
+-- as the default (superuser) role.
 with r_expired as (
   select reserve_inventory(
     (select id from test_ids_exp where key = 'node'),

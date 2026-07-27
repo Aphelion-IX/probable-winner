@@ -82,7 +82,11 @@ select ok(
 );
 
 -- The core AC: the quarantined unit cannot be reserved, but the remaining
--- (non-quarantined) unit still can.
+-- (non-quarantined) unit still can. reserve_inventory() is no longer
+-- granted to authenticated/anon (2026-07-26 security re-audit item 1) --
+-- called here as the default (superuser) role, restoring authenticated
+-- afterward for quarantine_inventory()/release_inventory_quarantine().
+reset role;
 select lives_ok(
   format(
     $$select reserve_inventory('%s', '%s', 1)$$,
@@ -101,6 +105,7 @@ select throws_ok(
   null,
   'the quarantined unit cannot be reserved even though quantity_on_hand is nonzero (B-064 core AC)'
 );
+set local role authenticated;
 
 -- Quarantining more than is currently available is rejected the same way.
 select throws_ok(

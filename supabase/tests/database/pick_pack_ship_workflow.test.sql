@@ -103,6 +103,11 @@ set local role authenticated;
 select receive_inventory((select id from test_ids_pps where key = 'node'), (select id from test_ids_pps where key = 'sku_a'), 1, 'test', null, 'seed sku a');
 select receive_inventory((select id from test_ids_pps where key = 'node'), (select id from test_ids_pps where key = 'sku_b'), 1, 'test', null, 'seed sku b');
 
+-- reserve_inventory() is no longer granted to authenticated/anon
+-- (2026-07-26 security re-audit item 1) -- called here as the default
+-- (superuser) role, restoring authenticated afterward for
+-- allocate_order_inventory().
+reset role;
 with r as (
   select reserve_inventory((select id from test_ids_pps where key = 'node'), (select id from test_ids_pps where key = 'sku_a'), 1) as res
 )
@@ -112,6 +117,7 @@ with r as (
   select reserve_inventory((select id from test_ids_pps where key = 'node'), (select id from test_ids_pps where key = 'sku_b'), 1) as res
 )
 insert into test_ids_pps (key, id) select 'reservation_b', (res).id from r;
+set local role authenticated;
 
 with a as (
   select allocate_order_inventory(

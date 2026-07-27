@@ -9,31 +9,75 @@ begin;
 
 select plan(16);
 
--- Setup: create org, stores, pricing rule, SKU, and calculated prices.
-insert into pricing_rules (organisation_id, source_price_type, target_currency, margin_type, margin_value)
-values ('test-org-id', 'tcgplayer', 'AUD', 'percentage', 30);
+create temp table test_ids_pp (key text primary key, id uuid);
+grant select, insert on test_ids_pp to authenticated, anon;
 
-insert into sellable_skus (card_printing_id, language_id, finish_id, condition_id)
-values ('test-printing-id', 'en', 'nonfoil', 'nm');
+insert into test_ids_pp (key, id) select 'org', id from organisations limit 1;
 
--- Create two approved calculated prices (same SKU, same rule, ready to publish).
-insert into calculated_prices (
-  pricing_rule_id, sellable_sku_id, base_amount, base_currency, exchange_rate,
-  margin_amount, final_amount, currency, status
+with n as (
+  insert into fulfilment_nodes (organisation_id, name, code, type)
+  select (select id from test_ids_pp where key = 'org'), 'PP Test Store', 'pptest', 'store'
+  returning id
 )
-select pr.id, sk.id, 10, 'USD', 1.55, 4.65, 20.15, 'AUD', 'approved'
-from pricing_rules pr, sellable_skus sk
-where pr.source_price_type = 'tcgplayer' and sk.card_printing_id = 'test-printing-id'
-limit 1;
+insert into test_ids_pp (key, id) select 'node', id from n;
+
+with other_org as (
+  insert into organisations (name) values ('PP Other Test Org') returning id
+),
+n2 as (
+  insert into fulfilment_nodes (organisation_id, name, code, type)
+  select other_org.id, 'PP Other Org Store', 'ppother', 'store'
+  from other_org
+  returning id
+)
+insert into test_ids_pp (key, id) select 'other_org_node', id from n2;
+
+with g as (select id from games where code = 'mtg'),
+     s as (
+       insert into sets (game_id, code, name)
+       select id, 'pptst', 'PP Test Set' from g
+       returning id
+     ),
+     oc as (
+       insert into oracle_cards (game_id, scryfall_oracle_id, name, type_line)
+       select id, '00000000-0000-0000-0000-000000001701', 'PP Test Card', 'Instant' from g
+       returning id
+     ),
+     cp as (
+       insert into card_printings (oracle_card_id, set_id, collector_number, rarity, finishes)
+       select oc.id, s.id, '1', 'common', array['nonfoil'] from oc, s returning id
+     ),
+     sku as (
+       insert into sellable_skus (card_printing_id, language_id, finish_id, condition_id, product_status_id)
+       select cp.id, (select id from languages where code='en'), (select id from finishes where code='nonfoil'), (select id from conditions where code='nm'), (select id from product_statuses where code='active')
+       from cp returning id
+     )
+insert into test_ids_pp (key, id) select 'sku', id from sku;
+
+with pr as (
+  insert into pricing_rules (organisation_id, name, source_price_type, target_currency, margin_type, margin_value)
+  select (select id from test_ids_pp where key = 'org'), 'PP Test Rule', 'market', 'AUD', 'percentage', 30
+  returning id
+)
+insert into test_ids_pp (key, id) select 'rule', id from pr;
+
+-- Create an approved calculated price (ready to publish).
+with cp as (
+  insert into calculated_prices (
+    pricing_rule_id, sellable_sku_id, base_amount, base_currency, exchange_rate,
+    margin_amount, final_amount, currency, status
+  )
+  select (select id from test_ids_pp where key = 'rule'), (select id from test_ids_pp where key = 'sku'),
+    10, 'USD', 1.55, 4.65, 20.15, 'AUD', 'approved'
+  returning id
+)
+insert into test_ids_pp (key, id) select 'calc_price', id from cp;
 
 -- Test 1: publish_suggested_price creates published_prices row with correct amount.
 select ok(
   (
-    with calc_price as (
-      select id, final_amount from calculated_prices where final_amount = 20.15 limit 1
-    ),
-    published as (
-      select publish_suggested_price(calc_price.id) from calc_price
+    with published as (
+      select publish_suggested_price((select id from test_ids_pp where key = 'calc_price'))
     )
     select exists(
       select 1 from published_prices where final_amount = 20.15 and status = 'active'
@@ -41,6 +85,11 @@ select ok(
   ),
   'publish_suggested_price() creates active published_price'
 );
+
+with pp as (
+  select id from published_prices where final_amount = 20.15 and status = 'active' limit 1
+)
+insert into test_ids_pp (key, id) select 'published', id from pp;
 
 -- Test 2: publish_suggested_price emits pricing_published event.
 select ok(
@@ -52,21 +101,19 @@ select ok(
 );
 
 -- Test 3: Cannot publish a suggested price (only approved prices).
+with new_calc as (
+  insert into calculated_prices (
+    pricing_rule_id, sellable_sku_id, base_amount, base_currency, exchange_rate,
+    margin_amount, final_amount, currency, status
+  )
+  select (select id from test_ids_pp where key = 'rule'), (select id from test_ids_pp where key = 'sku'),
+    12, 'USD', 1.55, 5.58, 24.18, 'AUD', 'suggested'
+  returning id
+)
+insert into test_ids_pp (key, id) select 'suggested_calc', id from new_calc;
+
 select throws_ok(
-  (
-    with new_calc as (
-      insert into calculated_prices (
-        pricing_rule_id, sellable_sku_id, base_amount, base_currency, exchange_rate,
-        margin_amount, final_amount, currency, status
-      )
-      select pr.id, sk.id, 12, 'USD', 1.55, 5.58, 24.18, 'AUD', 'suggested'
-      from pricing_rules pr, sellable_skus sk
-      where pr.source_price_type = 'tcgplayer' and sk.card_printing_id = 'test-printing-id'
-      limit 1
-      returning id
-    )
-    select publish_suggested_price(new_calc.id) from new_calc
-  ),
+  format($$select publish_suggested_price('%s')$$, (select id from test_ids_pp where key = 'suggested_calc')),
   null, null,
   'cannot publish a price with status other than approved'
 );
@@ -74,15 +121,12 @@ select throws_ok(
 -- Test 4: set_price_override creates override for a specific store.
 select ok(
   (
-    with published as (
-      select id from published_prices where final_amount = 20.15 limit 1
-    ),
-    node as (
-      select id from fulfilment_nodes limit 1
-    ),
-    override_set as (
-      select set_price_override(published.id, node.id, 22.50, 'event_promotion')
-      from published, node
+    with override_set as (
+      select set_price_override(
+        (select id from test_ids_pp where key = 'published'),
+        (select id from test_ids_pp where key = 'node'),
+        22.50, 'event_promotion'
+      )
     )
     select exists(
       select 1 from published_price_overrides
@@ -114,15 +158,10 @@ select ok(
 
 -- Test 7: Cannot set override with negative amount.
 select throws_ok(
-  (
-    with published as (
-      select id from published_prices where final_amount = 20.15 limit 1
-    ),
-    node as (
-      select id from fulfilment_nodes limit 1
-    )
-    select set_price_override(published.id, node.id, -5.00)
-    from published, node
+  format(
+    $$select set_price_override('%s', '%s', -5.00)$$,
+    (select id from test_ids_pp where key = 'published'),
+    (select id from test_ids_pp where key = 'node')
   ),
   null, null,
   'cannot set override with negative amount'
@@ -131,17 +170,12 @@ select throws_ok(
 -- Test 8: Updating override amount works (upsert behavior).
 select ok(
   (
-    with published as (
-      select id from published_prices where final_amount = 20.15 limit 1
-    ),
-    override_updated as (
+    with override_updated as (
       select set_price_override(
-        published.id,
-        (select id from fulfilment_nodes limit 1),
-        23.50,
-        'revised_event_price'
+        (select id from test_ids_pp where key = 'published'),
+        (select id from test_ids_pp where key = 'node'),
+        23.50, 'revised_event_price'
       )
-      from published
     )
     select exists(
       select 1 from published_price_overrides
@@ -154,19 +188,15 @@ select ok(
 -- Test 9: clear_price_override removes the override.
 select ok(
   (
-    with published as (
-      select id from published_prices where final_amount = 20.15 limit 1
-    ),
-    node as (
-      select id from fulfilment_nodes limit 1
-    ),
-    cleared as (
-      select clear_price_override(published.id, node.id)
-      from published, node
+    with cleared as (
+      select clear_price_override(
+        (select id from test_ids_pp where key = 'published'),
+        (select id from test_ids_pp where key = 'node')
+      )
     )
     select not exists(
       select 1 from published_price_overrides
-      where published_price_id = (select id from published_prices where final_amount = 20.15 limit 1)
+      where published_price_id = (select id from test_ids_pp where key = 'published')
     )
   ),
   'clear_price_override() removes override'
@@ -183,15 +213,10 @@ select ok(
 
 -- Test 11: Cannot clear a non-existent override.
 select throws_ok(
-  (
-    with published as (
-      select id from published_prices where final_amount = 20.15 limit 1
-    ),
-    node as (
-      select id from fulfilment_nodes limit 1
-    )
-    select clear_price_override(published.id, node.id)
-    from published, node
+  format(
+    $$select clear_price_override('%s', '%s')$$,
+    (select id from test_ids_pp where key = 'published'),
+    (select id from test_ids_pp where key = 'node')
   ),
   null, null,
   'cannot clear a non-existent override'
@@ -199,27 +224,22 @@ select throws_ok(
 
 -- Test 12: Cannot set override for node in different organisation.
 select throws_ok(
-  (
-    with published as (
-      select id from published_prices where final_amount = 20.15 limit 1
-    ),
-    other_org_node as (
-      select id from fulfilment_nodes where organisation_id != 'test-org-id' limit 1
-    )
-    select set_price_override(published.id, other_org_node.id, 25.00)
-    from published, other_org_node
+  format(
+    $$select set_price_override('%s', '%s', 25.00)$$,
+    (select id from test_ids_pp where key = 'published'),
+    (select id from test_ids_pp where key = 'other_org_node')
   ),
   null, null,
   'cannot set override for node in different organisation'
 );
 
--- Test 13: Unique constraint on (published_price_id, fulfilment_node_id, currency).
+-- Test 13: published_prices has its lookup index on sellable_sku_id (a
+-- plain index, not a constraint -- information_schema.constraint_column_usage
+-- only lists PK/FK/unique/check constraints, so it can never see this).
 select ok(
-  (
-    select (array_agg(column_name))[1] is not null
-    from information_schema.constraint_column_usage
-    where table_name = 'published_prices'
-      and constraint_name like '%sku_idx%'
+  exists(
+    select 1 from pg_indexes
+    where tablename = 'published_prices' and indexname = 'published_prices_sku_idx'
   ),
   'published_prices has required indexes'
 );
