@@ -1024,6 +1024,29 @@ new sets release far less often than prices change) and can also be run
 on demand with `pnpm --filter worker enqueue-catalogue-import` for an
 immediate backfill/refresh.
 
+Restock and price alerts (backlog B-190-193): `price_alerts`/`restock_alerts`
+(`supabase/migrations/20260724130000_customer_alerts.sql`) let a customer
+create an alert, but creating one only wrote a row — nothing checked it
+against later stock/price changes. `emit_integration_event()` now enqueues a
+`restock_alerts` message alongside every `inventory_balance_changed` event
+(the same outbox every atomic inventory function already writes to, so no
+per-function changes were needed), and `publish_suggested_price()` enqueues
+its own `restock_alerts` message for the price-drop check (it does not
+route through `emit_integration_event()`, so it needs an explicit call —
+see the migration comment in
+`supabase/migrations/20260727020000_enqueue_restock_and_price_alert_checks.sql`
+for why that's a pre-existing gap this migration does not otherwise touch).
+`apps/worker/src/consumers/restock-alerts-consumer.ts` reads each message,
+re-checks current availability/price against active alerts (never trusting
+the event payload as current truth, same principle as the search-index
+consumer), and sends an email via Resend
+(`apps/worker/src/integrations/email/resend-provider.ts`, configured by
+`RESEND_API_KEY`/`RESEND_FROM_EMAIL`) before flipping the matched alert to
+`triggered`. The `email`, `order-processing`, and `report-generation` queues
+still have no consumer; reservation expiry runs via `pg_cron`
+(`supabase/migrations/20260723070907_reservation_expiry.sql`), not the
+`reservation-cleanup` queue.
+
 Processing the queue: environments that cannot reach the Supabase connection
 pooler directly (this includes some CI/agent sandboxes) cannot run the
 Node worker against `catalogue-import` at all. The
