@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { SearchResults } from "@/components/search/search-results";
 import { SearchFilters } from "@/components/search/search-filters";
+import { SearchFilterSheet } from "@/components/search/search-filter-sheet";
 import { SearchSkeleton } from "@/components/search/search-skeleton";
 
 interface SearchPageProps {
@@ -12,7 +13,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   return (
     <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 md:grid-cols-4 lg:gap-8 lg:py-12">
-      <aside className="md:col-span-1">
+      <SearchFilterSheet />
+
+      <aside className="hidden md:col-span-1 md:block">
         <SearchFilters />
       </aside>
 

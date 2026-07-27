@@ -5,6 +5,9 @@ import { createServerSupabaseClient } from "@/server/supabase";
 const CART_SESSION_COOKIE = "cart_session_id";
 const CART_SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+const PREFERRED_STORE_COOKIE = "preferred_store_id";
+const PREFERRED_STORE_COOKIE_DURATION = 180 * 24 * 60 * 60; // 180 days, in seconds
+
 export async function getCartSessionId(): Promise<string> {
   const cookieStore = await cookies();
   let sessionId = cookieStore.get(CART_SESSION_COOKIE)?.value;
@@ -61,6 +64,27 @@ function generateSessionId(): string {
   return crypto.randomUUID();
 }
 
+/**
+ * Reads a guest's preferred-store cookie without creating one. Mirrors
+ * readCartSessionId()'s read-only shape -- an absent cookie just means "no
+ * guest preference set yet", not something to mint a default for here.
+ */
+export async function getPreferredStoreCookie(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get(PREFERRED_STORE_COOKIE)?.value ?? null;
+}
+
+export async function setPreferredStoreCookie(storeId: string): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(PREFERRED_STORE_COOKIE, storeId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: PREFERRED_STORE_COOKIE_DURATION,
+    path: "/",
+  });
+}
+
 export type ActiveStore = {
   id: string;
   organisation_id: string;
@@ -74,13 +98,55 @@ export type CartRow = {
   status: string;
 };
 
-// The store a cart/reservation is fulfilled from. There's no durable
-// "customer's chosen store" mechanism yet (the navbar's StoreSelector is
-// local-state only and isn't wired into any write path), so every
-// unauthenticated add-to-cart flow reserves from the same sensible
-// default: the first active store that accepts online orders.
+type PreferredStoreLookup = { preferred_fulfilment_node_id: string | null };
+
+// The store a cart/reservation is fulfilled from. Prefers, in order: an
+// authenticated customer's profiles.preferred_fulfilment_node_id (set via
+// the account page's store picker -- ProfileEditor/updateProfile, backlog
+// B-170 -- which already wrote this column but nothing ever read it back);
+// a guest's preferred_store_id cookie (set via HeaderStoreSelector calling
+// selectPreferredStore()); and only then the first active store that
+// accepts online orders, the same fallback used before either preference
+// mechanism fed into this function. A preference that no longer names an
+// active, online-fulfilling store (closed, or stopped taking online
+// orders) is silently skipped rather than failing the whole flow -- it
+// falls through to that same default.
 export async function resolveDefaultStore(): Promise<ActiveStore | null> {
   const supabase = await createServerSupabaseClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let preferredId: string | null = null;
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("preferred_fulfilment_node_id")
+      .eq("id", user.id)
+      .maybeSingle<PreferredStoreLookup>();
+    preferredId = profile?.preferred_fulfilment_node_id ?? null;
+  } else {
+    preferredId = await getPreferredStoreCookie();
+  }
+
+  if (preferredId) {
+    const { data: preferred, error: preferredError } = await supabase
+      .from("fulfilment_nodes")
+      .select("id, organisation_id")
+      .eq("id", preferredId)
+      .eq("active", true)
+      .eq("allows_online_fulfilment", true)
+      .maybeSingle<ActiveStore>();
+
+    if (preferredError) {
+      throw new Error(`Failed to resolve a store: ${preferredError.message}`);
+    }
+    if (preferred) {
+      return preferred;
+    }
+  }
 
   const { data: store, error } = await supabase
     .from("fulfilment_nodes")

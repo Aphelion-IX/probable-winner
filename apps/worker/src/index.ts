@@ -6,6 +6,8 @@ import { pollCatalogueImportQueue } from "./consumers/catalogue-import-consumer.
 import { pollStockReconciliationQueue } from "./consumers/stock-reconciliation-consumer.js";
 import { pollPricingImportQueue } from "./consumers/pricing-import-consumer.js";
 import { pollSearchIndexQueue } from "./consumers/search-index-consumer.js";
+import { pollRestockAlertsQueue } from "./consumers/restock-alerts-consumer.js";
+import { pollEmailQueue } from "./consumers/email-consumer.js";
 import { checkQueueHealth } from "./monitoring/queue-health.js";
 import { checkImportFailures } from "./monitoring/import-health.js";
 
@@ -15,24 +17,39 @@ const POLL_INTERVAL_MS = 5_000;
 // enough to catch a >5min staleness threshold with room to spare.
 const HEALTH_CHECK_INTERVAL_MS = 60_000;
 
-// catalogue_import, stock_reconciliation, pricing_import, and search_index
-// have consumers wired up. There is no separate "pricing_publish" queue or
-// consumer (B-165's AC is explicit: publishing a price must go through the
-// same outbox path as inventory changes, not a separate ad hoc sync) —
-// pricing_published/pricing_approved/pricing_overridden events are read
-// from the same search_index queue as every other integration event, via
-// search-index-consumer.js. A prior pricing-publish-consumer.ts existed
-// here polling pgmq.read("integration_events", ...), a table name, not an
-// actual pgmq queue — it never read a real message and never touched
-// Typesense; removed. The other 4 queues from blueprint §17 (email,
-// restock_alerts, order_processing, reservation_cleanup, report_generation)
-// exist in Postgres (migration 20260722120349) but have no consumer yet —
-// future work for Phase 4 and beyond.
+// catalogue_import, stock_reconciliation, pricing_import, search_index,
+// restock_alerts, and email have consumers wired up. There is no separate
+// "pricing_publish" queue or consumer (B-165's AC is explicit: publishing a
+// price must go through the same outbox path as inventory changes, not a
+// separate ad hoc sync) — pricing_published/pricing_approved/
+// pricing_overridden events are read from the same search_index queue as
+// every other integration event, via search-index-consumer.js. A prior
+// pricing-publish-consumer.ts existed here polling
+// pgmq.read("integration_events", ...), a table name, not an actual pgmq
+// queue — it never read a real message and never touched Typesense;
+// removed. restock_alerts (B-190-192) drains messages emitted by
+// emit_integration_event() (inventory changes) and publish_suggested_price()
+// (price changes) — see restock-alerts-consumer.js. email drains
+// order_confirmation messages ('order_paid', confirm_order_payment()) and
+// shipment_notification messages ('order_shipped', mark_shipment_shipped())
+// — both via the same emit_integration_event() path (see email-consumer.js)
+// — the queue existed since migration 20260722120349 but nothing ever
+// wrote a message to it before these. Real shipping-carrier API
+// integration (label generation/tracking) is not attempted here — it
+// needs a real, provider-specific business account this environment has
+// no credentials for; staff still enter the tracking number/label
+// manually. The remaining 2 queues from blueprint §17 (order_processing
+// and report_generation — reservation expiry itself already runs via
+// pg_cron, migration 20260723070907, not the reservation_cleanup queue)
+// exist in Postgres but have no producer or consumer yet — future work
+// for Phase 4 and beyond.
 const queues = [
   { name: "catalogue_import", poll: pollCatalogueImportQueue },
   { name: "stock_reconciliation", poll: pollStockReconciliationQueue },
   { name: "pricing_import", poll: pollPricingImportQueue },
   { name: "search_index", poll: pollSearchIndexQueue },
+  { name: "restock_alerts", poll: pollRestockAlertsQueue },
+  { name: "email", poll: pollEmailQueue },
 ];
 
 // A single queue consumer throwing should not take down the whole worker

@@ -17,6 +17,15 @@ export type CartContentsLine = {
   conditionName: string;
   price: number | null;
   currency: string | null;
+  // Snapshot captured once by add_to_cart() when the line was first
+  // created (migration 20260727050000) -- null for lines added before that
+  // migration, in which case priceChanged is always false (nothing to
+  // compare against).
+  priceAtAdd: number | null;
+  // True only when both the current and snapshotted price are known and
+  // differ (backlog B-113) -- an unavailable item (price null) is its own,
+  // separately-handled case, not a "price changed" one.
+  priceChanged: boolean;
 };
 
 export type CartContents = {
@@ -41,6 +50,8 @@ type CartContentsRow = {
   condition_name: string;
   price: number | null;
   currency: string | null;
+  price_at_add: number | null;
+  currency_at_add: string | null;
 };
 
 // Reads the current customer's (or guest's) cart via the get_cart_contents()
@@ -80,6 +91,9 @@ export async function getCartContents(): Promise<CartContents> {
     conditionName: row.condition_name,
     price: row.price,
     currency: row.currency,
+    priceAtAdd: row.price_at_add,
+    priceChanged:
+      row.price != null && row.price_at_add != null && row.price !== row.price_at_add,
   }));
 
   return {

@@ -12,7 +12,7 @@
 -- seed_staff.sql.example and run it.
 
 with org as (
-  insert into organisations (name) values ('Demo Card Retailer')
+  insert into organisations (name) values ('Common Ground Co.')
   returning id
 )
 insert into fulfilment_nodes (

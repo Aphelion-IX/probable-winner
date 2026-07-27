@@ -680,6 +680,33 @@ each stopping at a different mocked layer:
 - Still placeholder: shipping is a flat $15/free rate and tax is a flat
   10%, matching `create-pending-order.ts`'s existing scope -- there is no
   real shipping-cost calculation or tax-jurisdiction logic yet.
+- Cart price-drift detection (backlog B-113,
+  `supabase/migrations/20260727050000_cart_line_price_at_add.sql`):
+  `cart_lines` now carries `price_at_add`/`currency_at_add`, captured once
+  by `add_to_cart()` when a line is first created (a quantity bump on an
+  existing line does not overwrite it). `get_cart_contents()` returns both
+  that snapshot and the live price, and `CartLineItem` shows a "price
+  changed" banner when they differ (price becoming null -- the item going
+  unavailable -- stays a separate, pre-existing banner). This is display-only:
+  `create-pending-order.ts` still looks up the current published price fresh
+  at checkout regardless of what's snapshotted on the cart line, so nothing
+  about what a customer is actually charged depends on this column.
+- Store selection now actually affects fulfilment (backlog B-090/B-170):
+  `HeaderStoreSelector` previously only held its selection in local React
+  state and a code comment admitted it "isn't wired into any write path" --
+  every add-to-cart silently used the first active online-fulfilment store
+  regardless of what the customer picked, even though the account page's
+  `ProfileEditor` already wrote a real preference to
+  `profiles.preferred_fulfilment_node_id` that nothing ever read back.
+  `resolveDefaultStore()` now reads that column for an authenticated
+  customer (falling back to the default if the preferred store is no
+  longer active/online) or a `preferred_store_id` cookie for a guest, set
+  via the new `selectPreferredStore()` action
+  (`apps/web/src/app/actions/select-store.ts`) that `HeaderStoreSelector`
+  calls on selection. `addAllToCart()` (deck-builder "add all to cart")
+  now calls the same `resolveDefaultStore()` instead of its own duplicated
+  "first active online store" query, so a decklist import respects the
+  preference too.
 - The store selector, cart badge, and add-to-cart wiring above replaced a
   fully dead, never-rendered `RootNavbar`/`StoreSelector` pair (the real
   layout has always used `StorefrontShell` → `SiteHeader`, per
@@ -757,11 +784,14 @@ storefront happens to be browsing. That integration point is still not
 wired up: `addToCart()` (`apps/web/src/app/actions/add-to-cart.ts`) is now
 reachable from the storefront UI (the card identity page's SKU selector)
 and resolves a real cart/store/reservation via `get_or_create_cart()` and
-`add_to_cart()`, but its store choice is a placeholder — the first active
-store with `allows_online_fulfilment`, not `route_order()`'s scoring — and
-there's still no durable "customer's preferred store" mechanism (the
-navbar's store selector is local UI state only, not persisted or wired
-into any write path) to feed a real choice in.
+`add_to_cart()`, but its store choice is still not `route_order()`'s
+scoring — `resolveDefaultStore()` (`apps/web/src/lib/cart-session.ts`) now
+prefers a durable "customer's preferred store" (an authenticated
+customer's `profiles.preferred_fulfilment_node_id`, set via the account
+page's `ProfileEditor` or the navbar's `HeaderStoreSelector`; a guest's
+`preferred_store_id` cookie, set the same way) before falling back to the
+first active online-fulfilment store, but that preference is still a
+plain customer choice, not the routing algorithm's own scoring.
 
 ## 12. Store transfer support
 
@@ -1023,6 +1053,70 @@ successfully imported (backlog B-040). Discovery runs on a weekly
 new sets release far less often than prices change) and can also be run
 on demand with `pnpm --filter worker enqueue-catalogue-import` for an
 immediate backfill/refresh.
+
+Restock and price alerts (backlog B-190-193): `price_alerts`/`restock_alerts`
+(`supabase/migrations/20260724130000_customer_alerts.sql`) let a customer
+create an alert, but creating one only wrote a row — nothing checked it
+against later stock/price changes. `emit_integration_event()` now enqueues a
+`restock_alerts` message alongside every `inventory_balance_changed` event
+(the same outbox every atomic inventory function already writes to, so no
+per-function changes were needed) and alongside every `pricing_published`
+event (for the price-drop check).
+`publish_suggested_price()`/`set_price_override()`/`clear_price_override()`
+originally wrote their own raw `integration_events` insert instead of
+calling `emit_integration_event()`, which meant B-165 was never actually
+true — a published price never reached the `search_index` queue, so
+Typesense's price fields never updated on a price change, and the payload's
+`sellable_sku_id` key didn't even match the camelCase `sellableSkuId`
+`search-index-consumer.ts` reads. All three now call
+`emit_integration_event()` with a camelCase payload
+(`supabase/migrations/20260727030000_fix_pricing_publish_search_index_sync.sql`),
+which fixes the Typesense sync and adds the price-alert check in one place.
+`apps/worker/src/consumers/restock-alerts-consumer.ts` reads each
+`restock_alerts` message, re-checks current availability/price against
+active alerts (never trusting the event payload as current truth, same
+principle as the search-index consumer), and sends an email via Resend
+(`apps/worker/src/integrations/email/resend-provider.ts`, configured by
+`RESEND_API_KEY`/`RESEND_FROM_EMAIL`) before flipping the matched alert to
+`triggered`. The `order-processing` and `report-generation` queues still
+have no producer or consumer; reservation expiry runs via `pg_cron`
+(`supabase/migrations/20260723070907_reservation_expiry.sql`), not the
+`reservation-cleanup` queue.
+
+Order confirmation emails: the `email` queue existed since this project's
+first migration but nothing ever wrote a message to it, so a paid order
+never triggered any confirmation. `confirm_order_payment()`
+(`supabase/migrations/20260727060000_order_confirmation_email.sql`) now
+routes its `order_paid` event through `emit_integration_event()` (the same
+fix pattern as the pricing functions above), which gained an `order_paid`
+branch that enqueues an `order_confirmation` message on `email`.
+`apps/worker/src/consumers/email-consumer.ts` reads it and sends the
+confirmation via the same Resend adapter restock alerts use. A guest order
+has no `auth.users` row to read an email from, and nothing in checkout
+today asks for one, so `confirm_order_payment()` accepts an optional
+`p_guest_email` — populated by the Stripe webhook handler from
+`session.customer_details.email`, which Stripe's own hosted Checkout page
+always collects regardless of fulfilment type — and stores it on
+`orders.guest_email` only when the order has no `customer_id` and doesn't
+already have one captured.
+
+Shipment notification emails: `mark_shipment_shipped()`
+(`supabase/migrations/20260727070000_shipment_notification_email.sql`)
+already wrote the customer-facing `shipments` row (tracking number,
+carrier) and flipped `orders.status` to `shipped`, but never told the
+customer. It now emits an `order_shipped` event (only for an order the
+same call actually transitioned from `dispatched` to `shipped`, guarded by
+`FOUND` on that `UPDATE`), which `emit_integration_event()` turns into a
+second `email` queue message type, `shipment_notification`, handled by the
+same `email-consumer.ts` (dispatched by an `EMAIL_JOBS` lookup table, not
+a growing if/else chain, so a third email type is a one-line addition).
+Real shipping-carrier API integration — label generation/tracking against
+Australia Post or another provider, per §3.2's stack table — is
+deliberately not attempted: it needs a real, provider-specific business
+account this environment has no credentials for, and guessing at one
+provider's API shape with nothing to verify it against would be worse
+than leaving it manual. Staff still enter the tracking number/label by
+hand (`generateShipmentLabel()`/`generate_shipment_label()`, unchanged).
 
 Processing the queue: environments that cannot reach the Supabase connection
 pooler directly (this includes some CI/agent sandboxes) cannot run the

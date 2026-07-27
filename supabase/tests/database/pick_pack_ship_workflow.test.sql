@@ -4,14 +4,16 @@
 -- refusing to complete a batch with unpicked lines, create_shipment()
 -- refusing to pack an unfinished pick, and every order-status transition
 -- through picking -> packed -> dispatched -> shipped, including the
--- customer-facing `shipments` row mark_shipment_shipped() now writes.
+-- customer-facing `shipments` row mark_shipment_shipped() now writes, and
+-- (20260727070000_shipment_notification_email.sql) the order_shipped
+-- event/email queue message it enqueues on that same transition.
 --
 -- Run via `supabase test db` once the local Supabase CLI/Docker stack is
 -- available. Verified directly against the remote project (wrapped in
 -- BEGIN/ROLLBACK so no fixture data was left behind).
 begin;
 
-select plan(14);
+select plan(16);
 
 create temp table test_ids_pps (key text primary key, id uuid);
 grant select, insert on test_ids_pps to authenticated;
@@ -267,6 +269,24 @@ select ok(
     from packing_shipments where id = (select id from test_ids_pps where key = 'shipment')
   ),
   'mark_shipment_shipped marks the packing_shipments row itself shipped'
+);
+
+select ok(
+  exists(
+    select 1 from integration_events
+    where event_type = 'order_shipped'
+      and aggregate_id = (select id from test_ids_pps where key = 'order')
+      and (payload ->> 'trackingNumber') = 'TRACK123'
+  ),
+  'mark_shipment_shipped emits an order_shipped event carrying the tracking number'
+);
+select ok(
+  (
+    select count(*) = 1 from pgmq.q_email
+    where message ->> 'emailType' = 'shipment_notification'
+      and (message ->> 'orderId')::uuid = (select id from test_ids_pps where key = 'order')
+  ),
+  'mark_shipment_shipped enqueues exactly one shipment_notification message on the email queue'
 );
 
 reset role;

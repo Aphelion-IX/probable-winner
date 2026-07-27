@@ -2,25 +2,21 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 // Isolated in its own file so mocking @/server/supabase works reliably —
 // same reasoning as match-decklist-lines-batching.test.ts.
-const mockMaybeSingle = vi.fn();
-const mockLimit = vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
-const mockEqOnline = vi.fn().mockReturnValue({ limit: mockLimit });
-const mockEqActive = vi.fn().mockReturnValue({ eq: mockEqOnline });
-const mockSelect = vi.fn().mockReturnValue({ eq: mockEqActive });
-const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
 const mockGetUser = vi.fn().mockResolvedValue({ data: { user: null } });
 const mockRpc = vi.fn();
 
 vi.mock("@/server/supabase", () => ({
   createServerSupabaseClient: () => ({
-    from: mockFrom,
     auth: { getUser: mockGetUser },
     rpc: mockRpc,
   }),
 }));
 
+const mockResolveDefaultStore = vi.fn();
+
 vi.mock("@/lib/cart-session", () => ({
   getCartSessionId: vi.fn().mockResolvedValue("11111111-1111-1111-1111-111111111111"),
+  resolveDefaultStore: () => mockResolveDefaultStore(),
 }));
 
 const STORE = { id: "store-1", organisation_id: "org-1" };
@@ -28,7 +24,7 @@ const CART = { id: "cart-1" };
 
 describe("addAllToCart", () => {
   beforeEach(() => {
-    mockMaybeSingle.mockReset();
+    mockResolveDefaultStore.mockReset();
     mockGetUser.mockClear();
     mockRpc.mockReset();
   });
@@ -39,11 +35,11 @@ describe("addAllToCart", () => {
     const result = await addAllToCart([]);
 
     expect(result).toEqual({ status: "error", message: "Nothing to add." });
-    expect(mockFrom).not.toHaveBeenCalled();
+    expect(mockResolveDefaultStore).not.toHaveBeenCalled();
   });
 
   it("returns an error when no store accepts online orders", async () => {
-    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+    mockResolveDefaultStore.mockResolvedValue(null);
     const { addAllToCart } = await import("./add-all-to-cart");
 
     const result = await addAllToCart([{ skuId: "sku-1", quantity: 4 }]);
@@ -55,8 +51,18 @@ describe("addAllToCart", () => {
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
+  it("returns a friendly error when resolveDefaultStore() itself throws", async () => {
+    mockResolveDefaultStore.mockRejectedValue(new Error("boom"));
+    const { addAllToCart } = await import("./add-all-to-cart");
+
+    const result = await addAllToCart([{ skuId: "sku-1", quantity: 4 }]);
+
+    expect(result).toEqual({ status: "error", message: "Failed to find a store: boom" });
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
   it("creates a guest cart and adds every line, reporting a full success", async () => {
-    mockMaybeSingle.mockResolvedValue({ data: STORE, error: null });
+    mockResolveDefaultStore.mockResolvedValue(STORE);
     mockRpc.mockImplementation((fn: string) => {
       if (fn === "get_or_create_cart") return Promise.resolve({ data: CART, error: null });
       return Promise.resolve({ data: {}, error: null });
@@ -92,7 +98,7 @@ describe("addAllToCart", () => {
   });
 
   it("uses the authenticated customer id instead of a guest token when signed in", async () => {
-    mockMaybeSingle.mockResolvedValue({ data: STORE, error: null });
+    mockResolveDefaultStore.mockResolvedValue(STORE);
     mockGetUser.mockResolvedValue({ data: { user: { id: "customer-1" } } });
     mockRpc.mockImplementation((fn: string) => {
       if (fn === "get_or_create_cart") return Promise.resolve({ data: CART, error: null });
@@ -111,7 +117,7 @@ describe("addAllToCart", () => {
   });
 
   it("reports a partial success when some lines fail to reserve", async () => {
-    mockMaybeSingle.mockResolvedValue({ data: STORE, error: null });
+    mockResolveDefaultStore.mockResolvedValue(STORE);
     mockRpc.mockImplementation((fn: string, args: Record<string, unknown>) => {
       if (fn === "get_or_create_cart") return Promise.resolve({ data: CART, error: null });
       if (args.p_sellable_sku_id === "sku-out-of-stock") {
@@ -131,7 +137,7 @@ describe("addAllToCart", () => {
   });
 
   it("returns an error when the cart itself can't be created", async () => {
-    mockMaybeSingle.mockResolvedValue({ data: STORE, error: null });
+    mockResolveDefaultStore.mockResolvedValue(STORE);
     mockRpc.mockResolvedValue({ data: null, error: { message: "boom" } });
 
     const { addAllToCart } = await import("./add-all-to-cart");

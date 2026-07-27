@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 // Anon/publishable key only — safe to hold server-side or client-side by
@@ -46,4 +47,27 @@ export async function createServerSupabaseClient() {
       },
     },
   });
+}
+
+// A cookie-free client — deliberately NOT session-aware, and safe to call
+// from inside next/cache's unstable_cache(): that function throws ("used
+// cookies() inside a function cached with unstable_cache()... Accessing
+// Dynamic data sources inside a cache scope is not supported") the moment
+// createServerSupabaseClient() (which awaits next/headers cookies() to
+// attach the request's session) runs inside a cached function — confirmed
+// live against /api/stores, which threw this on every single request.
+// Only appropriate for genuinely public data whose result never depends on
+// who's asking — every RLS policy this reads through must already grant
+// `anon` its own read, per AGENTS.md rule 4 (never bypass RLS to resolve a
+// permission error): this must never become a way to dodge a policy that's
+// supposed to require a session.
+export function createPublicSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set");
+  }
+
+  return createClient(url, anonKey);
 }

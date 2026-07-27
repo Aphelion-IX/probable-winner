@@ -98,10 +98,11 @@ export async function createPendingOrder(
     });
   }
 
-  // Fetch cart with organisation and items. cart_lines has no stored
-  // price -- unlike order_lines (fixed at order time), a cart line's
-  // price is always looked up fresh from published_prices at checkout,
-  // so there's no "price at add" to detect drift against.
+  // Fetch cart with organisation and items. cart_lines does carry a
+  // price_at_add snapshot (migration 20260727050000), but that's display-only
+  // for the cart view's "price changed" banner (B-113) -- checkout itself
+  // always looks up the current published price fresh below, the same as
+  // before that column existed, so nothing here trusts a stale snapshot.
   //
   // customer_id/guest_token are selected for the ownership check below:
   // cartId arrives from the browser and this client is the service-role

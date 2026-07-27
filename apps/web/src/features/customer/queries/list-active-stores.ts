@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 
-import { createServerSupabaseClient } from "@/server/supabase";
+import { createPublicSupabaseClient } from "@/server/supabase";
 
 // Which stores are active changes rarely (opening/closing a store), so this
 // is safe to cache like the catalogue queries in features/catalogue.
@@ -23,7 +23,11 @@ type StoreRow = {
 };
 
 async function fetchActiveStores(): Promise<ActiveStore[]> {
-  const supabase = await createServerSupabaseClient();
+  // Not createServerSupabaseClient(): this is wrapped in unstable_cache()
+  // below, which forbids calling cookies() (which that client awaits) --
+  // and the active-store list is identical for every viewer regardless of
+  // session, so there was never a reason to attach one.
+  const supabase = createPublicSupabaseClient();
 
   const { data, error } = await supabase
     .from("fulfilment_nodes")

@@ -38,6 +38,8 @@ const LINE: CartContentsLine = {
   conditionName: "Near Mint",
   price: 12.5,
   currency: "AUD",
+  priceAtAdd: 12.5,
+  priceChanged: false,
 };
 
 describe("CartLineItem", () => {
@@ -100,5 +102,25 @@ describe("CartLineItem", () => {
 
     expect(screen.getByText("This item is no longer available for sale")).toBeInTheDocument();
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
+  });
+
+  it("shows a price-changed notice with the old and new price", () => {
+    render(<CartLineItem line={{ ...LINE, price: 15, priceAtAdd: 12.5, priceChanged: true }} />);
+
+    expect(
+      screen.getByText("Price changed since you added this item: was $12.50, now $15.00"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show a price-changed notice when priceChanged is false", () => {
+    render(<CartLineItem line={LINE} />);
+
+    expect(screen.queryByText(/Price changed since you added this item/)).not.toBeInTheDocument();
+  });
+
+  it("does not show a price-changed notice for an unavailable item even if priceChanged were set", () => {
+    render(<CartLineItem line={{ ...LINE, price: null, priceChanged: true }} />);
+
+    expect(screen.queryByText(/Price changed since you added this item/)).not.toBeInTheDocument();
   });
 });

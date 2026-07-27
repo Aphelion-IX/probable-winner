@@ -11,7 +11,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Probable Winner — Trading Card Retail",
+  title: "Common Ground Co. — Trading Card Retail",
   description: "Multi-store trading-card retail platform.",
 };
 

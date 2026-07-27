@@ -72,6 +72,26 @@ describe("POST /api/webhooks/stripe", () => {
     expect(mockRpc).toHaveBeenCalledWith("confirm_order_payment", {
       p_order_id: "order-1",
       p_stripe_event_id: "evt_1",
+      p_guest_email: null,
+    });
+  });
+
+  it("passes Stripe's own captured buyer email through for confirm_order_payment to store on a guest order", async () => {
+    mockConstructEvent.mockReturnValue(
+      stripeEvent("checkout.session.completed", {
+        metadata: { orderId: "order-1" },
+        customer_details: { email: "buyer@example.com" },
+      }),
+    );
+    mockRpc.mockResolvedValue({ data: { status: "confirmed" }, error: null });
+    const { POST } = await import("./route");
+
+    await POST(request("{}"));
+
+    expect(mockRpc).toHaveBeenCalledWith("confirm_order_payment", {
+      p_order_id: "order-1",
+      p_stripe_event_id: "evt_1",
+      p_guest_email: "buyer@example.com",
     });
   });
 
