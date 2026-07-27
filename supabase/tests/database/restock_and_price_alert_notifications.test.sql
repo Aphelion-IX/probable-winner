@@ -1,18 +1,22 @@
 -- pgTAP tests for the restock/price alert notification trigger (backlog
--- B-192): a customer's price_alerts/restock_alerts row (migration
--- 20260724130000) previously sat at status='active' forever -- nothing
--- ever enqueued a check against it. This migration
--- (20260727020000_enqueue_restock_and_price_alert_checks.sql) wires
--- emit_integration_event() and publish_suggested_price() to enqueue a
--- restock_alerts pgmq message; the worker-side check/email logic is
--- covered by apps/worker/src/jobs/notify-alert-subscribers.test.ts and
+-- B-192) and the B-165 search_index sync fix. A customer's
+-- price_alerts/restock_alerts row (migration 20260724130000) previously
+-- sat at status='active' forever -- nothing ever enqueued a check against
+-- it, and publish_suggested_price()/set_price_override()/
+-- clear_price_override() wrote integration_events directly instead of
+-- through emit_integration_event(), so a published/overridden price never
+-- reached the search_index queue either. Fixed by
+-- 20260727020000_enqueue_restock_and_price_alert_checks.sql and
+-- 20260727030000_fix_pricing_publish_search_index_sync.sql. The
+-- worker-side check/email logic is covered by
+-- apps/worker/src/jobs/notify-alert-subscribers.test.ts and
 -- apps/worker/src/consumers/restock-alerts-consumer.test.ts.
 --
 -- Run via `supabase test db` once the local Supabase CLI/Docker stack is
 -- available. Wrapped in BEGIN/ROLLBACK so no fixture data is left behind.
 begin;
 
-select plan(4);
+select plan(6);
 
 create temp table test_ids_rpa (key text primary key, id uuid);
 grant select, insert on test_ids_rpa to authenticated;
@@ -90,9 +94,10 @@ select ok(
 
 set local role authenticated;
 
--- Test 3/4: publishing a price enqueues a restock_alerts price-check
--- message (publish_suggested_price() does not route through
--- emit_integration_event(), so it needs its own explicit enqueue call).
+-- Test 3/4/5: publishing a price enqueues both a restock_alerts
+-- price-check message and a search_index message (emit_integration_event()
+-- extended with a 'pricing_published' branch for the former; the latter
+-- was already broken -- see 20260727030000's migration comment).
 with pr as (
   insert into pricing_rules (organisation_id, name, source_price_type, target_currency, margin_type, margin_value)
   select (select id from test_ids_rpa where key = 'org'), 'RPA Test Rule', 'market', 'AUD', 'percentage', 30
@@ -128,14 +133,67 @@ select ok(
 
 select ok(
   (
-    -- publish_suggested_price()'s pre-existing raw integration_events
-    -- insert (not routed through emit_integration_event()) is untouched by
-    -- this migration -- it still writes exactly one pricing_published row.
+    -- publish_suggested_price() now routes through emit_integration_event(),
+    -- so its pricing_published payload carries a camelCase sellableSkuId
+    -- (search-index-consumer.ts's extractSkuId() reads exactly this key)
+    -- instead of the old snake_case sellable_sku_id it can never resolve.
     select count(*) = 1 from integration_events
     where event_type = 'pricing_published'
-      and (payload ->> 'sellable_sku_id')::uuid = (select id from test_ids_rpa where key = 'sku')
+      and (payload ->> 'sellableSkuId')::uuid = (select id from test_ids_rpa where key = 'sku')
   ),
-  'publish_suggested_price() still writes its existing pricing_published integration_events row unchanged'
+  'publish_suggested_price() writes a pricing_published event with a resolvable sellableSkuId'
+);
+
+select ok(
+  (
+    -- The actual B-165 fix: this message did not exist before
+    -- 20260727030000 -- publish_suggested_price() wrote its own raw
+    -- integration_events insert and never called pgmq.send('search_index', ...).
+    select count(*) = 1 from pgmq.q_search_index
+    where (message ->> 'integrationEventId')::uuid = (
+      select id from integration_events
+      where event_type = 'pricing_published'
+        and (payload ->> 'sellableSkuId')::uuid = (select id from test_ids_rpa where key = 'sku')
+    )
+  ),
+  'publish_suggested_price() now enqueues a search_index message, fixing B-165 Typesense price sync'
+);
+
+-- Test 6: set_price_override() (a per-store override, not a central price
+-- change) also now syncs search_index -- but must not fire a second
+-- restock_alerts price-check message, since price_alerts has no store
+-- scope and checks only against the central published price.
+set local role authenticated;
+
+with pub as (
+  select id from published_prices
+  where sellable_sku_id = (select id from test_ids_rpa where key = 'sku')
+  limit 1
+)
+insert into test_ids_rpa (key, id) select 'published', id from pub;
+
+select set_price_override(
+  (select id from test_ids_rpa where key = 'published'),
+  (select id from test_ids_rpa where key = 'node'),
+  22.50,
+  'event_promotion'
+);
+
+reset role;
+
+select ok(
+  (
+    select count(*) = 1 from pgmq.q_search_index
+    where (message ->> 'integrationEventId')::uuid = (
+      select id from integration_events
+      where event_type = 'pricing_override_set'
+        and (payload ->> 'sellableSkuId')::uuid = (select id from test_ids_rpa where key = 'sku')
+    )
+  )
+  and (
+    select count(*) = 1 from pgmq.q_restock_alerts where message ->> 'checkType' = 'price'
+  ),
+  'set_price_override() enqueues a search_index message but does not add a second restock_alerts price-check message'
 );
 
 select finish();

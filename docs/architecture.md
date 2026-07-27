@@ -1030,16 +1030,22 @@ create an alert, but creating one only wrote a row — nothing checked it
 against later stock/price changes. `emit_integration_event()` now enqueues a
 `restock_alerts` message alongside every `inventory_balance_changed` event
 (the same outbox every atomic inventory function already writes to, so no
-per-function changes were needed), and `publish_suggested_price()` enqueues
-its own `restock_alerts` message for the price-drop check (it does not
-route through `emit_integration_event()`, so it needs an explicit call —
-see the migration comment in
-`supabase/migrations/20260727020000_enqueue_restock_and_price_alert_checks.sql`
-for why that's a pre-existing gap this migration does not otherwise touch).
-`apps/worker/src/consumers/restock-alerts-consumer.ts` reads each message,
-re-checks current availability/price against active alerts (never trusting
-the event payload as current truth, same principle as the search-index
-consumer), and sends an email via Resend
+per-function changes were needed) and alongside every `pricing_published`
+event (for the price-drop check).
+`publish_suggested_price()`/`set_price_override()`/`clear_price_override()`
+originally wrote their own raw `integration_events` insert instead of
+calling `emit_integration_event()`, which meant B-165 was never actually
+true — a published price never reached the `search_index` queue, so
+Typesense's price fields never updated on a price change, and the payload's
+`sellable_sku_id` key didn't even match the camelCase `sellableSkuId`
+`search-index-consumer.ts` reads. All three now call
+`emit_integration_event()` with a camelCase payload
+(`supabase/migrations/20260727030000_fix_pricing_publish_search_index_sync.sql`),
+which fixes the Typesense sync and adds the price-alert check in one place.
+`apps/worker/src/consumers/restock-alerts-consumer.ts` reads each
+`restock_alerts` message, re-checks current availability/price against
+active alerts (never trusting the event payload as current truth, same
+principle as the search-index consumer), and sends an email via Resend
 (`apps/worker/src/integrations/email/resend-provider.ts`, configured by
 `RESEND_API_KEY`/`RESEND_FROM_EMAIL`) before flipping the matched alert to
 `triggered`. The `email`, `order-processing`, and `report-generation` queues
