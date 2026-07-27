@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 
-import { createServerSupabaseClient } from "@/server/supabase";
+import { createPublicSupabaseClient } from "@/server/supabase";
 
 // Which stores accept click-and-collect (and their addresses) changes
 // rarely, so this is safe to cache like list-active-stores.ts.
@@ -62,7 +62,11 @@ export function mapStoreRow(row: StoreRow): ClickAndCollectStore {
 }
 
 async function fetchClickAndCollectStores(): Promise<ClickAndCollectStore[]> {
-  const supabase = await createServerSupabaseClient();
+  // See list-active-stores.ts's fetchActiveStores() comment: this must not
+  // call cookies() (via createServerSupabaseClient()) from inside
+  // unstable_cache(), and the click-and-collect store list doesn't vary by
+  // session anyway.
+  const supabase = createPublicSupabaseClient();
 
   const { data, error } = await supabase
     .from("fulfilment_nodes")

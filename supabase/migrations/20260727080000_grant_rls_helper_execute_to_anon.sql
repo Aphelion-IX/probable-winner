@@ -1,0 +1,34 @@
+-- Fixes a severe, live-verified bug: guest (anon) browsing was completely
+-- broken. 20260722082938_lock_down_rls_helper_function_execute.sql revoked
+-- EXECUTE on staff_has_node_access()/staff_has_org_access() from anon,
+-- granting only authenticated -- correct at the time, since every RLS
+-- policy referencing them was `for select to authenticated` only.
+--
+-- Later migrations (20260724170000_published_prices_public_read.sql,
+-- 20260725120000_inventory_balances_public_read.sql, and whichever first
+-- added `anon` to fulfilment_nodes_select) added `anon` to the *policy*
+-- role list to let guests browse stores/prices/availability, but never
+-- revisited the function grant those policies' USING clauses depend on.
+-- Postgres requires EXECUTE privilege to evaluate a function reference at
+-- all, even one on the right-hand side of an OR whose left-hand side
+-- (`active = true` / `status = 'active'`) is what was actually meant to
+-- cover the anon case -- short-circuit evaluation doesn't help when the
+-- privilege check itself fails first. The result: every anon select
+-- against fulfilment_nodes, published_prices, or inventory_balances threw
+-- "permission denied for function staff_has_node_access" /
+-- "...staff_has_org_access", not just a filtered-out row.
+--
+-- Confirmed live: a guest visiting a real card page saw "Price unavailable"
+-- with no Add to cart control at all, and the header's store selector
+-- showed "No stores available" -- for every guest, unconditionally, not a
+-- data problem. Only found by actually running the app in a browser; no
+-- unit/pgTAP test exercises the anon role against these specific policies.
+--
+-- Both functions only ever check auth.uid() against staff_memberships and
+-- return a boolean (SECURITY DEFINER, but purely a yes/no check -- no row
+-- data crosses the boundary), so granting anon EXECUTE exposes nothing an
+-- anonymous caller couldn't already infer: for anon, auth.uid() is null,
+-- so both simply evaluate to false and the policy falls through to its
+-- intended public-read branch, exactly as already written.
+grant execute on function staff_has_node_access(uuid) to anon;
+grant execute on function staff_has_org_access(uuid) to anon;
