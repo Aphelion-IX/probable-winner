@@ -37,6 +37,8 @@ const ROW = {
   condition_name: "Near Mint",
   price: 12.5,
   currency: "AUD",
+  price_at_add: 12.5,
+  currency_at_add: "AUD",
 };
 
 describe("getCartContents", () => {
@@ -95,9 +97,43 @@ describe("getCartContents", () => {
           conditionName: "Near Mint",
           price: 12.5,
           currency: "AUD",
+          priceAtAdd: 12.5,
+          priceChanged: false,
         },
       ],
     });
+  });
+
+  it("flags a line as priceChanged when the current price differs from the snapshot", async () => {
+    mockRpc.mockReturnValue(
+      rpcResult({ data: [{ ...ROW, price: 15, price_at_add: 12.5 }], error: null }),
+    );
+    const { getCartContents } = await import("./get-cart-contents");
+
+    const result = await getCartContents();
+
+    expect(result.lines[0].priceChanged).toBe(true);
+    expect(result.lines[0].priceAtAdd).toBe(12.5);
+  });
+
+  it("does not flag priceChanged when there is no snapshot to compare against", async () => {
+    mockRpc.mockReturnValue(
+      rpcResult({ data: [{ ...ROW, price_at_add: null, currency_at_add: null }], error: null }),
+    );
+    const { getCartContents } = await import("./get-cart-contents");
+
+    const result = await getCartContents();
+
+    expect(result.lines[0].priceChanged).toBe(false);
+  });
+
+  it("does not flag priceChanged when the item is unavailable (price null)", async () => {
+    mockRpc.mockReturnValue(rpcResult({ data: [{ ...ROW, price: null }], error: null }));
+    const { getCartContents } = await import("./get-cart-contents");
+
+    const result = await getCartContents();
+
+    expect(result.lines[0].priceChanged).toBe(false);
   });
 
   it("returns an empty cart when there are no lines", async () => {

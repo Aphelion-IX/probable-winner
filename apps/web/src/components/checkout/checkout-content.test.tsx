@@ -35,6 +35,8 @@ const CART: CartContents = {
       conditionName: "Near Mint",
       price: 10,
       currency: "AUD",
+      priceAtAdd: 10,
+      priceChanged: false,
     },
   ],
 };

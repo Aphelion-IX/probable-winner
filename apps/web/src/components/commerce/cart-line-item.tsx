@@ -97,6 +97,16 @@ export function CartLineItem({ line }: CartLineItemProps) {
               </div>
             )}
 
+            {line.price != null && line.priceChanged && (
+              <div className="flex items-center gap-2 rounded bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+                <AlertCircle className="size-4 shrink-0" />
+                <span>
+                  Price changed since you added this item: was{" "}
+                  {priceFormatter.format(line.priceAtAdd!)}, now {priceFormatter.format(line.price)}
+                </span>
+              </div>
+            )}
+
             {error && (
               <div className="flex items-center gap-2 rounded bg-red-50 p-2 text-xs text-red-900 dark:bg-red-950 dark:text-red-100">
                 <AlertCircle className="size-4 shrink-0" />

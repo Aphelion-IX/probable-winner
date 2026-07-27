@@ -680,6 +680,17 @@ each stopping at a different mocked layer:
 - Still placeholder: shipping is a flat $15/free rate and tax is a flat
   10%, matching `create-pending-order.ts`'s existing scope -- there is no
   real shipping-cost calculation or tax-jurisdiction logic yet.
+- Cart price-drift detection (backlog B-113,
+  `supabase/migrations/20260727050000_cart_line_price_at_add.sql`):
+  `cart_lines` now carries `price_at_add`/`currency_at_add`, captured once
+  by `add_to_cart()` when a line is first created (a quantity bump on an
+  existing line does not overwrite it). `get_cart_contents()` returns both
+  that snapshot and the live price, and `CartLineItem` shows a "price
+  changed" banner when they differ (price becoming null -- the item going
+  unavailable -- stays a separate, pre-existing banner). This is display-only:
+  `create-pending-order.ts` still looks up the current published price fresh
+  at checkout regardless of what's snapshotted on the cart line, so nothing
+  about what a customer is actually charged depends on this column.
 - The store selector, cart badge, and add-to-cart wiring above replaced a
   fully dead, never-rendered `RootNavbar`/`StoreSelector` pair (the real
   layout has always used `StorefrontShell` → `SiteHeader`, per
