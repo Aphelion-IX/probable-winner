@@ -691,6 +691,22 @@ each stopping at a different mocked layer:
   `create-pending-order.ts` still looks up the current published price fresh
   at checkout regardless of what's snapshotted on the cart line, so nothing
   about what a customer is actually charged depends on this column.
+- Store selection now actually affects fulfilment (backlog B-090/B-170):
+  `HeaderStoreSelector` previously only held its selection in local React
+  state and a code comment admitted it "isn't wired into any write path" --
+  every add-to-cart silently used the first active online-fulfilment store
+  regardless of what the customer picked, even though the account page's
+  `ProfileEditor` already wrote a real preference to
+  `profiles.preferred_fulfilment_node_id` that nothing ever read back.
+  `resolveDefaultStore()` now reads that column for an authenticated
+  customer (falling back to the default if the preferred store is no
+  longer active/online) or a `preferred_store_id` cookie for a guest, set
+  via the new `selectPreferredStore()` action
+  (`apps/web/src/app/actions/select-store.ts`) that `HeaderStoreSelector`
+  calls on selection. `addAllToCart()` (deck-builder "add all to cart")
+  now calls the same `resolveDefaultStore()` instead of its own duplicated
+  "first active online store" query, so a decklist import respects the
+  preference too.
 - The store selector, cart badge, and add-to-cart wiring above replaced a
   fully dead, never-rendered `RootNavbar`/`StoreSelector` pair (the real
   layout has always used `StorefrontShell` → `SiteHeader`, per
@@ -768,11 +784,14 @@ storefront happens to be browsing. That integration point is still not
 wired up: `addToCart()` (`apps/web/src/app/actions/add-to-cart.ts`) is now
 reachable from the storefront UI (the card identity page's SKU selector)
 and resolves a real cart/store/reservation via `get_or_create_cart()` and
-`add_to_cart()`, but its store choice is a placeholder — the first active
-store with `allows_online_fulfilment`, not `route_order()`'s scoring — and
-there's still no durable "customer's preferred store" mechanism (the
-navbar's store selector is local UI state only, not persisted or wired
-into any write path) to feed a real choice in.
+`add_to_cart()`, but its store choice is still not `route_order()`'s
+scoring — `resolveDefaultStore()` (`apps/web/src/lib/cart-session.ts`) now
+prefers a durable "customer's preferred store" (an authenticated
+customer's `profiles.preferred_fulfilment_node_id`, set via the account
+page's `ProfileEditor` or the navbar's `HeaderStoreSelector`; a guest's
+`preferred_store_id` cookie, set the same way) before falling back to the
+first active online-fulfilment store, but that preference is still a
+plain customer choice, not the routing algorithm's own scoring.
 
 ## 12. Store transfer support
 

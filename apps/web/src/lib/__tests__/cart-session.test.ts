@@ -8,12 +8,7 @@ vi.mock("next/headers", () => ({
   cookies: () => Promise.resolve({ get: mockGet, set: mockSet, delete: mockDelete }),
 }));
 
-const mockMaybeSingle = vi.fn();
-const mockLimit = vi.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
-const mockEqOnline = vi.fn().mockReturnValue({ limit: mockLimit });
-const mockEqActive = vi.fn().mockReturnValue({ eq: mockEqOnline });
-const mockSelect = vi.fn().mockReturnValue({ eq: mockEqActive });
-const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
+const mockFrom = vi.fn();
 const mockGetUser = vi.fn();
 const mockRpc = vi.fn();
 
@@ -24,6 +19,21 @@ vi.mock("@/server/supabase", () => ({
     rpc: mockRpc,
   }),
 }));
+
+// Models supabase-js's chainable query builder generically enough to cover
+// every shape resolveDefaultStore() issues against it: an arbitrary number
+// of .eq() calls terminating in either .maybeSingle() directly (the
+// preferred-store lookup) or .limit(n).maybeSingle() (the "first active
+// store" fallback) -- both read from the same "fulfilment_nodes" table, so
+// a single call-order-aware mockFrom queues one of these per expected call.
+function chainable(response: { data: unknown; error: unknown }) {
+  const node = {
+    eq: () => node,
+    maybeSingle: () => Promise.resolve(response),
+    limit: () => ({ maybeSingle: () => Promise.resolve(response) }),
+  };
+  return { select: () => node };
+}
 
 describe("getCartSessionId", () => {
   beforeEach(() => {
@@ -55,33 +65,142 @@ describe("getCartSessionId", () => {
   });
 });
 
-describe("resolveDefaultStore", () => {
+describe("getPreferredStoreCookie / setPreferredStoreCookie", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("returns the first active store that accepts online orders", async () => {
-    mockMaybeSingle.mockResolvedValue({
-      data: { id: "store-1", organisation_id: "org-1" },
-      error: null,
-    });
+  it("returns null when no preferred-store cookie is set", async () => {
+    mockGet.mockReturnValue(undefined);
+    const { getPreferredStoreCookie } = await import("../cart-session");
+
+    expect(await getPreferredStoreCookie()).toBeNull();
+  });
+
+  it("returns the cookie value when one is set", async () => {
+    mockGet.mockReturnValue({ value: "store-1" });
+    const { getPreferredStoreCookie } = await import("../cart-session");
+
+    expect(await getPreferredStoreCookie()).toBe("store-1");
+  });
+
+  it("sets a long-lived, httpOnly preferred-store cookie", async () => {
+    const { setPreferredStoreCookie } = await import("../cart-session");
+
+    await setPreferredStoreCookie("store-1");
+
+    expect(mockSet).toHaveBeenCalledWith(
+      "preferred_store_id",
+      "store-1",
+      expect.objectContaining({ httpOnly: true, maxAge: 180 * 24 * 60 * 60, path: "/" }),
+    );
+  });
+});
+
+describe("resolveDefaultStore", () => {
+  const DEFAULT_STORE = { id: "store-default", organisation_id: "org-1" };
+  const PREFERRED_STORE = { id: "store-preferred", organisation_id: "org-1" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the first active store that accepts online orders for a guest with no preference cookie", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    mockGet.mockReturnValue(undefined);
+    mockFrom.mockImplementationOnce(() => chainable({ data: DEFAULT_STORE, error: null }));
     const { resolveDefaultStore } = await import("../cart-session");
 
     const store = await resolveDefaultStore();
 
     expect(mockFrom).toHaveBeenCalledWith("fulfilment_nodes");
-    expect(store).toEqual({ id: "store-1", organisation_id: "org-1" });
+    expect(store).toEqual(DEFAULT_STORE);
   });
 
   it("returns null when no store accepts online orders", async () => {
-    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    mockGet.mockReturnValue(undefined);
+    mockFrom.mockImplementationOnce(() => chainable({ data: null, error: null }));
     const { resolveDefaultStore } = await import("../cart-session");
 
     expect(await resolveDefaultStore()).toBeNull();
   });
 
-  it("throws with the database error message on failure", async () => {
-    mockMaybeSingle.mockResolvedValue({ data: null, error: { message: "boom" } });
+  it("throws with the database error message when the fallback lookup fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    mockGet.mockReturnValue(undefined);
+    mockFrom.mockImplementationOnce(() => chainable({ data: null, error: { message: "boom" } }));
+    const { resolveDefaultStore } = await import("../cart-session");
+
+    await expect(resolveDefaultStore()).rejects.toThrow("Failed to resolve a store: boom");
+  });
+
+  it("uses an authenticated customer's preferred store instead of the default", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "customer-1" } } });
+    mockFrom
+      .mockImplementationOnce(() =>
+        chainable({ data: { preferred_fulfilment_node_id: "store-preferred" }, error: null }),
+      )
+      .mockImplementationOnce(() => chainable({ data: PREFERRED_STORE, error: null }));
+    const { resolveDefaultStore } = await import("../cart-session");
+
+    const store = await resolveDefaultStore();
+
+    expect(mockFrom).toHaveBeenNthCalledWith(1, "profiles");
+    expect(mockFrom).toHaveBeenNthCalledWith(2, "fulfilment_nodes");
+    expect(mockFrom).toHaveBeenCalledTimes(2);
+    expect(store).toEqual(PREFERRED_STORE);
+  });
+
+  it("falls back to the default store when the customer's preferred store is no longer active/online", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "customer-1" } } });
+    mockFrom
+      .mockImplementationOnce(() =>
+        chainable({ data: { preferred_fulfilment_node_id: "store-inactive" }, error: null }),
+      )
+      .mockImplementationOnce(() => chainable({ data: null, error: null }))
+      .mockImplementationOnce(() => chainable({ data: DEFAULT_STORE, error: null }));
+    const { resolveDefaultStore } = await import("../cart-session");
+
+    const store = await resolveDefaultStore();
+
+    expect(mockFrom).toHaveBeenCalledTimes(3);
+    expect(store).toEqual(DEFAULT_STORE);
+  });
+
+  it("uses a guest's preferred-store cookie instead of the default", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    mockGet.mockReturnValue({ value: "store-preferred" });
+    mockFrom.mockImplementationOnce(() => chainable({ data: PREFERRED_STORE, error: null }));
+    const { resolveDefaultStore } = await import("../cart-session");
+
+    const store = await resolveDefaultStore();
+
+    expect(mockFrom).toHaveBeenCalledTimes(1);
+    expect(mockFrom).toHaveBeenCalledWith("fulfilment_nodes");
+    expect(store).toEqual(PREFERRED_STORE);
+  });
+
+  it("falls back to the default store when the guest's preferred-store cookie no longer names an active/online store", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    mockGet.mockReturnValue({ value: "store-closed" });
+    mockFrom
+      .mockImplementationOnce(() => chainable({ data: null, error: null }))
+      .mockImplementationOnce(() => chainable({ data: DEFAULT_STORE, error: null }));
+    const { resolveDefaultStore } = await import("../cart-session");
+
+    const store = await resolveDefaultStore();
+
+    expect(store).toEqual(DEFAULT_STORE);
+  });
+
+  it("throws with the database error message when the preferred-store lookup itself fails", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "customer-1" } } });
+    mockFrom
+      .mockImplementationOnce(() =>
+        chainable({ data: { preferred_fulfilment_node_id: "store-preferred" }, error: null }),
+      )
+      .mockImplementationOnce(() => chainable({ data: null, error: { message: "boom" } }));
     const { resolveDefaultStore } = await import("../cart-session");
 
     await expect(resolveDefaultStore()).rejects.toThrow("Failed to resolve a store: boom");

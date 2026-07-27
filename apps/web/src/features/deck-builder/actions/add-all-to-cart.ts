@@ -1,7 +1,7 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/server/supabase";
-import { getCartSessionId } from "@/lib/cart-session";
+import { getCartSessionId, resolveDefaultStore } from "@/lib/cart-session";
 
 export type AddAllToCartLine = {
   skuId: string;
@@ -11,11 +11,6 @@ export type AddAllToCartLine = {
 export type AddAllToCartResult =
   | { status: "success"; addedCount: number; failedCount: number }
   | { status: "error"; message: string };
-
-type StoreRow = {
-  id: string;
-  organisation_id: string;
-};
 
 // Reserves each resolved line's SKU into a real cart via the atomic
 // add_to_cart() database function (backlog B-111) — never manual inventory
@@ -30,27 +25,27 @@ export async function addAllToCart(lines: AddAllToCartLine[]): Promise<AddAllToC
 
   const supabase = await createServerSupabaseClient();
 
-  // Independent lookups -- the store row and the current user are only
-  // combined afterward in the get_or_create_cart() call below.
-  const [
-    { data: store, error: storeError },
-    {
-      data: { user },
-    },
-  ] = await Promise.all([
-    supabase
-      .from("fulfilment_nodes")
-      .select("id, organisation_id")
-      .eq("active", true)
-      .eq("allows_online_fulfilment", true)
-      .limit(1)
-      .maybeSingle<StoreRow>(),
-    supabase.auth.getUser(),
-  ]);
-
-  if (storeError) {
-    return { status: "error", message: `Failed to find a store: ${storeError.message}` };
+  // resolveDefaultStore() (shared with add-to-cart.ts) respects the
+  // customer's/guest's preferred store (backlog B-090/B-170) instead of
+  // this action running its own separate "first active online store"
+  // query, which used to ignore that preference entirely. It throws on a
+  // genuine lookup failure (rather than returning a friendly error, unlike
+  // this function's other steps), so that case is converted here to keep
+  // this action's existing all-results-are-returned-not-thrown contract.
+  let store: Awaited<ReturnType<typeof resolveDefaultStore>>;
+  try {
+    store = await resolveDefaultStore();
+  } catch (error) {
+    return {
+      status: "error",
+      message: `Failed to find a store: ${error instanceof Error ? error.message : "unknown error"}`,
+    };
   }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   if (!store) {
     return { status: "error", message: "No store currently accepts online orders." };
   }
