@@ -32,7 +32,7 @@ with g as (select id from games where code = 'mtg'),
      ),
      oc as (
        insert into oracle_cards (game_id, scryfall_oracle_id, name, type_line)
-       select id, '00000000-0000-0000-0000-0000000005ku', 'Test Sku Card', 'Instant' from g
+       select id, '00000000-0000-0000-0000-000000000501', 'Test Sku Card', 'Instant' from g
        returning id
      ),
      cp as (

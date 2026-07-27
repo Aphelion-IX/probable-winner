@@ -197,7 +197,7 @@ select ok(
 );
 select ok(
   (
-    select status = 'active' and quantity = 5
+    select ir.status = 'active' and ir.quantity = 5
     from inventory_reservations ir
     join cart_lines cl on cl.inventory_reservation_id = ir.id
     where cl.cart_id = (select id from test_ids_apo where key = 'cart2')

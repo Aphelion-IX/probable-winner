@@ -57,6 +57,10 @@ select receive_inventory(
   1, 'test', null, 'seed one unit'
 );
 
+-- reserve_inventory() is no longer granted to authenticated/anon (2026-07-26
+-- security re-audit item 1) -- called here as the default (superuser) role,
+-- which bypasses grants same as any other internal-only call.
+reset role;
 with r as (
   select reserve_inventory(
     (select id from test_ids_ap where key = 'node'),
@@ -65,6 +69,7 @@ with r as (
   ) as res
 )
 insert into test_ids_ap (key, id) select 'reservation', (res).id from r;
+set local role authenticated;
 
 with a as (
   select allocate_order_inventory((select id from test_ids_ap where key = 'reservation')) as alloc

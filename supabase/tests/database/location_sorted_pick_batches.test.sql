@@ -123,6 +123,14 @@ set local role authenticated;
 select receive_inventory((select id from test_ids_lspb where key = 'node'), (select id from test_ids_lspb where key = 'sku_a'), 1, 'test', null, 'seed sku a');
 select receive_inventory((select id from test_ids_lspb where key = 'node'), (select id from test_ids_lspb where key = 'sku_b'), 1, 'test', null, 'seed sku b');
 
+-- inventory_balances has no UPDATE policy for authenticated at all (per
+-- AGENTS.md rule 12, balances are derived only via the atomic functions'
+-- own ledger-writing updates, never a raw client UPDATE) and
+-- reserve_inventory() is no longer granted to authenticated/anon either
+-- (2026-07-26 security re-audit item 1) -- both run here as the default
+-- (superuser) role, restoring authenticated afterward for
+-- allocate_order_inventory().
+reset role;
 update inventory_balances set storage_location_id = (select id from test_ids_lspb where key = 'location_b02')
 where fulfilment_node_id = (select id from test_ids_lspb where key = 'node')
   and sellable_sku_id = (select id from test_ids_lspb where key = 'sku_a');
@@ -140,6 +148,7 @@ with r as (
   select reserve_inventory((select id from test_ids_lspb where key = 'node'), (select id from test_ids_lspb where key = 'sku_b'), 1) as res
 )
 insert into test_ids_lspb (key, id) select 'reservation_b', (res).id from r;
+set local role authenticated;
 
 with a as (
   select allocate_order_inventory(

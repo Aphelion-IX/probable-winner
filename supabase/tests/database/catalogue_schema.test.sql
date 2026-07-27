@@ -68,15 +68,20 @@ select throws_ok(
   'an invalid rarity value violates the check constraint'
 );
 
+-- scryfall_id gets a fresh random uuid rather than a fixed literal: it
+-- carries its own global uniqueness constraint (independent of the 1:1
+-- constraint with card_printings this section tests), so a fixed literal
+-- risks colliding with unrelated fixture data.
 with p as (select id from card_printings where collector_number = '1')
 insert into card_identifiers (card_printing_id, scryfall_id)
-select id, '00000000-0000-0000-0000-000000000c01' from p;
+select id, gen_random_uuid() from p;
 
 -- Constraint: card_identifiers is 1:1 with card_printings.
 select throws_ok(
   format(
-    $$insert into card_identifiers (card_printing_id, scryfall_id) values ('%s', '00000000-0000-0000-0000-000000000c02')$$,
-    (select id from card_printings where collector_number = '1')
+    $$insert into card_identifiers (card_printing_id, scryfall_id) values ('%s', '%s')$$,
+    (select id from card_printings where collector_number = '1'),
+    gen_random_uuid()
   ),
   '23505',
   null,

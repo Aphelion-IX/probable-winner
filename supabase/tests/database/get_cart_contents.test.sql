@@ -92,6 +92,11 @@ select ok(
 );
 reset role;
 
+-- reset role only resets the *role*; request.jwt.claim.sub (set earlier for
+-- the staff fixture, set_config's third arg makes it last for the whole
+-- transaction) is still there, so auth.uid() would still resolve to that
+-- staff user without this -- genuinely unauthenticated means clearing it too.
+select set_config('request.jwt.claim.sub', '', true);
 select throws_ok(
   $$select * from get_cart_contents(null)$$,
   null,

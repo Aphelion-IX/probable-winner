@@ -62,9 +62,11 @@ select is(
   'customer_has_orders is SECURITY INVOKER, so RLS applies');
 
 -- 5. The bug itself: a uuid matching no order must return nothing. Before the
---    fix this returned every order_lines row in the database.
+--    fix this returned every order_lines row in the database. Cast to jsonb
+--    for the comparison -- plain json has no equality operator, so is()'s
+--    internal `IS DISTINCT FROM` would otherwise error outright.
 select is(
-  get_order_allocations('00000000-0000-0000-0000-0000000000ff'::uuid),
+  get_order_allocations('00000000-0000-0000-0000-0000000000ff'::uuid)::jsonb,
   null,
   'get_order_allocations returns nothing for a uuid that matches no order');
 

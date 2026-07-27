@@ -19,7 +19,7 @@ insert into test_ids_ppr (key, id) select 'org', id from organisations limit 1;
 
 with pr as (
   insert into pricing_rules (organisation_id, name, source_price_type, target_currency, margin_type, margin_value)
-  select (select id from test_ids_ppr where key = 'org'), 'PPR Test Rule', 'tcgplayer', 'AUD', 'percentage', 30
+  select (select id from test_ids_ppr where key = 'org'), 'PPR Test Rule', 'market', 'AUD', 'percentage', 30
   returning id
 )
 insert into test_ids_ppr (key, id) select 'rule', id from pr;
