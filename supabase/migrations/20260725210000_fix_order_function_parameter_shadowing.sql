@@ -125,7 +125,27 @@ $$;
 -- when the trigger is created, not each time it fires.
 revoke execute on function handle_new_customer() from public, anon, authenticated;
 revoke execute on function enqueue_stock_reconciliation() from public, anon, authenticated;
-revoke execute on function rls_auto_enable() from public, anon, authenticated;
+
+-- rls_auto_enable() has no CREATE FUNCTION anywhere in this migration
+-- history -- it exists only on the live project (created directly against
+-- it, outside any migration, likely via a Studio "Security Advisor" quick
+-- fix), so this bare `revoke` succeeded there but raised
+-- "function rls_auto_enable() does not exist" (42883) on every genuinely
+-- fresh database -- exactly what CI's new `supabase start`/`db reset` do
+-- (2026-07-26 security re-audit item 10), aborting the whole migration
+-- chain before a single pgTAP test could run. Guarded so a fresh reset
+-- simply has nothing to revoke; a no-op against the live project either
+-- way, since DDL there already ran once and won't re-run.
+do $$
+begin
+  if exists (
+    select 1 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'rls_auto_enable' and p.pronargs = 0
+  ) then
+    revoke execute on function rls_auto_enable() from public, anon, authenticated;
+  end if;
+end $$;
 
 -- staff_has_permission() is an RLS helper and belongs with its siblings.
 -- 20260722082938 locked down staff_has_node_access/staff_has_org_access this
