@@ -92,6 +92,24 @@ describe("EmailSignInForm", () => {
     expect(screen.getByLabelText(/sign-in code/i)).toHaveValue("1234");
   });
 
+  // Regression: Supabase's actual emailed code length is a project-level
+  // dashboard setting, not a constant this app controls -- a real sign-in
+  // email has carried an 8-digit code while this input was hardcoded to
+  // exactly 6, silently truncating and then rejecting it.
+  it("accepts a code longer than 6 digits without truncating it", async () => {
+    await reachCodeStage("player@example.com");
+
+    typeCode("71661872");
+    expect(screen.getByLabelText(/sign-in code/i)).toHaveValue("71661872");
+    expect(screen.getByTestId("verify-code")).not.toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("verify-code"));
+
+    await waitFor(() =>
+      expect(mockVerifyEmailOtp).toHaveBeenCalledWith("player@example.com", "71661872"),
+    );
+  });
+
   it("verifies the code and hands off to /auth/complete", async () => {
     await reachCodeStage("player@example.com");
 

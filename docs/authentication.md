@@ -34,8 +34,12 @@ protection. RLS is.
 
 1. `/login` asks for an email address.
 2. `sendEmailOtp(email)` calls `supabase.auth.signInWithOtp({ email })`.
-   Supabase emails a six-digit code. A first-time address gets an account
-   created automatically — there is no separate registration step.
+   Supabase emails a numeric code — its exact length is set by
+   **Authentication → Providers → Email → Email OTP Length** in the
+   dashboard, not by this app, so the code input accepts a range
+   (`OTP_MIN_LENGTH`–`OTP_MAX_LENGTH` in `sign-in-with-email.ts`) rather than
+   a single hardcoded length. A first-time address gets an account created
+   automatically — there is no separate registration step.
 3. The user types the code; `verifyEmailOtp(email, token)` calls
    `verifyOtp({ email, token, type: 'email' })`, which writes the auth
    cookies.
@@ -82,7 +86,7 @@ code, and the code field on `/login` will have nothing to accept. Worse, the
 default link would not work anyway: this app uses `@supabase/ssr`, which is a
 **PKCE** flow, and a plain `{{ .ConfirmationURL }}` link is not valid under
 PKCE — that needs a `{{ .TokenHash }}` link and a separate confirm route. The
-six-digit code avoids the whole problem, which is the main reason to prefer it
+numeric code avoids the whole problem, which is the main reason to prefer it
 here.
 
 ### URL configuration
@@ -112,7 +116,7 @@ minute and try again."
 
 **Authentication → Providers → Email → Email OTP Expiration.** Supabase caps
 this at 86,400 seconds (one day) precisely because a longer window gives an
-attacker more time to brute force a six-digit code. Shorter is better; the
+attacker more time to brute force a numeric code. Shorter is better; the
 default is fine.
 
 ## Disabling the OAuth providers

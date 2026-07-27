@@ -2,7 +2,14 @@
 
 import { createBrowserSupabaseClient } from "@/lib/supabase-browser";
 
-export const OTP_LENGTH = 6;
+// Supabase's actual emailed code length is set by the project's "Email OTP
+// Length" dashboard setting, not by this app -- it is not always 6. A code
+// longer than a hardcoded length would be silently truncated by a fixed
+// `maxLength` and rejected by an exact-length check, which is exactly what
+// happened in production (a real sign-in email carried an 8-digit code
+// against a UI hardcoded to 6). Accept a range instead of a single length.
+export const OTP_MIN_LENGTH = 6;
+export const OTP_MAX_LENGTH = 10;
 
 /**
  * Sends a one-time sign-in code to `email`.

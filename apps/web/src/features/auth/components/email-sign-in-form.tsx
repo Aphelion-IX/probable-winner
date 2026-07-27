@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { OTP_LENGTH, sendEmailOtp, verifyEmailOtp } from "../sign-in-with-email";
+import { OTP_MIN_LENGTH, OTP_MAX_LENGTH, sendEmailOtp, verifyEmailOtp } from "../sign-in-with-email";
 
 type Stage = "email" | "code";
 
@@ -38,7 +38,7 @@ export function EmailSignInForm({
     try {
       await sendEmailOtp(email);
       setStage("code");
-      setNotice(`We sent a ${OTP_LENGTH}-digit code to ${email.trim()}.`);
+      setNotice(`We sent a sign-in code to ${email.trim()}.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not send your sign-in code.");
     } finally {
@@ -146,13 +146,18 @@ export function EmailSignInForm({
           type="text"
           inputMode="numeric"
           autoComplete="one-time-code"
-          pattern={`[0-9]{${OTP_LENGTH}}`}
-          maxLength={OTP_LENGTH}
+          // Supabase's actual emailed code length depends on the project's
+          // "Email OTP Length" dashboard setting, not a constant this app
+          // controls -- a fixed length here previously truncated (maxLength)
+          // and rejected (pattern/exact-length check) real codes longer than
+          // assumed. Accepts anything in a generous digit-count range instead.
+          pattern={`[0-9]{${OTP_MIN_LENGTH},${OTP_MAX_LENGTH}}`}
+          maxLength={OTP_MAX_LENGTH}
           value={code}
           onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
           autoFocus
           required
-          placeholder={"0".repeat(OTP_LENGTH)}
+          placeholder="123456"
           aria-invalid={error ? true : undefined}
         />
       </div>
@@ -160,7 +165,7 @@ export function EmailSignInForm({
       <Button
         type="submit"
         className="h-10"
-        disabled={isPending || code.length !== OTP_LENGTH}
+        disabled={isPending || code.length < OTP_MIN_LENGTH}
         aria-busy={isPending}
         data-testid="verify-code"
       >
