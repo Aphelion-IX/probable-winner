@@ -16,7 +16,7 @@ const NAV_LINKS = [
 
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-background/50 backdrop-blur-xl supports-backdrop-filter:bg-background/40">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 sm:px-6">
         <Sheet>
           <SheetTrigger
