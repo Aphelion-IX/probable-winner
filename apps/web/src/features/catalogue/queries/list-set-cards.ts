@@ -104,10 +104,19 @@ const SKU_PAGE_SIZE = 1000;
 // for a few hundred ids, but the large sets above can have 5,000+ distinct
 // printings and 25,000+ skus, which would build a multi-hundred-KB request
 // URL. Chunk lookups the same way fetchAllSkuRows pages the base query.
-// 1000 ids keeps the query string comfortably under typical proxy/gateway
-// URL-length limits while roughly halving the number of chunk requests
-// needed for the largest sets versus a smaller batch size.
-const ID_BATCH_SIZE = 1000;
+//
+// A batch of 1000 UUIDs is ~37KB of query string alone (36 chars + a comma
+// each) -- nowhere near "comfortably under" a gateway limit as a previous
+// version of this comment claimed. Confirmed live against production
+// (Vercel runtime errors + Supabase's own API logs): real sets like SOS,
+// TRK, and HOB were getting 400/414 responses from Supabase's gateway on
+// the sellable_skus/card_images/published_prices/inventory_balances
+// lookups specifically -- the ones with enough conditions/finishes per
+// printing to need a full 1000-id batch -- while smaller batches on the
+// same endpoints succeeded. 200 ids keeps every request's id list under
+// ~7.5KB, comfortably inside real gateway limits, at the cost of more
+// (still concurrency-limited and retried) requests for the largest sets.
+const ID_BATCH_SIZE = 200;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
