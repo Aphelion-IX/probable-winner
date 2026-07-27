@@ -28,6 +28,7 @@ describe("GET /api/search", () => {
         {
           document: {
             id: "sku-1",
+            printing_id: "printing-1",
             name: "Lightning Bolt",
             set_code: "2X2",
             rarity: "uncommon",
@@ -35,6 +36,7 @@ describe("GET /api/search", () => {
             condition: "nm",
             finish: "nonfoil",
             price_amount: 1.5,
+            image_url: "https://cards.scryfall.io/normal/front/example.jpg",
           },
         },
       ],
@@ -57,6 +59,7 @@ describe("GET /api/search", () => {
       hits: [
         {
           id: "sku-1",
+          printingId: "printing-1",
           name: "Lightning Bolt",
           set: "2X2",
           rarity: "uncommon",
@@ -64,6 +67,7 @@ describe("GET /api/search", () => {
           condition: "nm",
           finish: "nonfoil",
           price: 1.5,
+          imageUrl: "https://cards.scryfall.io/normal/front/example.jpg",
         },
       ],
       page: 1,

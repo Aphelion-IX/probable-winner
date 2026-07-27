@@ -70,7 +70,7 @@
   --chart-3: oklch(0.541 0.281 293.009);
   --chart-4: oklch(0.491 0.27 292.581);
   --chart-5: oklch(0.432 0.232 292.759);
-  --radius: 0.45rem;
+  --radius: 0.75rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.541 0.281 293.009);
@@ -84,37 +84,37 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.432 0.232 292.759);
-  --primary-foreground: oklch(0.969 0.016 293.756);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.58 0.22 292.581);
-  --chart-1: oklch(0.811 0.111 293.571);
-  --chart-2: oklch(0.606 0.25 292.717);
-  --chart-3: oklch(0.541 0.281 293.009);
-  --chart-4: oklch(0.491 0.27 292.581);
-  --chart-5: oklch(0.432 0.232 292.759);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.606 0.25 292.717);
-  --sidebar-primary-foreground: oklch(0.969 0.016 293.756);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.16 0.035 275);
+  --foreground: oklch(0.96 0.012 280);
+  --card: oklch(0.22 0.045 280);
+  --card-foreground: oklch(0.96 0.012 280);
+  --popover: oklch(0.2 0.045 280);
+  --popover-foreground: oklch(0.96 0.012 280);
+  --primary: oklch(0.62 0.27 296);
+  --primary-foreground: oklch(0.98 0.02 296);
+  --secondary: oklch(0.28 0.05 280);
+  --secondary-foreground: oklch(0.94 0.02 280);
+  --muted: oklch(0.24 0.03 280);
+  --muted-foreground: oklch(0.7 0.03 280);
+  --accent: oklch(0.32 0.09 275);
+  --accent-foreground: oklch(0.96 0.02 280);
+  --destructive: oklch(0.7 0.19 22);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.7 0.2 296);
+  --chart-1: oklch(0.75 0.15 310);
+  --chart-2: oklch(0.65 0.24 296);
+  --chart-3: oklch(0.6 0.22 260);
+  --chart-4: oklch(0.55 0.2 230);
+  --chart-5: oklch(0.7 0.18 200);
+  --sidebar: oklch(0.19 0.04 280);
+  --sidebar-foreground: oklch(0.96 0.012 280);
+  --sidebar-primary: oklch(0.62 0.27 296);
+  --sidebar-primary-foreground: oklch(0.98 0.02 296);
+  --sidebar-accent: oklch(0.28 0.05 280);
+  --sidebar-accent-foreground: oklch(0.94 0.02 280);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: oklch(0.6 0.05 280);
 }
 
 @layer base {
@@ -123,8 +123,106 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(ellipse 100% 70% at 8% -15%, oklch(0.58 0.26 300 / 48%), transparent 70%),
+      radial-gradient(ellipse 80% 60% at 100% 0%, oklch(0.55 0.22 235 / 40%), transparent 70%),
+      radial-gradient(ellipse 70% 55% at 92% 48%, oklch(0.58 0.26 350 / 34%), transparent 68%),
+      radial-gradient(ellipse 65% 50% at 3% 58%, oklch(0.58 0.16 195 / 30%), transparent 68%),
+      radial-gradient(ellipse 55% 42% at 55% 102%, oklch(0.62 0.16 70 / 22%), transparent 62%),
+      radial-gradient(ellipse 95% 68% at 50% 118%, oklch(0.5 0.25 320 / 36%), transparent 70%),
+      radial-gradient(0.75px 0.75px at 14px 201px, oklch(1 0 0 / 55%), transparent),
+      radial-gradient(1px 1px at 63px 18px, oklch(1 0 0 / 70%), transparent),
+      radial-gradient(0.75px 0.75px at 101px 142px, oklch(1 0 0 / 45%), transparent),
+      radial-gradient(1.25px 1.25px at 172px 209px, oklch(1 0 0 / 80%), transparent),
+      radial-gradient(0.75px 0.75px at 39px 89px, oklch(1 0 0 / 50%), transparent),
+      radial-gradient(1px 1px at 150px 55px, oklch(1 0 0 / 65%), transparent),
+      radial-gradient(0.75px 0.75px at 8px 167px, oklch(1 0 0 / 40%), transparent),
+      radial-gradient(1px 1px at 118px 26px, oklch(1 0 0 / 60%), transparent),
+      radial-gradient(1.25px 1.25px at 185px 118px, oklch(1 0 0 / 75%), transparent),
+      radial-gradient(0.75px 0.75px at 72px 178px, oklch(1 0 0 / 45%), transparent),
+      radial-gradient(1px 1px at 135px 201px, oklch(1 0 0 / 55%), transparent),
+      radial-gradient(0.75px 0.75px at 25px 49px, oklch(1 0 0 / 50%), transparent),
+      radial-gradient(1.25px 1.25px at 160px 160px, oklch(1 0 0 / 70%), transparent),
+      radial-gradient(0.75px 0.75px at 95px 10px, oklch(1 0 0 / 40%), transparent),
+      radial-gradient(1.75px 1.75px at 45px 240px, oklch(1 0 0 / 90%), transparent),
+      radial-gradient(1.5px 1.5px at 289px 34px, oklch(1 0 0 / 80%), transparent),
+      radial-gradient(2px 2px at 198px 167px, oklch(1 0 0 / 95%), transparent),
+      radial-gradient(1.5px 1.5px at 12px 120px, oklch(1 0 0 / 75%), transparent),
+      radial-gradient(1.75px 1.75px at 310px 210px, oklch(1 0 0 / 85%), transparent),
+      radial-gradient(1.5px 1.5px at 140px 290px, oklch(1 0 0 / 70%), transparent),
+      radial-gradient(2px 2px at 255px 95px, oklch(1 0 0 / 90%), transparent),
+      radial-gradient(1.5px 1.5px at 70px 45px, oklch(1 0 0 / 75%), transparent),
+      radial-gradient(1.75px 1.75px at 320px 140px, oklch(1 0 0 / 80%), transparent);
+    background-repeat:
+      no-repeat,
+      no-repeat,
+      no-repeat,
+      no-repeat,
+      no-repeat,
+      no-repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat,
+      repeat;
+    background-size:
+      100% 100%,
+      100% 100%,
+      100% 100%,
+      100% 100%,
+      100% 100%,
+      100% 100%,
+      190px 230px,
+      190px 230px,
+      190px 230px,
+      190px 230px,
+      190px 230px,
+      190px 230px,
+      190px 230px,
+      190px 230px,
+      190px 230px,
+      190px 230px,
+      190px 230px,
+      190px 230px,
+      190px 230px,
+      190px 230px,
+      340px 300px,
+      340px 300px,
+      340px 300px,
+      340px 300px,
+      340px 300px,
+      340px 300px,
+      340px 300px,
+      340px 300px,
+      340px 300px;
+    background-attachment: fixed;
+    min-height: 100svh;
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply border border-white/10 bg-card/60 backdrop-blur-xl;
   }
 }

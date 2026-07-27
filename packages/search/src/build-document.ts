@@ -41,6 +41,7 @@ export function buildCardSearchDocument(input: SkuSearchInput): CardSearchDocume
     collector_number: input.collectorNumber,
     rarity: input.rarity as CardSearchDocument["rarity"],
     artist: input.artistName ?? "",
+    image_url: input.imageUrl ?? "",
     colour_identity: input.colorIdentity,
     colour_count: input.colorIdentity.length,
     mana_cost: input.manaCost ?? "",

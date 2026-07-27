@@ -52,7 +52,7 @@ export async function StaffShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-svh flex-col bg-muted/20 lg:flex-row">
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background px-4 sm:px-6 lg:hidden">
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-white/10 bg-background/60 px-4 backdrop-blur-xl sm:px-6 lg:hidden">
         <Sheet>
           <SheetTrigger
             render={<Button variant="ghost" size="icon" aria-label="Open staff menu" />}
@@ -71,7 +71,7 @@ export async function StaffShell({ children }: { children: ReactNode }) {
         <StaffBrand />
       </header>
 
-      <aside className="hidden w-64 shrink-0 flex-col gap-6 border-r bg-background p-4 lg:flex">
+      <aside className="hidden w-64 shrink-0 flex-col gap-6 border-r border-white/10 bg-background/40 p-4 backdrop-blur-xl lg:flex">
         <StaffBrand />
         <div className="flex-1 overflow-y-auto">
           <StaffSidebarNav permissions={permissions} />

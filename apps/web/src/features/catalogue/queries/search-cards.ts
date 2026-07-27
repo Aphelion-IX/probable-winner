@@ -20,6 +20,10 @@ import {
 export interface SearchCardsResult {
   hits: {
     id: string;
+    // The card identity page routes by card_printings id, not the sku id
+    // above -- distinct fields in the Typesense document for exactly this
+    // reason (see typesense-schema.ts's comment on printing_id).
+    printingId: string;
     name: string;
     set: string;
     rarity: string;
@@ -27,6 +31,7 @@ export interface SearchCardsResult {
     condition: string;
     finish: string;
     price: number;
+    imageUrl: string | null;
   }[];
   page: number;
   pageSize: number;
@@ -57,6 +62,7 @@ export async function searchCards(params: SearchQueryParams): Promise<SearchCard
 
   const hits = (response.hits ?? []).map((hit) => ({
     id: hit.document.id,
+    printingId: hit.document.printing_id,
     name: hit.document.name,
     set: hit.document.set_code,
     rarity: hit.document.rarity,
@@ -64,6 +70,7 @@ export async function searchCards(params: SearchQueryParams): Promise<SearchCard
     condition: hit.document.condition,
     finish: hit.document.finish,
     price: hit.document.price_amount,
+    imageUrl: hit.document.image_url || null,
   }));
 
   return {
