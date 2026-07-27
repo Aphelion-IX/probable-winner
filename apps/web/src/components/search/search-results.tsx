@@ -78,13 +78,14 @@ export async function SearchResults({ searchParams }: SearchResultsProps) {
         {data.hits.map((hit) => (
           <CardTile
             key={hit.id}
-            href={`/cards/${encodeURIComponent(hit.name)}/${hit.id}`}
+            href={`/cards/${encodeURIComponent(hit.name)}/${hit.printingId}`}
             name={hit.name}
             setCode={hit.set}
             rarity={hit.rarity}
             condition={hit.condition}
             finish={hit.finish === "foil" ? "Foil" : hit.finish === "etched" ? "Etched" : undefined}
             price={hit.price}
+            imageSrc={hit.imageUrl ?? undefined}
           />
         ))}
       </div>

@@ -13,6 +13,7 @@ export interface CardSearchDocument {
   collector_number: string; // Collector number in set
   rarity: "common" | "uncommon" | "rare" | "mythic" | "special" | "bonus";
   artist: string; // Card artist
+  image_url: string; // card_images URL for this printing, "" when none catalogued
   colour_identity: string[]; // Colour codes ['W', 'U', 'B', 'R', 'G']
   colour_count: number; // Count of colours in identity
   mana_cost: string; // Stringified mana cost (e.g., "{1}{U}{B}")
@@ -42,6 +43,7 @@ const fields: CollectionFieldSchema[] = [
   { name: "collector_number", type: "string", facet: false },
   { name: "rarity", type: "string", facet: true },
   { name: "artist", type: "string", facet: true },
+  { name: "image_url", type: "string", facet: false },
   { name: "colour_identity", type: "string[]", facet: true },
   { name: "colour_count", type: "int32", facet: true },
   { name: "mana_cost", type: "string", facet: false },
