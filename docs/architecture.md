@@ -1100,6 +1100,24 @@ always collects regardless of fulfilment type — and stores it on
 `orders.guest_email` only when the order has no `customer_id` and doesn't
 already have one captured.
 
+Shipment notification emails: `mark_shipment_shipped()`
+(`supabase/migrations/20260727070000_shipment_notification_email.sql`)
+already wrote the customer-facing `shipments` row (tracking number,
+carrier) and flipped `orders.status` to `shipped`, but never told the
+customer. It now emits an `order_shipped` event (only for an order the
+same call actually transitioned from `dispatched` to `shipped`, guarded by
+`FOUND` on that `UPDATE`), which `emit_integration_event()` turns into a
+second `email` queue message type, `shipment_notification`, handled by the
+same `email-consumer.ts` (dispatched by an `EMAIL_JOBS` lookup table, not
+a growing if/else chain, so a third email type is a one-line addition).
+Real shipping-carrier API integration — label generation/tracking against
+Australia Post or another provider, per §3.2's stack table — is
+deliberately not attempted: it needs a real, provider-specific business
+account this environment has no credentials for, and guessing at one
+provider's API shape with nothing to verify it against would be worse
+than leaving it manual. Staff still enter the tracking number/label by
+hand (`generateShipmentLabel()`/`generate_shipment_label()`, unchanged).
+
 Processing the queue: environments that cannot reach the Supabase connection
 pooler directly (this includes some CI/agent sandboxes) cannot run the
 Node worker against `catalogue-import` at all. The

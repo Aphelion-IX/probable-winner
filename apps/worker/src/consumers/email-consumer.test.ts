@@ -2,10 +2,15 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { Sql } from "postgres";
 
 const mockSendOrderConfirmationEmail = vi.fn();
+const mockSendShipmentNotificationEmail = vi.fn();
 const mockCreateEmailProviderFromEnv = vi.fn();
 
 vi.mock("../jobs/send-order-confirmation-email.js", () => ({
   sendOrderConfirmationEmail: (...args: unknown[]) => mockSendOrderConfirmationEmail(...args),
+}));
+
+vi.mock("../jobs/send-shipment-notification-email.js", () => ({
+  sendShipmentNotificationEmail: (...args: unknown[]) => mockSendShipmentNotificationEmail(...args),
 }));
 
 vi.mock("../integrations/email/resend-provider.js", () => ({
@@ -31,6 +36,7 @@ function createMockSql(responses: unknown[][]): { sql: Sql; calls: MockCall[] } 
 describe("pollEmailQueue", () => {
   beforeEach(() => {
     mockSendOrderConfirmationEmail.mockReset();
+    mockSendShipmentNotificationEmail.mockReset();
     mockCreateEmailProviderFromEnv.mockReset();
     mockCreateEmailProviderFromEnv.mockReturnValue({ sendEmail: vi.fn() });
   });
@@ -58,6 +64,22 @@ describe("pollEmailQueue", () => {
 
     expect(result).toBe(true);
     expect(mockSendOrderConfirmationEmail).toHaveBeenCalledWith(sql, expect.anything(), "order-1");
+    expect(calls[1].text).toContain("pgmq.archive");
+  });
+
+  it("sends a shipment_notification email and archives the message", async () => {
+    const { sql, calls } = createMockSql([
+      [{ msg_id: 5, message: { emailType: "shipment_notification", orderId: "order-2" } }],
+      [],
+    ]);
+    mockSendShipmentNotificationEmail.mockResolvedValue(true);
+    const { pollEmailQueue } = await import("./email-consumer.js");
+
+    const result = await pollEmailQueue(sql);
+
+    expect(result).toBe(true);
+    expect(mockSendShipmentNotificationEmail).toHaveBeenCalledWith(sql, expect.anything(), "order-2");
+    expect(mockSendOrderConfirmationEmail).not.toHaveBeenCalled();
     expect(calls[1].text).toContain("pgmq.archive");
   });
 

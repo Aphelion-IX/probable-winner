@@ -29,15 +29,20 @@ const HEALTH_CHECK_INTERVAL_MS = 60_000;
 // queue — it never read a real message and never touched Typesense;
 // removed. restock_alerts (B-190-192) drains messages emitted by
 // emit_integration_event() (inventory changes) and publish_suggested_price()
-// (price changes) — see restock-alerts-consumer.js. email currently drains
-// only order_confirmation messages, emitted for an 'order_paid' event by
-// confirm_order_payment() via the same emit_integration_event() path (see
-// email-consumer.js) — the queue existed since migration 20260722120349
-// but nothing ever wrote a message to it before this. The remaining 2
-// queues from blueprint §17 (order_processing and report_generation —
-// reservation expiry itself already runs via pg_cron, migration
-// 20260723070907, not the reservation_cleanup queue) exist in Postgres but
-// have no producer or consumer yet — future work for Phase 4 and beyond.
+// (price changes) — see restock-alerts-consumer.js. email drains
+// order_confirmation messages ('order_paid', confirm_order_payment()) and
+// shipment_notification messages ('order_shipped', mark_shipment_shipped())
+// — both via the same emit_integration_event() path (see email-consumer.js)
+// — the queue existed since migration 20260722120349 but nothing ever
+// wrote a message to it before these. Real shipping-carrier API
+// integration (label generation/tracking) is not attempted here — it
+// needs a real, provider-specific business account this environment has
+// no credentials for; staff still enter the tracking number/label
+// manually. The remaining 2 queues from blueprint §17 (order_processing
+// and report_generation — reservation expiry itself already runs via
+// pg_cron, migration 20260723070907, not the reservation_cleanup queue)
+// exist in Postgres but have no producer or consumer yet — future work
+// for Phase 4 and beyond.
 const queues = [
   { name: "catalogue_import", poll: pollCatalogueImportQueue },
   { name: "stock_reconciliation", poll: pollStockReconciliationQueue },
