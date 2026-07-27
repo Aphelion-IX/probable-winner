@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// createPendingOrder makes many chained Supabase calls (carts, sellable_skus,
-// published_prices, addresses, orders, order_lines, the persist_order_allocations
-// RPC). Rather than modelling Supabase's real nested-select query builder,
-// this mock resolves whatever `.from(table)` chain is built to a canned
-// per-table result -- the intermediate chain methods (select/eq/in/single)
-// are no-ops that return the same chainable, since only the final resolved
-// value and which table/RPC was hit matter for these tests.
+// createPendingOrder's own job is read-only validation (ownership, cart
+// contents, price/reservation freshness) before handing the actual checkout
+// conversion to the create_pending_order() database function in one RPC
+// call -- the address/order/order_lines/order_allocations writes, and the
+// click-and-collect re-reservation-at-the-chosen-store logic, all live in
+// that function now (see 20260726040000_atomic_pending_order_creation.sql).
+// These tests pin what this action sends the RPC, not the routing decision
+// itself -- that's exercised by supabase/tests/database instead.
 function chainable(result: { data: unknown; error: unknown }) {
   const obj: {
     then: (resolve: (value: unknown) => void) => void;
@@ -14,36 +15,26 @@ function chainable(result: { data: unknown; error: unknown }) {
     eq: () => typeof obj;
     in: () => typeof obj;
     single: () => typeof obj;
-    insert: () => typeof obj;
-    update: () => typeof obj;
   } = {
     then: (resolve) => resolve(result),
     select: () => obj,
     eq: () => obj,
     in: () => obj,
     single: () => obj,
-    insert: () => obj,
-    update: () => obj,
   };
   return obj;
 }
 
 const NODE_STORE_A = "11111111-1111-1111-1111-111111111111";
-const NODE_STORE_B = "22222222-2222-2222-2222-222222222222";
-const NODE_WAREHOUSE = "33333333-3333-3333-3333-333333333333";
 
 let resultsByTable: Record<string, { data: unknown; error: unknown }> = {};
-const mockRpc = vi.fn().mockResolvedValue({ data: null, error: null });
+const mockRpc = vi.fn().mockResolvedValue({ data: { order_id: "order-1" }, error: null });
 const mockFrom = vi.fn((table: string) => chainable(resultsByTable[table]));
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({ from: mockFrom, rpc: mockRpc }),
 }));
 
-// Only resolveCheckoutIdentity is stubbed (it reads the auth session and the
-// cookie jar, neither of which exists here). ownsResource stays real, so
-// these routing tests still run through the genuine ownership gate rather
-// than around it -- the fixture cart below is owned by this same customer.
 vi.mock("@/server/checkout-ownership", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/server/checkout-ownership")>()),
   resolveCheckoutIdentity: () => Promise.resolve({ userId: "customer-1", guestToken: null }),
@@ -60,10 +51,7 @@ function cartLine(skuId: string, nodeId: string, quantity: number) {
   };
 }
 
-function setUpCart(
-  cartLines: ReturnType<typeof cartLine>[],
-  nodeTypes: Array<{ id: string; type: string }>,
-) {
+function setUpCart(cartLines: ReturnType<typeof cartLine>[]) {
   resultsByTable = {
     carts: {
       data: {
@@ -79,111 +67,95 @@ function setUpCart(
       data: cartLines.map((line) => ({ sellable_sku_id: line.sellable_sku_id, final_amount: 10 })),
       error: null,
     },
-    fulfilment_nodes: { data: nodeTypes, error: null },
-    addresses: { data: { id: "address-1" }, error: null },
-    orders: { data: { id: "order-1" }, error: null },
-    order_lines: { data: null, error: null },
   };
 }
 
-describe("createPendingOrder routing integration (B-130/B-131)", () => {
+const DELIVERY_ADDRESS = {
+  line1: "1 Test St",
+  suburb: "Melbourne",
+  state: "VIC",
+  postcode: "3000",
+};
+
+describe("createPendingOrder", () => {
   beforeEach(() => {
     mockRpc.mockClear();
+    mockRpc.mockResolvedValue({ data: { order_id: "order-1" }, error: null });
     mockFrom.mockClear();
   });
 
-  it("routes a single-node delivery order to that store with single_complete_order_store", async () => {
-    setUpCart([cartLine("sku-1", NODE_STORE_A, 2)], [{ id: NODE_STORE_A, type: "store" }]);
+  it("calls create_pending_order with the identity, fulfilment type and address for delivery", async () => {
+    setUpCart([cartLine("sku-1", NODE_STORE_A, 2)]);
 
     const { createPendingOrder } = await import("../create-pending-order");
-    const result = await createPendingOrder("cart-1", "delivery", {
-      line1: "1 Test St",
-      suburb: "Melbourne",
-      state: "VIC",
-      postcode: "3000",
-    });
+    const result = await createPendingOrder("cart-1", "delivery", DELIVERY_ADDRESS);
 
-    expect(result.success).toBe(true);
-    expect(mockRpc).toHaveBeenCalledWith("persist_order_allocations", {
-      p_order_id: "order-1",
-      p_allocations: [
-        {
-          sku_id: "sku-1",
-          node_id: NODE_STORE_A,
-          quantity: 2,
-          reason: "single_complete_order_store",
-        },
-      ],
+    expect(result).toEqual({ success: true, orderId: "order-1" });
+    expect(mockRpc).toHaveBeenCalledWith("create_pending_order", {
+      p_cart_id: "cart-1",
+      p_customer_id: "customer-1",
+      p_guest_token: null,
+      p_fulfilment_type: "online_shipping",
+      p_address: DELIVERY_ADDRESS,
+      p_collection_store_id: null,
     });
   });
 
-  it("classifies a warehouse-fulfilled delivery order as warehouse_priority", async () => {
-    setUpCart([cartLine("sku-1", NODE_WAREHOUSE, 2)], [{ id: NODE_WAREHOUSE, type: "warehouse" }]);
-
-    const { createPendingOrder } = await import("../create-pending-order");
-    await createPendingOrder("cart-1", "delivery", {
-      line1: "1 Test St",
-      suburb: "Melbourne",
-      state: "VIC",
-      postcode: "3000",
-    });
-
-    expect(mockRpc).toHaveBeenCalledWith(
-      "persist_order_allocations",
-      expect.objectContaining({
-        p_allocations: [expect.objectContaining({ reason: "warehouse_priority" })],
-      }),
-    );
-  });
-
-  it("picks the majority-quantity node as primary when a cart's lines span two nodes", async () => {
-    setUpCart(
-      [cartLine("sku-1", NODE_STORE_A, 5), cartLine("sku-2", NODE_STORE_B, 1)],
-      [
-        { id: NODE_STORE_A, type: "store" },
-        { id: NODE_STORE_B, type: "store" },
-      ],
-    );
-
-    const { createPendingOrder } = await import("../create-pending-order");
-    await createPendingOrder("cart-1", "delivery", {
-      line1: "1 Test St",
-      suburb: "Melbourne",
-      state: "VIC",
-      postcode: "3000",
-    });
-
-    const orderInsertCall = mockFrom.mock.calls.find(([table]) => table === "orders");
-    expect(orderInsertCall).toBeDefined();
-
-    // Both lines recorded against their real reserved node, both
-    // classified as split (since no single node covers the whole order).
-    expect(mockRpc).toHaveBeenCalledWith("persist_order_allocations", {
-      p_order_id: "order-1",
-      p_allocations: [
-        { sku_id: "sku-1", node_id: NODE_STORE_A, quantity: 5, reason: "split_minimum_nodes" },
-        { sku_id: "sku-2", node_id: NODE_STORE_B, quantity: 1, reason: "split_minimum_nodes" },
-      ],
-    });
-  });
-
-  it("routes a click-and-collect order to the chosen store regardless of line reservation node", async () => {
-    setUpCart([cartLine("sku-1", NODE_WAREHOUSE, 1)], [{ id: NODE_WAREHOUSE, type: "warehouse" }]);
+  it("maps a collect order to click_and_collect with the chosen store id, no address", async () => {
+    setUpCart([cartLine("sku-1", NODE_STORE_A, 1)]);
 
     const { createPendingOrder } = await import("../create-pending-order");
     const result = await createPendingOrder("cart-1", "collect", undefined, NODE_STORE_A);
 
-    expect(result.success).toBe(true);
-    expect(mockRpc).toHaveBeenCalledWith("persist_order_allocations", {
-      p_order_id: "order-1",
-      p_allocations: [
-        {
-          sku_id: "sku-1",
-          node_id: NODE_STORE_A,
-          quantity: 1,
-          reason: "click_and_collect_store",
-        },
-      ],
+    expect(result).toEqual({ success: true, orderId: "order-1" });
+    expect(mockRpc).toHaveBeenCalledWith("create_pending_order", {
+      p_cart_id: "cart-1",
+      p_customer_id: "customer-1",
+      p_guest_token: null,
+      p_fulfilment_type: "click_and_collect",
+      p_address: null,
+      p_collection_store_id: NODE_STORE_A,
     });
+  });
+
+  it("surfaces a create_pending_order RPC failure (e.g. the collect store has no stock) as an order error", async () => {
+    setUpCart([cartLine("sku-1", NODE_STORE_A, 1)]);
+    mockRpc.mockResolvedValue({
+      data: null,
+      error: { message: "create_pending_order: insufficient available inventory for node ..." },
+    });
+
+    const { createPendingOrder } = await import("../create-pending-order");
+    const result = await createPendingOrder("cart-1", "collect", undefined, NODE_STORE_A);
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toEqual([
+      {
+        field: "order",
+        message: "create_pending_order: insufficient available inventory for node ...",
+      },
+    ]);
+  });
+
+  it("never calls create_pending_order when the cart has no active price for a line", async () => {
+    resultsByTable = {
+      carts: {
+        data: {
+          id: "cart-1",
+          organisation_id: "org-1",
+          customer_id: "customer-1",
+          guest_token: null,
+          cart_lines: [cartLine("sku-1", NODE_STORE_A, 1)],
+        },
+        error: null,
+      },
+      published_prices: { data: [], error: null },
+    };
+
+    const { createPendingOrder } = await import("../create-pending-order");
+    const result = await createPendingOrder("cart-1", "delivery", DELIVERY_ADDRESS);
+
+    expect(result.success).toBe(false);
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 });

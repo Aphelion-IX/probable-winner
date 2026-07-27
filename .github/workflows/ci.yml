@@ -8,18 +8,17 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    # This repo has no CI-provisioned Supabase project, so the web app's
-    # required env vars are placeholders here (a syntactically valid but
-    # unreachable Supabase project ref, not real credentials). That's enough
-    # to get past the app's own "must be set" guard so build/E2E actually
-    # run: pages render and E2E specs hit their real fetch-failure/no-data
-    # skip paths instead of crashing on a missing env var. It does not give
-    # E2E real backend coverage -- swap these for real project secrets
-    # (Settings > Secrets and variables > Actions) to get that.
+    # NEXT_PUBLIC_SUPABASE_URL/ANON_KEY and SUPABASE_SERVICE_ROLE_KEY are
+    # deliberately absent here: they're set to the real local stack's own
+    # values by "Export local Supabase credentials" below, once
+    # `supabase start` has one running -- not to a placeholder. Stripe and
+    # Typesense remain placeholders (a syntactically valid but unreachable
+    # config, not real credentials) -- this repo has no CI-provisioned
+    # Stripe test account or Typesense service, so specs that need either
+    # still hit their real fetch-failure/no-data skip paths rather than
+    # crashing on a missing env var. Swap these for real secrets (Settings >
+    # Secrets and variables > Actions) to close that remaining gap.
     env:
-      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
-      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
       STRIPE_SECRET_KEY: sk_test_ci_placeholder
       STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
@@ -53,6 +52,39 @@ jobs:
       - name: Unit tests
         run: pnpm run test
 
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase local stack
+        run: supabase start
+
+      - name: Reset database (apply every migration + seed.sql fresh)
+        run: supabase db reset
+
+      - name: Database tests (pgTAP + RLS regressions)
+        # Blocking: this is the gap the 2026-07-26 security re-audit called
+        # out directly (item 10) -- despite supabase/tests/database having
+        # real pgTAP coverage for the RPC trust boundary (guest-cart
+        # ownership, the inventory oversell check, atomic order creation),
+        # none of it ran in CI, so a regression like the parameter-shadowing
+        # bugs those tests now pin could land silently.
+        run: supabase test db
+
+      - name: Export local Supabase credentials
+        # The stack `supabase start` + `db reset` just built is a real,
+        # fully-migrated-and-seeded backend -- not a placeholder -- so the
+        # Build/E2E steps below get genuine data instead of every request
+        # failing closed against an unreachable host.
+        run: |
+          eval "$(supabase status -o env)"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
+
       - name: Build
         run: pnpm run build
 
@@ -63,13 +95,14 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: E2E tests
-        # Non-blocking: this repo has no CI-provisioned Supabase project (see
-        # the placeholder env vars above), so specs that need real backend
-        # data/behaviour (not just the "no live backend" skip path some specs
-        # use) fail against it -- that's a pre-existing gap in those specs'
-        # robustness, not a signal about this PR's changes. Runs for
-        # visibility; wire up real secrets and drop continue-on-error once
-        # backend-dependent specs are made to skip gracefully like
-        # card-identity-page.spec.ts / sku-selector.spec.ts already do.
-        continue-on-error: true
+        # Blocking now that the app runs against the real local Supabase
+        # stack above instead of an unreachable placeholder: specs that
+        # gracefully skip on "no catalogue data seeded" (see e.g.
+        # sku-selector.spec.ts) now find the demo catalogue seed migrations
+        # actually applied, so they run their real assertions rather than
+        # skipping. Stripe- and staff-session-dependent paths (e.g.
+        # fulfillment-flow.spec.ts) still fall back to their own graceful
+        # skip guards, since this job has no real Stripe test account or a
+        # logged-in staff session to offer them -- that remains the
+        # documented gap, not a reason to keep the whole suite non-blocking.
         run: pnpm exec playwright test

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createServerSupabaseClient } from "@/server/supabase";
+import { getCartSessionId } from "@/lib/cart-session";
 
 export type UpdateCartLineResult = { success: true } | { success: false; error: string };
 
@@ -20,9 +21,13 @@ export async function updateCartLineQuantity(
   }
 
   const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { error } = await supabase.rpc("update_cart_line_quantity", {
     p_cart_line_id: cartLineId,
     p_new_quantity: quantity,
+    p_guest_token: user ? null : await getCartSessionId(),
   });
 
   if (error) {
@@ -35,7 +40,13 @@ export async function updateCartLineQuantity(
 
 export async function removeCartLine(cartLineId: string): Promise<UpdateCartLineResult> {
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.rpc("remove_cart_line", { p_cart_line_id: cartLineId });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await supabase.rpc("remove_cart_line", {
+    p_cart_line_id: cartLineId,
+    p_guest_token: user ? null : await getCartSessionId(),
+  });
 
   if (error) {
     return { success: false, error: error.message };

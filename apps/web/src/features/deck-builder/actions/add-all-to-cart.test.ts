@@ -80,12 +80,14 @@ describe("addAllToCart", () => {
       p_fulfilment_node_id: "store-1",
       p_sellable_sku_id: "sku-1",
       p_quantity: 4,
+      p_guest_token: "11111111-1111-1111-1111-111111111111",
     });
     expect(mockRpc).toHaveBeenCalledWith("add_to_cart", {
       p_cart_id: "cart-1",
       p_fulfilment_node_id: "store-1",
       p_sellable_sku_id: "sku-2",
       p_quantity: 2,
+      p_guest_token: "11111111-1111-1111-1111-111111111111",
     });
   });
 

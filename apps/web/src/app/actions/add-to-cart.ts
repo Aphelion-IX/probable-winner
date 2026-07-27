@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createServerSupabaseClient } from "@/server/supabase";
-import { getOrCreateCart, resolveDefaultStore } from "@/lib/cart-session";
+import { getOrCreateCart, resolveDefaultStore, getCartSessionId } from "@/lib/cart-session";
 
 export interface AddToCartResult {
   success: boolean;
@@ -31,11 +31,16 @@ export async function addToCart(sellableSkuId: string, quantity: number): Promis
     const cart = await getOrCreateCart(store.organisation_id);
 
     const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     const { data: line, error } = await supabase.rpc("add_to_cart", {
       p_cart_id: cart.id,
       p_fulfilment_node_id: store.id,
       p_sellable_sku_id: sellableSkuId,
       p_quantity: quantity,
+      p_guest_token: user ? null : await getCartSessionId(),
     });
 
     if (error || !line) {
