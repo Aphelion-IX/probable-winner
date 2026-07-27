@@ -341,3 +341,50 @@ lower severity than the above — it's a larger, separable project):
   considering the event delivered — but nothing yet moves verified events
   into a durable inbox processed by a retryable worker, which blueprint §16
   calls for eventually.
+
+## Re-audit (2026-07-27): cross-tenant checkout scoping, and CI never actually ran
+
+A second follow-up review of the merged `create_pending_order()` (above)
+found two cross-tenant defects the first pass missed, plus a CI regression
+that meant none of the previous pass's own database-level guarantees had
+actually been exercised. Fixed in
+`20260727000000_fix_cross_tenant_price_and_collection_store_scoping.sql`
+and a migration-ordering fix:
+
+1. **The published price lookup had no `organisation_id` filter** —
+   `where sellable_sku_id = ... and status = 'active' limit 1`, with no
+   deterministic tie-break. `published_prices`' own
+   `unique(sellable_sku_id, organisation_id, currency)` constraint exists
+   precisely because more than one organisation can publish an active price
+   for the same (globally shared, not per-org) catalogue SKU — so a
+   checkout could silently price a line using a *different retailer's*
+   price. Fixed by filtering on `v_cart.organisation_id` too.
+
+2. **The click-and-collect store id was never validated** — accepted as
+   given, then used to reserve real inventory (per this file's item 6
+   above) and written onto the order. Nothing checked that it belonged to
+   the cart's own organisation, was active, or actually offered
+   click-and-collect at all; a caller could point an order at a different
+   retailer's store, an inactive node, or a warehouse with no
+   customer-facing collection point. Fixed with an upfront check requiring
+   `organisation_id = v_cart.organisation_id and active and
+   allows_click_collect` before any reservation logic runs.
+
+3. **CI's `supabase start` was failing outright**, before a single pgTAP
+   test or build step ran, for the same underlying reason as the
+   `seed_demo_catalogue` fix two migrations earlier: `20260725210000_fix_order_function_parameter_shadowing.sql`
+   unconditionally revoked `EXECUTE` on `rls_auto_enable()`, a function with
+   no `CREATE FUNCTION` anywhere in this migration history — it exists only
+   on the live project (created directly against it, outside any
+   migration), so the revoke succeeded there but raised
+   `function rls_auto_enable() does not exist` (42883) on every genuinely
+   fresh database, aborting the whole migration chain. Guarded behind an
+   existence check; every other revoke/grant `execute` target in
+   `supabase/migrations` was cross-checked against a matching
+   `CREATE FUNCTION` and this was the only gap. This means the CI change
+   from the previous pass had never actually completed a run through to
+   pgTAP/build/E2E until this fix.
+
+Regression tests: `supabase/tests/database/cross_tenant_checkout_scoping.test.sql`
+(price scoping, collection-store organisation/active/click-and-collect
+validation, and that a valid store still succeeds).
