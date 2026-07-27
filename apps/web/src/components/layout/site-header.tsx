@@ -65,7 +65,7 @@ export function SiteHeader() {
         </Sheet>
 
         <Link href="/" className="shrink-0 text-lg font-semibold tracking-tight">
-          Probable Winner
+          Common Ground Co.
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">

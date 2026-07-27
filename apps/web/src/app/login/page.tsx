@@ -31,7 +31,7 @@ export default async function LoginPage({
     <main className="flex min-h-dvh items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-2 text-center">
-          <span className="text-lg font-semibold tracking-tight">Probable Winner</span>
+          <span className="text-lg font-semibold tracking-tight">Common Ground Co.</span>
           <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
           <p className="text-sm text-muted-foreground">
             Enter your email and we&apos;ll send you a sign-in code. No password needed.
