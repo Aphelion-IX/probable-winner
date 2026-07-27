@@ -305,18 +305,39 @@ re-reservation, exact reservation matching in `confirm_order_payment()`),
 plus `apps/web/src/app/actions/__tests__/create-pending-order*.test.ts` and
 `apps/web/src/app/api/webhooks/stripe/route.test.ts` on the application side.
 
-**Not fixed in this pass** (tracked as follow-up work, not because they're
-lower severity than the above — they're larger, separable projects):
+Two follow-ups from this list have since been closed, as their own
+separate pieces of work rather than folded into the RPC-lockdown pass
+above:
 
-- The Stripe webhook now returns `5xx` when `confirm_order_payment()`/
+- **CI** (`.github/workflows/ci.yml`) now starts a real local Supabase
+  stack, resets it (every migration + `seed.sql`), and runs `supabase test db`
+  (pgTAP/RLS regressions) as a blocking step; Build and the Playwright suite
+  point at that real stack instead of an unreachable placeholder project,
+  and the E2E job is no longer `continue-on-error`. Stripe and Typesense
+  remain placeholders (no CI-provisioned test account or search service
+  exists), so specs needing either still fall back to their own graceful
+  skip guards.
+- **The picking → packing → shipment pipeline** is wired end to end
+  (`20260726060000_wire_up_picking_packing_shipment_workflow.sql`):
+  `record_pick_line_scan()` is the real Server Action call behind the
+  picking page's "Mark as picked" button, converting a fully-scanned line's
+  allocation via `begin_inventory_pick()`/`complete_inventory_pick()`
+  instead of only updating React state; `complete_pick_batch()` now refuses
+  to complete a batch with any unpicked line; a real packing detail page
+  exists at `apps/web/src/app/staff/packing/[id]/page.tsx` (previously a
+  404, per the fulfilment E2E spec); and `begin_pick_batch()`/
+  `create_shipment()`/`generate_shipment_label()`/`mark_shipment_shipped()`
+  each move every order the batch covers through
+  `picking → packed → dispatched → shipped` (per `docs/business-rules.md`'s
+  existing status diagram), with `mark_shipment_shipped()` also writing the
+  customer-facing `shipments` table it never touched before. Regression
+  tests: `supabase/tests/database/pick_pack_ship_workflow.test.sql`.
+
+**Not fixed in this pass** (tracked as follow-up work, not because it's
+lower severity than the above — it's a larger, separable project):
+
+- The Stripe webhook returns `5xx` when `confirm_order_payment()`/
   `release_failed_order_reservations()` fail, so Stripe retries instead of
   considering the event delivered — but nothing yet moves verified events
   into a durable inbox processed by a retryable worker, which blueprint §16
   calls for eventually.
-- Picking only updates local React state (`apps/web/src/app/staff/picking/[id]/page.tsx`);
-  no Server Action calls `begin_inventory_pick()`/`complete_inventory_pick()`
-  yet, and there is no packing-detail route. An order cannot travel from
-  `paid` to `shipped` through the application today.
-- CI does not run `supabase test db` (pgTAP/RLS regression) or make the
-  Playwright checkout E2E suite blocking — real backend coverage in CI
-  remains a gap.
