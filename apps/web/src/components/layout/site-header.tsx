@@ -65,7 +65,7 @@ export function SiteHeader() {
         </Sheet>
 
         <Link href="/" className="shrink-0 text-lg font-semibold tracking-tight">
-          Common Ground Co.
+          Pullhouse
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
