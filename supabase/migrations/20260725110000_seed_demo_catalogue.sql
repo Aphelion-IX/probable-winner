@@ -15,10 +15,23 @@
 -- produces) rather than calling receive_inventory() itself, since that
 -- function's staff_has_node_access() check requires an authenticated
 -- staff auth.uid() that doesn't exist in a migration's execution context.
+--
+-- Originally required supabase/seed.sql's "Demo Card Retailer" org/store
+-- topology (Phase 0) to already exist, raising otherwise -- fine against
+-- the live project (seed.sql was run there once, manually, before this
+-- migration was ever applied), but `supabase db reset`/`supabase start`
+-- always apply every migration in timestamp order *before* running
+-- seed.sql, so a genuinely fresh reset (exactly what CI now does, per the
+-- 2026-07-26 security re-audit's item 10) hit this migration first and
+-- failed every time with no organisation to seed against. This now creates
+-- the same Phase 0 topology itself when missing -- an exact copy of
+-- seed.sql's insert, guarded by existence checks rather than
+-- `on conflict do nothing` (organisations.name has no unique constraint to
+-- arbiter against). A no-op on the live project, which already has the org.
 
 do $$
 declare
-  v_org_id uuid := (select id from organisations where name = 'Demo Card Retailer' limit 1);
+  v_org_id uuid;
   v_game_id uuid := (select id from games where code = 'mtg');
   v_set_id uuid;
   v_lang_id uuid := (select id from languages where code = 'en');
@@ -26,7 +39,7 @@ declare
   v_cond_id uuid := (select id from conditions where code = 'nm');
   v_status_id uuid := (select id from product_statuses where code = 'active');
   v_rule_id uuid;
-  v_store_ids uuid[] := (select array_agg(id order by code) from fulfilment_nodes where organisation_id = v_org_id and type = 'store' and active);
+  v_store_ids uuid[];
 
   v_card record;
   v_oracle_id uuid;
@@ -37,6 +50,29 @@ declare
   v_qty integer;
   v_collector_number integer := 0;
 begin
+  select id into v_org_id from organisations where name = 'Demo Card Retailer' limit 1;
+
+  if v_org_id is null then
+    insert into organisations (name) values ('Demo Card Retailer') returning id into v_org_id;
+
+    insert into fulfilment_nodes (
+      organisation_id, name, code, type, region, timezone, active,
+      allows_click_collect, allows_online_fulfilment, allows_transfers
+    )
+    select
+      v_org_id, v.name, v.code, v.type, v.region, 'Australia/Melbourne', true,
+      v.click_collect, v.online, true
+    from (values
+      ('Geelong', 'STR-01', 'store', 'VIC', true, true),
+      ('Bendigo', 'STR-02', 'store', 'VIC', true, true),
+      ('Werribee', 'STR-03', 'store', 'VIC', true, true),
+      ('Ballarat', 'STR-04', 'store', 'VIC', true, true)
+    ) as v(name, code, type, region, click_collect, online);
+  end if;
+
+  select array_agg(id order by code) into v_store_ids
+  from fulfilment_nodes where organisation_id = v_org_id and type = 'store' and active;
+
   if v_org_id is null or v_game_id is null or array_length(v_store_ids, 1) is null then
     raise exception 'seed_demo_catalogue: missing organisation/game/store fixtures -- run the Phase 0 seed first';
   end if;
