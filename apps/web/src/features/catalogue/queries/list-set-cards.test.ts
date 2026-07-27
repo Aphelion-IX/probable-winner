@@ -324,11 +324,12 @@ describe("listSetCards", () => {
 
     const result = await listSetCards("2X2");
 
-    // 1001 rows in -> a second page of sellable_skus, and 1001 distinct
-    // printing/sku ids -> two 1000-sized .in() batches (1000, 1).
+    // 1001 rows in -> a second page of sellable_skus (paged at Postgrest's
+    // 1000-row cap, independent of ID_BATCH_SIZE), and 1001 distinct
+    // printing/sku ids -> six 200-sized .in() batches (200 x5, 1).
     expect(callCounts.sellable_skus).toBe(2);
-    expect(callCounts.card_images).toBe(2);
-    expect(callCounts.published_prices).toBe(2);
+    expect(callCounts.card_images).toBe(6);
+    expect(callCounts.published_prices).toBe(6);
     // ...but the returned rows are capped well below that.
     expect(result).toHaveLength(200);
   });
