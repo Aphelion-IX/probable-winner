@@ -1078,10 +1078,27 @@ active alerts (never trusting the event payload as current truth, same
 principle as the search-index consumer), and sends an email via Resend
 (`apps/worker/src/integrations/email/resend-provider.ts`, configured by
 `RESEND_API_KEY`/`RESEND_FROM_EMAIL`) before flipping the matched alert to
-`triggered`. The `email`, `order-processing`, and `report-generation` queues
-still have no consumer; reservation expiry runs via `pg_cron`
+`triggered`. The `order-processing` and `report-generation` queues still
+have no producer or consumer; reservation expiry runs via `pg_cron`
 (`supabase/migrations/20260723070907_reservation_expiry.sql`), not the
 `reservation-cleanup` queue.
+
+Order confirmation emails: the `email` queue existed since this project's
+first migration but nothing ever wrote a message to it, so a paid order
+never triggered any confirmation. `confirm_order_payment()`
+(`supabase/migrations/20260727060000_order_confirmation_email.sql`) now
+routes its `order_paid` event through `emit_integration_event()` (the same
+fix pattern as the pricing functions above), which gained an `order_paid`
+branch that enqueues an `order_confirmation` message on `email`.
+`apps/worker/src/consumers/email-consumer.ts` reads it and sends the
+confirmation via the same Resend adapter restock alerts use. A guest order
+has no `auth.users` row to read an email from, and nothing in checkout
+today asks for one, so `confirm_order_payment()` accepts an optional
+`p_guest_email` — populated by the Stripe webhook handler from
+`session.customer_details.email`, which Stripe's own hosted Checkout page
+always collects regardless of fulfilment type — and stores it on
+`orders.guest_email` only when the order has no `customer_id` and doesn't
+already have one captured.
 
 Processing the queue: environments that cannot reach the Supabase connection
 pooler directly (this includes some CI/agent sandboxes) cannot run the

@@ -32,10 +32,17 @@ export async function POST(request: Request) {
       const orderId = session.metadata?.orderId;
 
       if (orderId) {
-        // Call RPC to confirm payment (handles allocation conversion, event storage with idempotency)
+        // Call RPC to confirm payment (handles allocation conversion, event storage with idempotency).
+        // Stripe's own hosted Checkout page always collects the buyer's
+        // email regardless of fulfilment type or sign-in state, so this is
+        // passed through for confirm_order_payment() to capture on a guest
+        // order (there is otherwise nowhere in checkout today that asks for
+        // one) -- optional chaining since charge.succeeded's object has no
+        // customer_details field at all, unlike checkout.session.completed's.
         const { error: rpcError } = await supabase.rpc("confirm_order_payment", {
           p_order_id: orderId,
           p_stripe_event_id: event.id,
+          p_guest_email: session.customer_details?.email ?? null,
         });
 
         if (rpcError) {

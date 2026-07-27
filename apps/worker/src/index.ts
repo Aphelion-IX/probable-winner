@@ -7,6 +7,7 @@ import { pollStockReconciliationQueue } from "./consumers/stock-reconciliation-c
 import { pollPricingImportQueue } from "./consumers/pricing-import-consumer.js";
 import { pollSearchIndexQueue } from "./consumers/search-index-consumer.js";
 import { pollRestockAlertsQueue } from "./consumers/restock-alerts-consumer.js";
+import { pollEmailQueue } from "./consumers/email-consumer.js";
 import { checkQueueHealth } from "./monitoring/queue-health.js";
 import { checkImportFailures } from "./monitoring/import-health.js";
 
@@ -16,8 +17,8 @@ const POLL_INTERVAL_MS = 5_000;
 // enough to catch a >5min staleness threshold with room to spare.
 const HEALTH_CHECK_INTERVAL_MS = 60_000;
 
-// catalogue_import, stock_reconciliation, pricing_import, search_index, and
-// restock_alerts have consumers wired up. There is no separate
+// catalogue_import, stock_reconciliation, pricing_import, search_index,
+// restock_alerts, and email have consumers wired up. There is no separate
 // "pricing_publish" queue or consumer (B-165's AC is explicit: publishing a
 // price must go through the same outbox path as inventory changes, not a
 // separate ad hoc sync) — pricing_published/pricing_approved/
@@ -28,18 +29,22 @@ const HEALTH_CHECK_INTERVAL_MS = 60_000;
 // queue — it never read a real message and never touched Typesense;
 // removed. restock_alerts (B-190-192) drains messages emitted by
 // emit_integration_event() (inventory changes) and publish_suggested_price()
-// (price changes) — see restock-alerts-consumer.js. The remaining 3 queues
-// from blueprint §17 (email, order_processing, reservation_cleanup, and
-// report_generation — reservation expiry itself already runs via pg_cron,
-// migration 20260723070907, not this queue) exist in Postgres (migration
-// 20260722120349) but have no consumer yet — future work for Phase 4 and
-// beyond.
+// (price changes) — see restock-alerts-consumer.js. email currently drains
+// only order_confirmation messages, emitted for an 'order_paid' event by
+// confirm_order_payment() via the same emit_integration_event() path (see
+// email-consumer.js) — the queue existed since migration 20260722120349
+// but nothing ever wrote a message to it before this. The remaining 2
+// queues from blueprint §17 (order_processing and report_generation —
+// reservation expiry itself already runs via pg_cron, migration
+// 20260723070907, not the reservation_cleanup queue) exist in Postgres but
+// have no producer or consumer yet — future work for Phase 4 and beyond.
 const queues = [
   { name: "catalogue_import", poll: pollCatalogueImportQueue },
   { name: "stock_reconciliation", poll: pollStockReconciliationQueue },
   { name: "pricing_import", poll: pollPricingImportQueue },
   { name: "search_index", poll: pollSearchIndexQueue },
   { name: "restock_alerts", poll: pollRestockAlertsQueue },
+  { name: "email", poll: pollEmailQueue },
 ];
 
 // A single queue consumer throwing should not take down the whole worker
