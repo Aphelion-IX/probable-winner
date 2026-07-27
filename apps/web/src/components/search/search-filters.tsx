@@ -35,6 +35,20 @@ const COLOURS = [
   { id: "G", label: "Green" },
 ];
 
+// Shared with SearchFilterSheet's mobile trigger badge (backlog B-092) --
+// a single-select filter (rarity/condition/finish) counts as at most one,
+// a multi-select one (colour) counts every value, and the price range
+// counts min/max independently since either can be set without the other.
+export function countActiveSearchFilters(searchParams: URLSearchParams): number {
+  const singleSelectCount = ["rarity", "condition", "finish"].filter((key) =>
+    searchParams.get(key),
+  ).length;
+  const colourCount = searchParams.getAll("colour").length;
+  const priceRangeCount = ["minPrice", "maxPrice"].filter((key) => searchParams.get(key)).length;
+
+  return singleSelectCount + colourCount + priceRangeCount;
+}
+
 export function SearchFilters() {
   const router = useRouter();
   const searchParams = useSearchParams();
