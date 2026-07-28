@@ -40,7 +40,7 @@ export default async function SetsPage({
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="glass-panel overflow-x-auto rounded-lg">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
