@@ -34,7 +34,23 @@ export type ListCardsFilters = {
   colors?: string[];
   types?: string[];
   sort?: string;
+  page?: number;
 };
+
+export type ListCardsResult = {
+  items: CardBrowseItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+};
+
+// The unfiltered catalogue is 100,000+ printings (blueprint §23) -- without
+// a page size the browse-all case sends every matching row (up to
+// Postgrest's own 1000-row max_rows cap) as one response and renders that
+// many <CardTile> images on a single page load. Paginated the same way
+// search-cards.ts paginates Typesense results.
+const PAGE_SIZE = 48;
 
 export type CardBrowseItem = {
   printingId: string;
@@ -100,10 +116,10 @@ export function buildTypeFilter(types: CardType[]): string | null {
   return types.map((type) => `type_line.ilike.%${sanitizeForIlike(type)}%`).join(",");
 }
 
-export async function listCards(filters: ListCardsFilters = {}): Promise<CardBrowseItem[]> {
+export async function listCards(filters: ListCardsFilters = {}): Promise<ListCardsResult> {
   const supabase = await createServerSupabaseClient();
 
-  let query = supabase.from("card_browse").select("*");
+  let query = supabase.from("card_browse").select("*", { count: "exact" });
 
   if (filters.sets && filters.sets.length > 0) {
     query = query.in("set_code", filters.sets);
@@ -150,13 +166,18 @@ export async function listCards(filters: ListCardsFilters = {}): Promise<CardBro
       break;
   }
 
-  const { data, error } = await query.returns<CardBrowseRow[]>();
+  const page = Math.max(1, filters.page ?? 1);
+  const offset = (page - 1) * PAGE_SIZE;
+
+  const { data, error, count } = await query
+    .range(offset, offset + PAGE_SIZE - 1)
+    .returns<CardBrowseRow[]>();
 
   if (error) {
     throw new Error(`Failed to list cards: ${error.message}`);
   }
 
-  return (data ?? []).map((row) => ({
+  const items = (data ?? []).map((row) => ({
     printingId: row.printing_id,
     oracleCardId: row.oracle_card_id,
     name: row.name,
@@ -172,4 +193,14 @@ export async function listCards(filters: ListCardsFilters = {}): Promise<CardBro
     setIconUrl: row.set_icon_url,
     imageUrl: row.image_url,
   }));
+
+  const totalCount = count ?? items.length;
+
+  return {
+    items,
+    page,
+    pageSize: PAGE_SIZE,
+    totalCount,
+    totalPages: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
+  };
 }

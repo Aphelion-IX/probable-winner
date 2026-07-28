@@ -3,6 +3,7 @@ import { listSets } from "@/features/catalogue/queries/list-sets";
 import { CardFiltersSidebar } from "@/features/catalogue/components/card-filters-sidebar";
 import { CardTopBar } from "@/features/catalogue/components/card-top-bar";
 import { CardTile } from "@/components/commerce/card-tile";
+import { Pagination } from "@/components/search/pagination";
 
 function parseList(value: string | undefined): string[] | undefined {
   return value ? value.split(",").filter(Boolean) : undefined;
@@ -18,11 +19,12 @@ export default async function CardsPage({
     colors?: string;
     types?: string;
     sort?: string;
+    page?: string;
   }>;
 }) {
   const params = await searchParams;
 
-  const [availableSets, cards] = await Promise.all([
+  const [availableSets, cardsResult] = await Promise.all([
     listSets(),
     listCards({
       sets: parseList(params.sets),
@@ -31,8 +33,11 @@ export default async function CardsPage({
       colors: parseList(params.colors),
       types: parseList(params.types),
       sort: params.sort,
+      page: params.page ? Number(params.page) : undefined,
     }),
   ]);
+
+  const { items: cards, page, totalPages } = cardsResult;
 
   const anyFilterApplied = Boolean(
     params.sets || params.rarities || params.finishes || params.colors || params.types,
@@ -71,19 +76,30 @@ export default async function CardsPage({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {cards.map((card) => (
-                <CardTile
-                  key={card.printingId}
-                  href={`/cards/${encodeURIComponent(card.name)}/${card.printingId}`}
-                  name={card.name}
-                  setCode={card.setCode}
-                  setIconUrl={card.setIconUrl}
-                  rarity={card.rarity}
-                  imageSrc={card.imageUrl ?? undefined}
+            <>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {cards.map((card) => (
+                  <CardTile
+                    key={card.printingId}
+                    href={`/cards/${encodeURIComponent(card.name)}/${card.printingId}`}
+                    name={card.name}
+                    setCode={card.setCode}
+                    setIconUrl={card.setIconUrl}
+                    rarity={card.rarity}
+                    imageSrc={card.imageUrl ?? undefined}
+                  />
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={page}
+                  totalPages={totalPages}
+                  baseUrl="/cards"
+                  searchParams={params}
                 />
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       </div>
