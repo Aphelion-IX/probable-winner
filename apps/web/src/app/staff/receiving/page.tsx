@@ -22,7 +22,7 @@ export default async function StaffReceivingPage() {
     <div className="space-y-6">
       <PageHeader
         title="Receiving"
-        description="Book incoming stock into a store. Each receipt appends to the inventory ledger and makes the cards sellable immediately."
+        description="Book incoming stock into a store, one line or a whole shipment manifest at once. Each receipt appends to the inventory ledger and makes the cards sellable immediately."
       />
 
       {error ? (

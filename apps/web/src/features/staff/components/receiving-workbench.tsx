@@ -1,21 +1,31 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import * as Sentry from "@sentry/nextjs";
-import { PackagePlus, Search } from "lucide-react";
+import { PackagePlus, Search, Trash2, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ScopedNode } from "@/features/staff/actions/fetch-scoped-nodes";
 import {
   searchSellableSkus,
+  resolveSkusById,
   receiveStock,
+  receiveStockBulk,
   listRecentReceipts,
+  MAX_BULK_RECEIVE_LINES,
   type SkuSearchResult,
   type ReceiptRow,
 } from "@/features/staff/actions/manage-receiving";
+import { parseCsv } from "@/lib/csv";
 
 const SELECT_CLASS = "rounded-lg border border-input bg-background px-3 py-2 text-sm";
+
+interface BatchLine extends SkuSearchResult {
+  quantity: number;
+  status?: "success" | "failed";
+  error?: string;
+}
 
 function formatTimestamp(value: string): string {
   return new Date(value).toLocaleString("en-AU", {
@@ -28,6 +38,62 @@ function skuLabel(sku: SkuSearchResult): string {
   return [sku.finish, sku.condition, sku.language.toUpperCase()].filter(Boolean).join(" · ");
 }
 
+/**
+ * Parses a bulk-receive CSV into raw (skuId, quantity) pairs. Expects a
+ * header row containing `sku_id` and `quantity` columns (any order, extra
+ * columns ignored) -- the CSV is expected to come from a supplier feed or a
+ * catalogue export a staff member fills quantities into, not to be
+ * hand-typed, so identifying by the internal SKU id (rather than trying to
+ * fuzzy-match a card name/set/finish/condition combination from free text)
+ * keeps resolution unambiguous.
+ */
+function parseBulkReceiveCsv(text: string): {
+  lines: { skuId: string; quantity: number }[];
+  rowErrors: string[];
+} {
+  const rows = parseCsv(text);
+  const rowErrors: string[] = [];
+
+  if (rows.length === 0) {
+    return { lines: [], rowErrors: ["The file is empty."] };
+  }
+
+  const header = rows[0].map((cell) => cell.trim().toLowerCase());
+  const skuIdCol = header.indexOf("sku_id");
+  const quantityCol = header.indexOf("quantity");
+
+  if (skuIdCol === -1 || quantityCol === -1) {
+    return {
+      lines: [],
+      rowErrors: ['The first row must be a header containing "sku_id" and "quantity" columns.'],
+    };
+  }
+
+  const lines: { skuId: string; quantity: number }[] = [];
+
+  for (const [index, row] of rows.slice(1).entries()) {
+    const lineNumber = index + 2; // +1 for the header, +1 for 1-indexing
+    const skuId = row[skuIdCol]?.trim();
+    const quantityRaw = row[quantityCol]?.trim();
+
+    if (!skuId && !quantityRaw) {
+      continue; // blank row
+    }
+    if (!skuId) {
+      rowErrors.push(`Row ${lineNumber}: missing sku_id.`);
+      continue;
+    }
+    const quantity = Number(quantityRaw);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      rowErrors.push(`Row ${lineNumber}: "${quantityRaw}" is not a positive whole quantity.`);
+      continue;
+    }
+    lines.push({ skuId, quantity });
+  }
+
+  return { lines, rowErrors };
+}
+
 export function ReceivingWorkbench({
   nodes,
   initialReceipts,
@@ -35,6 +101,7 @@ export function ReceivingWorkbench({
   nodes: ScopedNode[];
   initialReceipts: ReceiptRow[];
 }) {
+  const csvInputId = useId();
   const [receipts, setReceipts] = useState(initialReceipts);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SkuSearchResult[]>([]);
@@ -42,10 +109,13 @@ export function ReceivingWorkbench({
   const [nodeId, setNodeId] = useState(nodes[0]?.id ?? "");
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
+  const [batch, setBatch] = useState<BatchLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [csvNotice, setCsvNotice] = useState<string | null>(null);
   const [isSearching, startSearch] = useTransition();
   const [isSaving, setIsSaving] = useState(false);
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
 
   function onSearch() {
     setError(null);
@@ -67,7 +137,28 @@ export function ReceivingWorkbench({
     });
   }
 
-  async function onReceive() {
+  function addSelectedToBatch() {
+    if (!selected) return;
+    const qty = Number(quantity);
+    if (!Number.isInteger(qty) || qty <= 0) {
+      setError("Enter a positive whole quantity before adding it to the batch.");
+      return;
+    }
+
+    setBatch((current) => [...current, { ...selected, quantity: qty }]);
+    setSelected(null);
+    setResults([]);
+    setQuery("");
+    setQuantity("");
+    setError(null);
+    setNotice(null);
+  }
+
+  function removeBatchLine(index: number) {
+    setBatch((current) => current.filter((_, i) => i !== index));
+  }
+
+  async function onReceiveSingle() {
     if (!selected) return;
 
     setIsSaving(true);
@@ -102,6 +193,111 @@ export function ReceivingWorkbench({
     }
   }
 
+  async function onCsvSelected(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = ""; // allow re-selecting the same file after a fix
+    if (!file) return;
+
+    setCsvNotice(null);
+    setError(null);
+    setIsImportingCsv(true);
+
+    try {
+      const text = await file.text();
+      const { lines, rowErrors } = parseBulkReceiveCsv(text);
+
+      if (lines.length === 0) {
+        setError(rowErrors[0] ?? "No usable rows found in that file.");
+        return;
+      }
+
+      if (batch.length + lines.length > MAX_BULK_RECEIVE_LINES) {
+        setError(
+          `That file would bring the batch to ${batch.length + lines.length} lines, over the ${MAX_BULK_RECEIVE_LINES}-line limit. Submit the current batch first, or split the file.`,
+        );
+        return;
+      }
+
+      const resolved = await resolveSkusById(lines.map((l) => l.skuId));
+      const bySkuId = new Map(resolved.map((sku) => [sku.skuId, sku]));
+
+      const newLines: BatchLine[] = [];
+      const unresolved: string[] = [];
+
+      for (const line of lines) {
+        const sku = bySkuId.get(line.skuId);
+        if (!sku) {
+          unresolved.push(line.skuId);
+          continue;
+        }
+        newLines.push({ ...sku, quantity: line.quantity });
+      }
+
+      setBatch((current) => [...current, ...newLines]);
+
+      const messages: string[] = [];
+      if (newLines.length > 0) {
+        messages.push(`Added ${newLines.length} line(s) from ${file.name}.`);
+      }
+      if (unresolved.length > 0) {
+        messages.push(`${unresolved.length} SKU id(s) not found in the catalogue.`);
+      }
+      if (rowErrors.length > 0) {
+        messages.push(`${rowErrors.length} row(s) skipped: ${rowErrors.slice(0, 3).join(" ")}`);
+      }
+      setCsvNotice(messages.join(" "));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not read that file");
+      Sentry.captureException(err);
+    } finally {
+      setIsImportingCsv(false);
+    }
+  }
+
+  async function onReceiveBatch() {
+    if (batch.length === 0) return;
+
+    setIsSaving(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const result = await receiveStockBulk({
+        nodeId,
+        lines: batch.map((line) => ({ skuId: line.skuId, quantity: line.quantity })),
+        reason: reason || undefined,
+      });
+
+      if (result.lineResults) {
+        const withStatus = batch.map((line, index) => {
+          const lineResult = result.lineResults?.[index];
+          return {
+            ...line,
+            status: lineResult?.success ? ("success" as const) : ("failed" as const),
+            error: lineResult?.error,
+          };
+        });
+        // Keep only the lines that failed so they can be reviewed and
+        // resubmitted; successful ones are already in the ledger.
+        setBatch(withStatus.filter((line) => line.status === "failed"));
+      }
+
+      const succeeded = result.lineResults?.filter((r) => r.success).length ?? 0;
+      const total = result.lineResults?.length ?? batch.length;
+      setNotice(`Received ${succeeded} of ${total} line(s) into stock.`);
+      if (!result.success) {
+        setError(result.error ?? "Some lines failed");
+      }
+
+      setReceipts(await listRecentReceipts());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bulk receiving failed");
+      Sentry.captureException(err);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   if (nodes.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -117,6 +313,32 @@ export function ReceivingWorkbench({
           <PackagePlus className="size-4 text-primary" aria-hidden />
           Book stock in
         </h2>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1 text-xs font-medium">
+            Receive into
+            <select
+              value={nodeId}
+              onChange={(event) => setNodeId(event.target.value)}
+              className={SELECT_CLASS}
+            >
+              {nodes.map((node) => (
+                <option key={node.id} value={node.id}>
+                  {node.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-1 min-w-48 flex-col gap-1 text-xs font-medium">
+            Reference / note (optional, applies to this whole batch)
+            <Input
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="e.g. PO-4821, case break"
+            />
+          </label>
+        </div>
 
         <form
           className="mt-4 flex flex-col gap-3 sm:flex-row"
@@ -185,21 +407,6 @@ export function ReceivingWorkbench({
 
             <div className="flex flex-wrap items-end gap-3">
               <label className="flex flex-col gap-1 text-xs font-medium">
-                Receive into
-                <select
-                  value={nodeId}
-                  onChange={(event) => setNodeId(event.target.value)}
-                  className={SELECT_CLASS}
-                >
-                  {nodes.map((node) => (
-                    <option key={node.id} value={node.id}>
-                      {node.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs font-medium">
                 Quantity
                 <Input
                   type="number"
@@ -211,19 +418,44 @@ export function ReceivingWorkbench({
                 />
               </label>
 
-              <label className="flex flex-1 flex-col gap-1 text-xs font-medium">
-                Reference / note (optional)
-                <Input
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  placeholder="e.g. PO-4821, case break"
-                />
-              </label>
+              <Button
+                variant="outline"
+                disabled={quantity.trim() === ""}
+                onClick={addSelectedToBatch}
+              >
+                Add to batch
+              </Button>
 
-              <Button disabled={isSaving || quantity.trim() === ""} onClick={onReceive}>
-                {isSaving ? "Receiving…" : "Receive"}
+              <Button disabled={isSaving || quantity.trim() === ""} onClick={onReceiveSingle}>
+                {isSaving ? "Receiving…" : "Receive this line now"}
               </Button>
             </div>
+          </div>
+        ) : null}
+
+        <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4">
+          <label htmlFor={csvInputId} className="text-xs font-medium">
+            Or upload a shipment manifest (CSV with <code>sku_id</code>,{" "}
+            <code>quantity</code> columns)
+          </label>
+          <Input
+            id={csvInputId}
+            type="file"
+            accept=".csv,text/csv"
+            disabled={isImportingCsv}
+            onChange={onCsvSelected}
+            className="w-auto"
+          />
+          {isImportingCsv ? (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Upload className="size-3.5 animate-pulse" aria-hidden /> Reading…
+            </span>
+          ) : null}
+        </div>
+
+        {csvNotice ? (
+          <div className="mt-3 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+            {csvNotice}
           </div>
         ) : null}
 
@@ -239,6 +471,64 @@ export function ReceivingWorkbench({
           </div>
         ) : null}
       </section>
+
+      {batch.length > 0 ? (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight">
+              Pending batch ({batch.length})
+            </h2>
+            <Button disabled={isSaving} onClick={onReceiveBatch}>
+              {isSaving ? "Receiving…" : `Receive batch (${batch.length})`}
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border bg-card">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="px-4 py-3 text-left font-semibold">Card</th>
+                  <th className="px-4 py-3 text-right font-semibold">Qty</th>
+                  <th className="px-4 py-3 text-left font-semibold">Status</th>
+                  <th className="px-4 py-3 text-right font-semibold">Remove</th>
+                </tr>
+              </thead>
+              <tbody>
+                {batch.map((line, index) => (
+                  <tr key={`${line.skuId}-${index}`} className="border-b last:border-b-0">
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{line.cardName}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {line.setCode.toUpperCase()} #{line.collectorNumber} · {skuLabel(line)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium tabular-nums">
+                      {line.quantity}
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      {line.status === "failed" ? (
+                        <span className="text-destructive">{line.error ?? "Failed"}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Pending</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Remove ${line.cardName} from batch`}
+                        onClick={() => removeBatchLine(index)}
+                      >
+                        <Trash2 className="size-4" aria-hidden />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">Recent receipts</h2>
