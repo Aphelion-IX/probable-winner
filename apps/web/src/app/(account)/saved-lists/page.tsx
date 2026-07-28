@@ -43,7 +43,7 @@ export default async function SavedListsPage() {
         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
           <Bookmark className="mx-auto h-8 w-8 opacity-50" />
           <p className="mt-2">Nothing saved yet.</p>
-          <Link href="/cards" className="mt-4 inline-block text-blue-600 hover:underline">
+          <Link href="/sets" className="mt-4 inline-block text-blue-600 hover:underline">
             Browse cards
           </Link>
         </div>

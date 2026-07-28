@@ -2,9 +2,8 @@
 
 import { cn } from "@/lib/utils";
 
-// Shared pressed/unpressed filter chip -- used by CardTopBar and
-// SetCardFilterBar so the colour/finish/etc. filter chips look and behave
-// identically across both pages.
+// Shared pressed/unpressed filter chip -- used by SetCardFilterBar so the
+// colour/finish/etc. filter chips look and behave consistently.
 export function ToggleChip({
   label,
   active,

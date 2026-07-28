@@ -69,9 +69,9 @@ export type ListSetCardsOptions = {
   sort?: string;
 };
 
-// Mirrors buildColorFilter in list-cards.ts (same colourless-vs-chromatic OR
-// semantics), but applied to an already-fetched row's colors array instead
-// of building a Postgrest filter string.
+// Same colourless-vs-chromatic OR semantics as the rest of the catalogue's
+// colour filters, but applied to an already-fetched row's colors array
+// instead of building a Postgrest filter string.
 function matchesColorFilter(rowColors: string[], colors: CardColor[]): boolean {
   if (colors.length === 0) return true;
   const chromatic = colors.filter((color) => color !== "C");

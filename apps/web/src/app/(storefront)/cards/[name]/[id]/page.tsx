@@ -72,8 +72,8 @@ export default async function CardIdentityPage({ params }: CardIdentityPageProps
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-12 sm:px-6">
       <div>
-        <Link href="/cards" className="text-sm text-muted-foreground hover:underline">
-          ← Back to cards
+        <Link href="/sets" className="text-sm text-muted-foreground hover:underline">
+          ← Back to sets
         </Link>
       </div>
 
