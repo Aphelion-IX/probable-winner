@@ -34,8 +34,9 @@ rather than assuming an older Next.js API.
    once it exists, and blueprint §15.5).
 10. Do not process payment based on browser redirects — confirm via Stripe
     webhook only, keyed by the webhook's unique event ID.
-11. Do not directly dual-write PostgreSQL and Typesense from a request
-    handler — use the outbox pattern (integration event → queue → worker).
+11. Do not directly dual-write PostgreSQL and the search index (MiniSearch,
+    hosted in `apps/worker`) from a request handler — use the outbox pattern
+    (integration event → queue → worker).
 12. Do not calculate balances from editable fields — `inventory_balances` is
     derived from the immutable `inventory_movements` ledger via the atomic
     database functions in blueprint §9.3.

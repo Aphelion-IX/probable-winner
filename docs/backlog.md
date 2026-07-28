@@ -14,7 +14,7 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 - Every task also inherits the global Definition of Done from `AGENTS.md`: typecheck,
   lint, and relevant test suites pass; migrations (not manual schema edits) are used
   for any database change; no business logic in page components; no direct
-  PostgreSQL/Typesense dual-writes from request handlers.
+  PostgreSQL/search-index dual-writes from request handlers.
 - Tasks are grouped by phase and map back to blueprint §27 "Step 1–23." Phase order is
   the dependency order — do not start a later phase's tasks before its prerequisite
   phases are functionally done, even if individual tasks look parallel-friendly.
@@ -77,16 +77,17 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 - AC: `supabase/config.toml` present; `supabase start` boots Postgres, Auth, Storage locally; `supabase/migrations` is empty but wired into CI (B-014).
 - Tests: `supabase db reset` succeeds against an empty migrations directory.
 
-**B-021 Local Typesense container** — deps: B-010
-- AC: `docker-compose.yml` (or equivalent) starts a Typesense node with a fixed API key for local dev; documented in README.
-- Tests: a smoke script creates and deletes a test collection against the local instance.
+**B-021 Local search service** — deps: B-010
+- Superseded: search runs on MiniSearch (an in-memory library, not a hosted service like Typesense), hosted inside `apps/worker` itself (`apps/worker/src/search/http-server.ts`) — there is no separate container to start. For local dev, `pnpm --filter worker dev` doubles as the local search service; set `SEARCH_SERVICE_URL`/`SEARCH_SERVICE_TOKEN` in `apps/web/.env.local` to match.
+- AC: the worker's search HTTP server starts on `SEARCH_SERVICE_PORT` and answers `GET /health`; documented in README.
+- Tests: a smoke script hits `/health` and asserts a 200.
 
 **B-022 Local email viewer** — deps: B-010
 - AC: Resend dev mode or an inbox-catcher (e.g. Inbucket/Mailpit) captures outgoing email locally; `packages/integrations/email` reads target inbox from env.
 - Tests: a smoke test sends one templated email and asserts it lands in the local inbox.
 
 **B-023 Unified `pnpm dev` command** — deps: B-020, B-021, B-022
-- AC: one command starts Supabase, Typesense, the email viewer, the Next.js app, and the worker; documented exit/cleanup behavior.
+- AC: one command starts Supabase, the worker (doubling as the local search service), the email viewer, and the Next.js app; documented exit/cleanup behavior.
 - Tests: manual verification only — record the steps in README; CI does not run `pnpm dev`.
 
 **B-024 README quick start** — deps: B-023
@@ -211,23 +212,23 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 
 ## Phase 2 — Search and Storefront (Steps 9–13)
 
-### Step 9: Typesense search
+### Step 9: Search (MiniSearch, worker-hosted)
 
-**B-080 Typesense collection schema** — deps: B-050
-- AC: schema matches the `CardSearchDocument` shape in blueprint §13.2 exactly.
+**B-080 Search document shape** — deps: B-050
+- AC: `CardSearchDocument` (`packages/search/src/card-search-document.ts`) matches blueprint §13.2's fields; the worker's MiniSearch index (`apps/worker/src/search/index-store.ts`) indexes name/type_line/artist/set_name for full-text and stores every field for filtering/sorting.
 - Tests: schema-validation unit test against a sample document.
 
 **B-081 Full reindex job** — deps: B-080, B-066
-- AC: worker job rebuilds the entire collection from Postgres without touching customer-facing traffic; safe to run repeatedly.
+- AC: worker job (`rebuildFullIndex`) rebuilds the entire in-memory index from Postgres without touching customer-facing traffic (the old index keeps serving until the rebuild swaps in); safe to run repeatedly; persists a snapshot to Supabase Storage for fast restarts.
 - Tests: integration test on fixture data asserts document count matches source SKU count.
 
 **B-082 Outbox: integration_events on inventory/price/catalogue change** — deps: B-061, B-071
 - AC: every atomic inventory/pricing function (B-061–B-071, B-160s) writes an `integration_events` row in the same transaction as the domain change — never a separate, non-transactional write.
 - Tests: pgTAP: a rolled-back inventory transaction leaves no orphaned integration event.
 
-**B-083 Worker consumer: incremental Typesense update** — deps: B-082
-- AC: consumer reads `integration_events` via the queue, updates only the affected Typesense document(s); retries on transient failure per blueprint §17 failure behavior.
-- Tests: integration test: one inventory movement produces exactly one Typesense document update, observable within the queue's normal processing latency.
+**B-083 Worker consumer: incremental search index update** — deps: B-082
+- AC: consumer reads `integration_events` via the queue, updates only the affected document(s) in the worker's own in-memory MiniSearch index (no network call — same process); retries on transient failure per blueprint §17 failure behavior.
+- Tests: integration test: one inventory movement produces exactly one search document update, observable within the queue's normal processing latency.
 
 **B-084 Search API route handler** — deps: B-080
 - AC: supports name/partial-name/typo/set/collector-number/artist/colour/format/condition/finish/store/in-stock/price-range filters per blueprint §13.4; is a route handler, not a Server Action (per §19).
@@ -316,7 +317,7 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 - Tests: Playwright: close and reopen the browser context, cart persists.
 
 **B-115 Test: reservation expiry releases stock correctly** — deps: B-112
-- AC: covers the full path from expiry job to Typesense availability update (via the outbox, B-082/B-083).
+- AC: covers the full path from expiry job to search index availability update (via the outbox, B-082/B-083).
 - Tests: this task's deliverable is the integration test.
 
 **B-116 Performance test: add-to-cart confirmation budget** — deps: B-111
@@ -451,7 +452,7 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 
 **B-165 Reindex trigger on price publish** — deps: B-164, B-082
 - AC: publishing a price writes an integration event consumed by the same outbox path as inventory changes (B-083), not a separate ad hoc sync.
-- Tests: integration test: publishing a price updates the Typesense document's price fields.
+- Tests: integration test: publishing a price updates the search document's price fields.
 
 ---
 
@@ -514,7 +515,7 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 - Tests: integration test: receiving stock does not add measurable latency to the receiving endpoint even with many matching subscriptions queued.
 
 **B-193 Recently-added feed** — deps: B-046, B-080
-- AC: surfaces newly catalogued/received items via Typesense, not a live Postgres scan per request.
+- AC: surfaces newly catalogued/received items via the search service, not a live Postgres scan per request.
 - Tests: integration test for feed correctness and ordering.
 
 ---
@@ -530,7 +531,7 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 - Tests: unit test for the logger's formatting function.
 
 **B-202 Queue, import, and search-index delay monitoring** — deps: B-083, B-154
-- AC: dashboards/alerts exist for queue backlog age, import failures, and Typesense sync lag.
+- AC: dashboards/alerts exist for queue backlog age, import failures, and search-index sync lag.
 - Tests: integration test: an artificially delayed queue message triggers the alert condition in a test environment.
 
 **B-203 Rate limiting on public endpoints** — deps: B-084, B-123

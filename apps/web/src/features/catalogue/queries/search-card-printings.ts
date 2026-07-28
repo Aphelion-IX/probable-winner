@@ -3,8 +3,8 @@ import { sanitizeForIlike } from "@/features/catalogue/lib/postgrest-filters";
 
 // A small, direct-to-Postgres name search for the alert-creation form
 // (backlog B-191): low-traffic, a handful of results, not the storefront's
-// hot search path -- unlike the main search box, which must go through
-// Typesense per blueprint §20 ("don't query Postgres on every search
+// hot search path -- unlike the main search box, which must go through the
+// search service per blueprint §20 ("don't query Postgres on every search
 // keystroke").
 const SEARCH_LIMIT = 8;
 

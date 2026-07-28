@@ -10,12 +10,24 @@ import { pollRestockAlertsQueue } from "./consumers/restock-alerts-consumer.js";
 import { pollEmailQueue } from "./consumers/email-consumer.js";
 import { checkQueueHealth } from "./monitoring/queue-health.js";
 import { checkImportFailures } from "./monitoring/import-health.js";
+import { startSearchHttpServer } from "./search/http-server.js";
+import {
+  loadSnapshotFromStorage,
+  persistSnapshotToStorage,
+  rebuildFullIndex,
+} from "./search/index-store.js";
 
 const POLL_INTERVAL_MS = 5_000;
 // B-202: health checks are far cheaper to run than a queue drain, but
 // running them every 5s poll tick would be excessive — once a minute is
 // enough to catch a >5min staleness threshold with room to spare.
 const HEALTH_CHECK_INTERVAL_MS = 60_000;
+// MiniSearch's index lives in this process's memory (unlike Typesense, an
+// external service) -- a periodic snapshot to storage bounds how much
+// incremental (queue-driven) drift a crash/restart could lose to this
+// interval, without paying the cost of re-uploading the several-hundred-MB
+// snapshot on every single incremental update.
+const SNAPSHOT_PERSIST_INTERVAL_MS = 30 * 60_000;
 
 // catalogue_import, stock_reconciliation, pricing_import, search_index,
 // restock_alerts, and email have consumers wired up. There is no separate
@@ -114,9 +126,30 @@ async function runHealthChecks(): Promise<void> {
   }
 }
 
+// Loads the last persisted snapshot for a fast start; falls back to a full
+// rebuild from Postgres (the always-correct path) when no snapshot exists
+// yet or loading one fails for any reason -- see index-store.ts's own
+// comments on why the snapshot is a best-effort accelerator, not a hard
+// dependency.
+async function loadOrRebuildSearchIndex(): Promise<void> {
+  const loaded = await loadSnapshotFromStorage();
+  if (loaded) {
+    logger.info("search index loaded from storage snapshot");
+    return;
+  }
+
+  logger.info("no usable search index snapshot -- rebuilding from Postgres");
+  const result = await rebuildFullIndex(sql);
+  logger.info("search index rebuilt from Postgres", result);
+}
+
 async function main() {
   logger.info("worker started, polling queues");
   let lastHealthCheckAt = 0;
+  let lastSnapshotPersistAt = Date.now();
+
+  await loadOrRebuildSearchIndex();
+  startSearchHttpServer(sql);
 
   for (;;) {
     const processed = await tick();
@@ -125,6 +158,11 @@ async function main() {
     if (now - lastHealthCheckAt >= HEALTH_CHECK_INTERVAL_MS) {
       lastHealthCheckAt = now;
       await runHealthChecks();
+    }
+
+    if (now - lastSnapshotPersistAt >= SNAPSHOT_PERSIST_INTERVAL_MS) {
+      lastSnapshotPersistAt = now;
+      await persistSnapshotToStorage();
     }
 
     if (!processed) {

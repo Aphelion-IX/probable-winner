@@ -8,10 +8,10 @@ required before launch.
 
 | Environment | Database | Search | Payments | Notes |
 |---|---|---|---|---|
-| Local | Local Supabase (Docker) | Local Typesense container | Stripe test mode | `pnpm dev`; seeded fixture data |
+| Local | Local Supabase (Docker) | `pnpm --filter worker dev` (MiniSearch, worker-hosted) | Stripe test mode | `pnpm dev`; seeded fixture data |
 | Preview | Safe preview database or mocked data | — | Stripe test mode | One per feature branch (Vercel) |
-| Staging | Dedicated Supabase project | Dedicated Typesense collection | Stripe test mode | Realistic data; full integration testing |
-| Production | Production database | Production search cluster | Stripe live mode | Production monitoring (Sentry, see `docs/security.md`) |
+| Staging | Dedicated Supabase project | Dedicated worker deployment | Stripe test mode | Realistic data; full integration testing |
+| Production | Production database | Production worker deployment (Railway/Render/equivalent) | Stripe live mode | Production monitoring (Sentry, see `docs/security.md`) |
 
 Never connect a preview deployment to the production database.
 
@@ -52,6 +52,17 @@ Production deployment (once staging exists): merge to main → run full CI →
 apply database migrations → deploy worker → deploy web application → run
 smoke tests → verify health endpoints (`/api/health`) → monitor errors
 (Sentry, B-200).
+
+**Gap, not yet closed:** "deploy worker" above is not yet a concrete,
+reachable deployment anywhere in this repo's history -- `apps/web` has a
+real Vercel project, but `apps/worker` has never been deployed to Railway/
+Render/equivalent (the tech stack's own recommendation) or any other host.
+Since B-021's supersession, the worker is also where search lives
+(`SEARCH_SERVICE_URL`/`SEARCH_SERVICE_TOKEN` in `apps/web`'s environment
+must point at it), so this gap now blocks live search, not just background
+jobs. Stand up that deployment and wire the URL/token into `apps/web`'s
+Vercel project env vars before considering search "shipped" in any
+environment beyond local dev.
 
 ## Backup verification (B-206)
 

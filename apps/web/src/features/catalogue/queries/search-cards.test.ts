@@ -1,13 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const mockSearch = vi.fn();
-const mockCreateTypesenseClient = vi.fn().mockReturnValue({
-  collections: () => ({ documents: () => ({ search: mockSearch }) }),
-});
+const mockQuerySearchService = vi.fn();
 
-vi.mock("@probable-winner/search", () => ({
-  createTypesenseClient: (...args: unknown[]) => mockCreateTypesenseClient(...args),
-  CARDS_COLLECTION_NAME: "cards",
+vi.mock("@/lib/search-service-client", () => ({
+  querySearchService: (...args: unknown[]) => mockQuerySearchService(...args),
 }));
 
 const DOCUMENT = {
@@ -23,13 +19,24 @@ const DOCUMENT = {
   image_url: "https://cards.scryfall.io/normal/front/example.jpg",
 };
 
+function outcome(hits: unknown[]) {
+  return {
+    hits,
+    page: 1,
+    pageSize: 20,
+    totalHits: hits.length,
+    totalPages: 1,
+    processingTimeMs: 1,
+  };
+}
+
 describe("searchCards", () => {
   beforeEach(() => {
-    mockSearch.mockReset();
+    mockQuerySearchService.mockReset();
   });
 
   it("maps printing_id (not the sku id) into the hit used to link to the card page", async () => {
-    mockSearch.mockResolvedValue({ found: 1, search_time_ms: 1, hits: [{ document: DOCUMENT }] });
+    mockQuerySearchService.mockResolvedValue(outcome([DOCUMENT]));
     const { searchCards } = await import("./search-cards");
 
     const result = await searchCards({});
@@ -42,7 +49,7 @@ describe("searchCards", () => {
   });
 
   it("maps image_url into imageUrl", async () => {
-    mockSearch.mockResolvedValue({ found: 1, search_time_ms: 1, hits: [{ document: DOCUMENT }] });
+    mockQuerySearchService.mockResolvedValue(outcome([DOCUMENT]));
     const { searchCards } = await import("./search-cards");
 
     const result = await searchCards({});
@@ -51,15 +58,28 @@ describe("searchCards", () => {
   });
 
   it("maps an empty image_url (no catalogued image) to null, not an empty string", async () => {
-    mockSearch.mockResolvedValue({
-      found: 1,
-      search_time_ms: 1,
-      hits: [{ document: { ...DOCUMENT, image_url: "" } }],
-    });
+    mockQuerySearchService.mockResolvedValue(outcome([{ ...DOCUMENT, image_url: "" }]));
     const { searchCards } = await import("./search-cards");
 
     const result = await searchCards({});
 
     expect(result.hits[0].imageUrl).toBeNull();
+  });
+
+  it("passes params straight through to the search service and shapes its response", async () => {
+    mockQuerySearchService.mockResolvedValue({
+      hits: [],
+      page: 2,
+      pageSize: 48,
+      totalHits: 100,
+      totalPages: 3,
+      processingTimeMs: 5,
+    });
+    const { searchCards } = await import("./search-cards");
+
+    const result = await searchCards({ q: "bolt", page: 2, limit: 48 });
+
+    expect(mockQuerySearchService).toHaveBeenCalledWith({ q: "bolt", page: 2, limit: 48 });
+    expect(result).toMatchObject({ page: 2, pageSize: 48, totalHits: 100, totalPages: 3 });
   });
 });

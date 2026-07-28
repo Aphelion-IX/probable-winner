@@ -1,14 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { Sql } from "postgres";
 
-const mockImport = vi.fn();
-const mockCreateTypesenseClient = vi.fn().mockReturnValue({
-  collections: () => ({ documents: () => ({ import: mockImport }) }),
-});
+const mockPatchPopularityScore = vi.fn();
 
-vi.mock("@probable-winner/search", () => ({
-  createTypesenseClient: (...args: unknown[]) => mockCreateTypesenseClient(...args),
-  CARDS_COLLECTION_NAME: "cards",
+vi.mock("../search/index-store.js", () => ({
+  patchPopularityScore: (...args: unknown[]) => mockPatchPopularityScore(...args),
 }));
 
 function createMockSql(rows: unknown[]): Sql {
@@ -52,10 +48,10 @@ describe("fetchPopularityMetrics", () => {
 
 describe("updateAllPopularityScores", () => {
   beforeEach(() => {
-    mockImport.mockReset();
+    mockPatchPopularityScore.mockReset();
   });
 
-  it("writes each SKU's computed score into Typesense via a batched partial update", async () => {
+  it("patches each SKU's computed score into the live search index", async () => {
     const sql = createMockSql([
       {
         sku_id: "sku-1",
@@ -66,18 +62,16 @@ describe("updateAllPopularityScores", () => {
         availability_stores: "10",
       },
     ]);
-    mockImport.mockResolvedValue([{ success: true }]);
+    mockPatchPopularityScore.mockReturnValue(true);
 
     const { updateAllPopularityScores } = await import("./calculate-popularity-score.js");
     const result = await updateAllPopularityScores(sql);
 
-    expect(mockImport).toHaveBeenCalledWith([{ id: "sku-1", popularity_score: 100 }], {
-      action: "update",
-    });
+    expect(mockPatchPopularityScore).toHaveBeenCalledWith("sku-1", 100);
     expect(result).toMatchObject({ status: "completed", updated: 1, failed: 0 });
   });
 
-  it("counts SKUs not yet present in Typesense as failed, not fatal", async () => {
+  it("counts SKUs not yet present in the search index as failed, not fatal", async () => {
     const sql = createMockSql([
       {
         sku_id: "sku-1",
@@ -88,7 +82,7 @@ describe("updateAllPopularityScores", () => {
         availability_stores: "0",
       },
     ]);
-    mockImport.mockResolvedValue([{ success: false, error: "Not Found" }]);
+    mockPatchPopularityScore.mockReturnValue(false);
 
     const { updateAllPopularityScores } = await import("./calculate-popularity-score.js");
     const result = await updateAllPopularityScores(sql);
@@ -103,6 +97,6 @@ describe("updateAllPopularityScores", () => {
     const result = await updateAllPopularityScores(sql);
 
     expect(result).toMatchObject({ status: "failed", error: "connection refused" });
-    expect(mockImport).not.toHaveBeenCalled();
+    expect(mockPatchPopularityScore).not.toHaveBeenCalled();
   });
 });

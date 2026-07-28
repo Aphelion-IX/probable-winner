@@ -25,7 +25,7 @@ This document defines the retail-MVP scope and explicitly excludes marketplace/b
 - **Reservation**: Stock reservation with automatic expiry and release
 - **Checkout**: Stripe Checkout integration with webhook confirmation
 - **Orders**: Order status tracking, picking workflow, shipment dispatch/receipt
-- **Search**: Typesense full-text search with live indexing
+- **Search**: MiniSearch full-text search (hosted in the background worker) with live indexing
 
 ### Store Operations
 - **Click-and-collect**: In-store pickup with inventory allocation

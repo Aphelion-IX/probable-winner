@@ -1,6 +1,6 @@
 import type { Sql } from "postgres";
 
-// Batched read model backing both the full Typesense reindex (B-081) and
+// Batched read model backing both the full search reindex (B-081) and
 // the incremental single-SKU update (B-083): one query joining every table
 // a search document needs, optionally scoped to a specific set of SKU ids.
 // Never one query per SKU — the same batching principle as

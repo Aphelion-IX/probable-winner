@@ -5,24 +5,17 @@
 // has no server to reach on Vercel (each request runs in an isolated
 // serverless function, not a persistent localhost listener), so a self-fetch
 // fails in production even though the same query works fine hit directly.
-import {
-  createTypesenseClient,
-  CARDS_COLLECTION_NAME,
-  type CardSearchDocument,
-} from "@probable-winner/search";
+import { type SearchQueryParams } from "@probable-winner/search";
 
-import {
-  buildFilterBy,
-  buildSortBy,
-  type SearchQueryParams,
-} from "@/features/catalogue/lib/build-search-query";
+import { querySearchService } from "@/lib/search-service-client";
 
 export interface SearchCardsResult {
   hits: {
     id: string;
     // The card identity page routes by card_printings id, not the sku id
-    // above -- distinct fields in the Typesense document for exactly this
-    // reason (see typesense-schema.ts's comment on printing_id).
+    // above -- distinct fields in the search document for exactly this
+    // reason (see @probable-winner/search's card-search-document.ts comment
+    // on printing_id).
     printingId: string;
     name: string;
     set: string;
@@ -41,44 +34,27 @@ export interface SearchCardsResult {
 }
 
 export async function searchCards(params: SearchQueryParams): Promise<SearchCardsResult> {
-  const page = params.page || 1;
-  const perPage = params.limit || 20;
+  const outcome = await querySearchService(params);
 
-  const client = createTypesenseClient();
-  const filterBy = buildFilterBy(params);
-  const sortBy = buildSortBy(params.sort);
-
-  const response = await client
-    .collections<CardSearchDocument>(CARDS_COLLECTION_NAME)
-    .documents()
-    .search({
-      q: params.q?.trim() || "*",
-      query_by: "name",
-      ...(filterBy ? { filter_by: filterBy } : {}),
-      ...(sortBy ? { sort_by: sortBy } : {}),
-      page,
-      per_page: perPage,
-    });
-
-  const hits = (response.hits ?? []).map((hit) => ({
-    id: hit.document.id,
-    printingId: hit.document.printing_id,
-    name: hit.document.name,
-    set: hit.document.set_code,
-    rarity: hit.document.rarity,
-    artist: hit.document.artist,
-    condition: hit.document.condition,
-    finish: hit.document.finish,
-    price: hit.document.price_amount,
-    imageUrl: hit.document.image_url || null,
+  const hits = outcome.hits.map((doc) => ({
+    id: doc.id,
+    printingId: doc.printing_id,
+    name: doc.name,
+    set: doc.set_code,
+    rarity: doc.rarity,
+    artist: doc.artist,
+    condition: doc.condition,
+    finish: doc.finish,
+    price: doc.price_amount,
+    imageUrl: doc.image_url || null,
   }));
 
   return {
     hits,
-    page,
-    pageSize: perPage,
-    totalHits: response.found,
-    totalPages: Math.ceil(response.found / perPage),
-    processingTimeMs: response.search_time_ms,
+    page: outcome.page,
+    pageSize: outcome.pageSize,
+    totalHits: outcome.totalHits,
+    totalPages: outcome.totalPages,
+    processingTimeMs: outcome.processingTimeMs,
   };
 }

@@ -13,16 +13,14 @@ export interface ScenarioResult {
 
 /**
  * Blueprint §23 scenario 1: "hundreds of simultaneous searches". Blocked --
- * the storefront's search page is still a placeholder (Typesense
- * integration, backlog Step 9 / B-080-087, was never built in this
- * environment, and there are no Typesense credentials to build against
- * per AGENTS.md/PR #4's documented constraint).
+ * this load-test harness has no way to reach the worker's search HTTP
+ * service (SEARCH_SERVICE_URL) from wherever it runs, and there is no
+ * seeded traffic-generation setup for it in this environment.
  */
 export async function concurrentSearches(): Promise<ScenarioResult> {
   return {
     name: "Concurrent searches",
-    blocked:
-      "Typesense search (B-080-087) is unimplemented — apps/web's /search page is a placeholder.",
+    blocked: "No load-test harness wired up to the worker's search HTTP service yet.",
   };
 }
 

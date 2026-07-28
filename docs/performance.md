@@ -41,7 +41,7 @@ All performance tests must meet these targets at the seeded data scale (§23 bel
 | Price publish batch | 50k prices | < 15 min | Parallel writes with conflict handling |
 | Stocktake reconciliation | 10k movement records | < 5 min | Ledger scan + balance update |
 | Reservation expiry batch | 50k active reservations | < 2 min | Cron job, 1min interval |
-| Search reindex | 500k products | < 10 min | Typesense bulk API, delta sync |
+| Search reindex | 500k products | < 10 min | Full rebuild from Postgres, in-process MiniSearch index |
 
 ### Database Query Performance
 
@@ -51,7 +51,7 @@ All performance tests must meet these targets at the seeded data scale (§23 bel
 | Price lookup (SKU+org+currency) | Query latency | < 30 ms | Unique index on published_prices |
 | Reservation list by order | Query latency | < 20 ms | Foreign key index on orders.id |
 | RLS policy evaluation | Overhead | < 5 ms | Per query, relative to superuser bypass |
-| Full-text search (Typesense) | Search latency | < 300 ms | 500k products, 10 filters |
+| Full-text search (MiniSearch, worker-hosted) | Search latency | < 300 ms | 500k products, 10 filters |
 
 ## Seeded Dataset Volumes (blueprint §23)
 
@@ -106,7 +106,7 @@ All performance tests must run against this minimum data scale. Local dev and CI
 
 | Index | Document Count | Notes |
 |-------|-----------------|-------|
-| `products` (Typesense) | 500,000+ | One doc per SKU (card + variant) |
+| `cards` (MiniSearch, worker-hosted) | 500,000+ | One doc per SKU (card + variant) |
 | Fields indexed | 20+ | Name, oracle text, tags, price, stock, condition |
 | Facets | 10+ | Set, color, rarity, finish, condition, price range, store |
 
@@ -216,7 +216,7 @@ production traffic.
 Performance is monitored continuously in staging and production:
 
 - **Query performance**: Slow query log (> 100 ms) alerts via Sentry
-- **Search latency**: Typesense metrics exported to monitoring dashboard
+- **Search latency**: `processingTimeMs` on every search response, exported to monitoring dashboard
 - **Page performance**: Lighthouse CI gate (LCP < 2.5s, CLS < 0.1) on every deploy
 - **Worker job duration**: CloudTasks execution time tracked; alerts on > 2× baseline
 - **RLS overhead**: Measured via `EXPLAIN ANALYZE` with RLS on vs. superuser bypass

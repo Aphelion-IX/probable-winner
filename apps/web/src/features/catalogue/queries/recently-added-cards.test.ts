@@ -1,56 +1,49 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const mockSearch = vi.fn();
-const mockCreateTypesenseClient = vi.fn().mockReturnValue({
-  collections: () => ({ documents: () => ({ search: mockSearch }) }),
-});
+const mockQuerySearchService = vi.fn();
 
-vi.mock("@probable-winner/search", () => ({
-  createTypesenseClient: (...args: unknown[]) => mockCreateTypesenseClient(...args),
-  CARDS_COLLECTION_NAME: "cards",
+vi.mock("@/lib/search-service-client", () => ({
+  querySearchService: (...args: unknown[]) => mockQuerySearchService(...args),
 }));
 
-function fakeHit(overrides: Partial<Record<string, unknown>> = {}) {
+function fakeDoc(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    document: {
-      id: "sku-1",
-      printing_id: "printing-1",
-      oracle_id: "oracle-1",
-      name: "Lightning Bolt",
-      set_code: "2X2",
-      rarity: "uncommon",
-      condition: "nm",
-      finish: "nonfoil",
-      price_amount: 1.5,
-      quantity_available: 4,
-      ...overrides,
-    },
+    id: "sku-1",
+    printing_id: "printing-1",
+    oracle_id: "oracle-1",
+    name: "Lightning Bolt",
+    set_code: "2X2",
+    rarity: "uncommon",
+    condition: "nm",
+    finish: "nonfoil",
+    price_amount: 1.5,
+    quantity_available: 4,
+    ...overrides,
   };
+}
+
+function outcome(hits: unknown[]) {
+  return { hits, page: 1, pageSize: hits.length, totalHits: hits.length, totalPages: 1, processingTimeMs: 1 };
 }
 
 describe("listRecentlyAddedCards", () => {
   beforeEach(() => {
-    mockSearch.mockReset();
-    mockCreateTypesenseClient.mockClear();
+    mockQuerySearchService.mockReset();
   });
 
-  it("sorts by catalogued_at desc and filters to in-stock items", async () => {
-    mockSearch.mockResolvedValue({ hits: [] });
+  it("queries the search service sorted newest-first and filtered to in-stock items", async () => {
+    mockQuerySearchService.mockResolvedValue(outcome([]));
 
     const { listRecentlyAddedCards } = await import("./recently-added-cards");
     await listRecentlyAddedCards(12);
 
-    expect(mockSearch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sort_by: "catalogued_at:desc",
-        filter_by: "quantity_available:>0",
-        per_page: 48,
-      }),
+    expect(mockQuerySearchService).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "*", sort: "newest", inStock: true, limit: 48 }),
     );
   });
 
   it("maps hits to the display shape, keyed by printing id", async () => {
-    mockSearch.mockResolvedValue({ hits: [fakeHit()] });
+    mockQuerySearchService.mockResolvedValue(outcome([fakeDoc()]));
 
     const { listRecentlyAddedCards } = await import("./recently-added-cards");
     const result = await listRecentlyAddedCards(12);
@@ -69,18 +62,18 @@ describe("listRecentlyAddedCards", () => {
   });
 
   it("dedupes multiple SKU documents for the same oracle card", async () => {
-    mockSearch.mockResolvedValue({
-      hits: [
-        fakeHit({ id: "sku-1", printing_id: "printing-1" }),
-        fakeHit({ id: "sku-2", printing_id: "printing-1", condition: "lp" }),
-        fakeHit({
+    mockQuerySearchService.mockResolvedValue(
+      outcome([
+        fakeDoc({ id: "sku-1", printing_id: "printing-1" }),
+        fakeDoc({ id: "sku-2", printing_id: "printing-1", condition: "lp" }),
+        fakeDoc({
           id: "sku-3",
           printing_id: "printing-2",
           oracle_id: "oracle-2",
           name: "Counterspell",
         }),
-      ],
-    });
+      ]),
+    );
 
     const { listRecentlyAddedCards } = await import("./recently-added-cards");
     const result = await listRecentlyAddedCards(12);
@@ -90,13 +83,13 @@ describe("listRecentlyAddedCards", () => {
   });
 
   it("stops once the requested limit is reached, even with more hits available", async () => {
-    mockSearch.mockResolvedValue({
-      hits: [
-        fakeHit({ oracle_id: "oracle-1", printing_id: "printing-1" }),
-        fakeHit({ oracle_id: "oracle-2", printing_id: "printing-2" }),
-        fakeHit({ oracle_id: "oracle-3", printing_id: "printing-3" }),
-      ],
-    });
+    mockQuerySearchService.mockResolvedValue(
+      outcome([
+        fakeDoc({ oracle_id: "oracle-1", printing_id: "printing-1" }),
+        fakeDoc({ oracle_id: "oracle-2", printing_id: "printing-2" }),
+        fakeDoc({ oracle_id: "oracle-3", printing_id: "printing-3" }),
+      ]),
+    );
 
     const { listRecentlyAddedCards } = await import("./recently-added-cards");
     const result = await listRecentlyAddedCards(2);

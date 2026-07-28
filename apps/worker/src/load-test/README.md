@@ -44,10 +44,10 @@ reads/writes matching the real access pattern otherwise). Two are reported
 as `BLOCKED` rather than faked, because the feature behind them doesn't
 exist yet in this codebase:
 
-- **Concurrent searches** — the storefront's `/search` page is still a
-  placeholder; Typesense integration (backlog Step 9, B-080-087) was never
-  built, and this environment has no Typesense credentials to build
-  against (a pre-existing, documented constraint — see PR #4).
+- **Concurrent searches** — this load-test harness has no way to reach the
+  worker's search HTTP service (`SEARCH_SERVICE_URL`) from wherever it runs,
+  and there is no seeded traffic-generation setup for it in this
+  environment.
 - **100-card decklist import** — the decklist-import feature (parser,
   batched matching, disambiguation UI, substitution/budget,
   add-all-to-cart — backlog B-180-184) doesn't exist yet.

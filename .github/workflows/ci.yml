@@ -12,21 +12,20 @@ jobs:
     # deliberately absent here: they're set to the real local stack's own
     # values by "Export local Supabase credentials" below, once
     # `supabase start` has one running -- not to a placeholder. Stripe and
-    # Typesense remain placeholders (a syntactically valid but unreachable
-    # config, not real credentials) -- this repo has no CI-provisioned
-    # Stripe test account or Typesense service, so specs that need either
-    # still hit their real fetch-failure/no-data skip paths rather than
-    # crashing on a missing env var. Swap these for real secrets (Settings >
-    # Secrets and variables > Actions) to close that remaining gap.
+    # the search service remain placeholders (a syntactically valid but
+    # unreachable config, not real credentials) -- this repo has no
+    # CI-provisioned Stripe test account or running worker search service,
+    # so specs that need either still hit their real fetch-failure/no-data
+    # skip paths rather than crashing on a missing env var. Swap the Stripe
+    # ones for real secrets (Settings > Secrets and variables > Actions) to
+    # close that remaining gap.
     env:
       STRIPE_SECRET_KEY: sk_test_ci_placeholder
       STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
       STRIPE_WEBHOOK_SECRET: whsec_ci_placeholder
-      TYPESENSE_HOST: localhost
-      TYPESENSE_PORT: "8108"
-      TYPESENSE_PROTOCOL: http
-      TYPESENSE_API_KEY: ci-placeholder-typesense-key
+      SEARCH_SERVICE_URL: http://localhost:8087
+      SEARCH_SERVICE_TOKEN: ci-placeholder-search-service-token
     steps:
       - uses: actions/checkout@v4
 
@@ -83,6 +82,9 @@ jobs:
             echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
             echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            # Plain (non-NEXT_PUBLIC_) form apps/worker's search index-store
+            # uses for Supabase Storage access (see apps/worker/.env.example).
+            echo "SUPABASE_URL=$API_URL"
           } >> "$GITHUB_ENV"
 
       - name: Build

@@ -16,7 +16,7 @@ const STATIC_DIR = join(import.meta.dirname, "..", ".next", "static");
 // Env var *names* that must never appear as string literals in client JS —
 // their presence means source code referencing them was bundled for the
 // browser, regardless of whether a real value was inlined.
-const FORBIDDEN_NAMES = ["SUPABASE_SERVICE_ROLE_KEY", "STRIPE_SECRET_KEY"];
+const FORBIDDEN_NAMES = ["SUPABASE_SERVICE_ROLE_KEY", "STRIPE_SECRET_KEY", "SEARCH_SERVICE_TOKEN"];
 
 // Value *shapes* that indicate an actual secret leaked, independent of how
 // it was referenced.

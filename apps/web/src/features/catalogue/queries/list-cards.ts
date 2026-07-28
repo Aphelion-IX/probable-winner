@@ -1,9 +1,9 @@
 // This module used to also hold listCards(), the query behind the
 // browse-all-printings page. That page was removed (superseded by
-// /search's Typesense-backed filtering + pagination and /sets' browse-by-set
-// flow) but the facet constants/helpers below are still shared by
-// list-set-cards.ts (the /sets/[code] table) and list-popular-cards.ts (the
-// homepage rail), so this file stays.
+// /search's search-service-backed filtering + pagination and /sets'
+// browse-by-set flow) but the facet constants/helpers below are still
+// shared by list-set-cards.ts (the /sets/[code] table) and
+// list-popular-cards.ts (the homepage rail), so this file stays.
 
 // Facet values live in lib/card-facets so the client-side filter bars can
 // import them without dragging the server-only Supabase client (and
