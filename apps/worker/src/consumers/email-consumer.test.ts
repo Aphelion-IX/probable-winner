@@ -78,7 +78,11 @@ describe("pollEmailQueue", () => {
     const result = await pollEmailQueue(sql);
 
     expect(result).toBe(true);
-    expect(mockSendShipmentNotificationEmail).toHaveBeenCalledWith(sql, expect.anything(), "order-2");
+    expect(mockSendShipmentNotificationEmail).toHaveBeenCalledWith(
+      sql,
+      expect.anything(),
+      "order-2",
+    );
     expect(mockSendOrderConfirmationEmail).not.toHaveBeenCalled();
     expect(calls[1].text).toContain("pgmq.archive");
   });

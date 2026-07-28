@@ -92,8 +92,7 @@ export async function getCartContents(): Promise<CartContents> {
     price: row.price,
     currency: row.currency,
     priceAtAdd: row.price_at_add,
-    priceChanged:
-      row.price != null && row.price_at_add != null && row.price !== row.price_at_add,
+    priceChanged: row.price != null && row.price_at_add != null && row.price !== row.price_at_add,
   }));
 
   return {

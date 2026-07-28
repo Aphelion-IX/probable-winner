@@ -6,7 +6,12 @@ import {
   streamBulkDataCards,
   ScryfallValidationError,
 } from "../integrations/scryfall/client.js";
-import { buildImageRows, buildLegalityRows, type CardImageRow, type CardLegalityRow } from "./import-card-images.js";
+import {
+  buildImageRows,
+  buildLegalityRows,
+  type CardImageRow,
+  type CardLegalityRow,
+} from "./import-card-images.js";
 import type { ScryfallCard } from "../integrations/scryfall/types.js";
 
 export type SyncCardImagesBulkResult = {
@@ -24,7 +29,9 @@ const FLUSH_SIZE = 500;
 type KnownPrinting = { cardPrintingId: string; oracleCardId: string };
 
 async function loadKnownScryfallIds(sql: Sql): Promise<Map<string, KnownPrinting>> {
-  const rows = await sql<{ card_printing_id: string; oracle_card_id: string; scryfall_id: string }[]>`
+  const rows = await sql<
+    { card_printing_id: string; oracle_card_id: string; scryfall_id: string }[]
+  >`
     select ci.card_printing_id, cp.oracle_card_id, ci.scryfall_id
     from card_identifiers ci
     join card_printings cp on cp.id = ci.card_printing_id
@@ -94,7 +101,10 @@ async function upsertLegalityRows(sql: Sql, rows: CardLegalityRow[]): Promise<vo
 // create new card_printings or oracle_cards (that stays the MTGJSON
 // importer's job).
 export async function syncCardImagesFromBulkData(sql: Sql): Promise<SyncCardImagesBulkResult> {
-  const [known, formatIdByCode] = await Promise.all([loadKnownScryfallIds(sql), loadFormatIdByCode(sql)]);
+  const [known, formatIdByCode] = await Promise.all([
+    loadKnownScryfallIds(sql),
+    loadFormatIdByCode(sql),
+  ]);
 
   const result: SyncCardImagesBulkResult = {
     knownPrintings: known.size,

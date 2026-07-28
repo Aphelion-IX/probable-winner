@@ -20,8 +20,10 @@ function chainable(result: QueryResult) {
   // Makes the builder itself awaitable for calls that never reach
   // .single()/.maybeSingle() (e.g. a bare `.insert([...])` or a filtered
   // `.update()...eq()` with no further chaining).
-  builder.then = (resolve: (value: QueryResult) => unknown, reject?: (reason: unknown) => unknown) =>
-    Promise.resolve(result).then(resolve, reject);
+  builder.then = (
+    resolve: (value: QueryResult) => unknown,
+    reject?: (reason: unknown) => unknown,
+  ) => Promise.resolve(result).then(resolve, reject);
   return builder;
 }
 
@@ -49,7 +51,9 @@ const STAFF = {
 /** Configures mockFrom to return a fixed result per table name, since no
  * action in this file queries the same table twice within one call. */
 function byTable(results: Record<string, QueryResult>) {
-  mockFrom.mockImplementation((table: string) => chainable(results[table] ?? { data: null, error: null }));
+  mockFrom.mockImplementation((table: string) =>
+    chainable(results[table] ?? { data: null, error: null }),
+  );
 }
 
 describe("createStocktake", () => {

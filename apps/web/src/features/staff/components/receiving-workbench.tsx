@@ -435,8 +435,8 @@ export function ReceivingWorkbench({
 
         <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4">
           <label htmlFor={csvInputId} className="text-xs font-medium">
-            Or upload a shipment manifest (CSV with <code>sku_id</code>,{" "}
-            <code>quantity</code> columns)
+            Or upload a shipment manifest (CSV with <code>sku_id</code>, <code>quantity</code>{" "}
+            columns)
           </label>
           <Input
             id={csvInputId}
@@ -475,9 +475,7 @@ export function ReceivingWorkbench({
       {batch.length > 0 ? (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight">
-              Pending batch ({batch.length})
-            </h2>
+            <h2 className="text-lg font-semibold tracking-tight">Pending batch ({batch.length})</h2>
             <Button disabled={isSaving} onClick={onReceiveBatch}>
               {isSaving ? "Receiving…" : `Receive batch (${batch.length})`}
             </Button>

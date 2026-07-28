@@ -41,7 +41,9 @@ describe("sendShipmentNotificationEmail", () => {
   });
 
   it("returns false without sending when there is no recipient email", async () => {
-    const { sql } = createMockSql([[{ order_number: "ORD-2002", customer_id: null, guest_email: null }]]);
+    const { sql } = createMockSql([
+      [{ order_number: "ORD-2002", customer_id: null, guest_email: null }],
+    ]);
 
     const sent = await sendShipmentNotificationEmail(sql, emailProvider, "order-1");
 

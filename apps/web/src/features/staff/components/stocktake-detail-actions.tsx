@@ -178,9 +178,7 @@ export function StocktakeDetailActions({ stocktake }: { stocktake: StocktakeDeta
                       value={draftFor(line)}
                       disabled={savingLineId === line.id}
                       aria-label={`Counted quantity for ${line.cardName}`}
-                      onChange={(event) =>
-                        setDrafts({ ...drafts, [line.id]: event.target.value })
-                      }
+                      onChange={(event) => setDrafts({ ...drafts, [line.id]: event.target.value })}
                       onBlur={(event) => saveCount(line, event.target.value)}
                       className="w-24 text-right"
                     />

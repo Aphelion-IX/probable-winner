@@ -59,10 +59,7 @@ export default async function StaffStocktakesPage() {
                 </thead>
                 <tbody>
                   {stocktakes.map((stocktake) => (
-                    <tr
-                      key={stocktake.id}
-                      className="border-b last:border-b-0 hover:bg-muted/50"
-                    >
+                    <tr key={stocktake.id} className="border-b last:border-b-0 hover:bg-muted/50">
                       <td className="px-4 py-3 font-medium">{stocktake.nodeName}</td>
                       <td className="px-4 py-3">
                         <StatusBadge

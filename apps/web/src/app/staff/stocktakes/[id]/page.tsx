@@ -24,10 +24,7 @@ export default async function StaffStocktakeDetailPage({ params }: StocktakeDeta
   }
 
   const totalExpected = stocktake.lines.reduce((sum, line) => sum + line.expectedQuantity, 0);
-  const totalCounted = stocktake.lines.reduce(
-    (sum, line) => sum + (line.countedQuantity ?? 0),
-    0,
-  );
+  const totalCounted = stocktake.lines.reduce((sum, line) => sum + (line.countedQuantity ?? 0), 0);
 
   return (
     <div className="space-y-6">

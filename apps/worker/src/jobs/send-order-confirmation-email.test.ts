@@ -60,7 +60,10 @@ describe("sendOrderConfirmationEmail", () => {
 
     expect(sent).toBe(true);
     expect(sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ to: "customer@example.com", subject: "Order confirmed: #ORD-1001" }),
+      expect.objectContaining({
+        to: "customer@example.com",
+        subject: "Order confirmed: #ORD-1001",
+      }),
     );
   });
 
@@ -73,9 +76,7 @@ describe("sendOrderConfirmationEmail", () => {
     const sent = await sendOrderConfirmationEmail(sql, emailProvider, "order-1");
 
     expect(sent).toBe(true);
-    expect(sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ to: "guest@example.com" }),
-    );
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({ to: "guest@example.com" }));
   });
 
   it("returns false without sending when a guest order has no captured email", async () => {

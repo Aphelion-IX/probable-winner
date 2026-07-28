@@ -13,8 +13,10 @@ function chainable(result: QueryResult) {
     builder[method] = vi.fn(() => builder);
   }
   builder.maybeSingle = vi.fn(() => Promise.resolve(result));
-  builder.then = (resolve: (value: QueryResult) => unknown, reject?: (reason: unknown) => unknown) =>
-    Promise.resolve(result).then(resolve, reject);
+  builder.then = (
+    resolve: (value: QueryResult) => unknown,
+    reject?: (reason: unknown) => unknown,
+  ) => Promise.resolve(result).then(resolve, reject);
   return builder;
 }
 
@@ -41,7 +43,9 @@ const STAFF = {
 };
 
 function byTable(results: Record<string, QueryResult>) {
-  mockFrom.mockImplementation((table: string) => chainable(results[table] ?? { data: null, error: null }));
+  mockFrom.mockImplementation((table: string) =>
+    chainable(results[table] ?? { data: null, error: null }),
+  );
 }
 
 describe("getStoreCreditAccount", () => {
@@ -52,7 +56,9 @@ describe("getStoreCreditAccount", () => {
 
   it("returns the account's balance and currency", async () => {
     mockGetStaffContext.mockResolvedValue(STAFF);
-    byTable({ store_credit_accounts: { data: { balance: "17.50", currency: "AUD" }, error: null } });
+    byTable({
+      store_credit_accounts: { data: { balance: "17.50", currency: "AUD" }, error: null },
+    });
     const { getStoreCreditAccount } = await import("./manage-store-credit");
 
     const result = await getStoreCreditAccount("customer-1");

@@ -32,12 +32,7 @@ export type ImportCardImagesResult = {
   notFound: number;
 };
 
-const VALID_LEGALITY_STATUSES = new Set<string>([
-  "legal",
-  "not_legal",
-  "restricted",
-  "banned",
-]);
+const VALID_LEGALITY_STATUSES = new Set<string>(["legal", "not_legal", "restricted", "banned"]);
 
 export function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -107,7 +102,9 @@ export function buildLegalityRows(
 }
 
 async function findPendingPrintings(sql: Sql): Promise<PendingPrinting[]> {
-  const rows = await sql<{ card_printing_id: string; oracle_card_id: string; scryfall_id: string }[]>`
+  const rows = await sql<
+    { card_printing_id: string; oracle_card_id: string; scryfall_id: string }[]
+  >`
     select cp.id as card_printing_id, cp.oracle_card_id, ci.scryfall_id
     from card_printings cp
     join card_identifiers ci on ci.card_printing_id = cp.id

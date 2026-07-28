@@ -57,7 +57,10 @@ describe("ensureCardsCollectionExists", () => {
     const allButCataloguedAt = typesenseCollectionSchema
       .fields!.filter((f) => f.name !== "catalogued_at")
       .map((f) => ({ name: f.name, type: f.type }));
-    const { client, create, update } = fakeClient({ exists: true, currentFields: allButCataloguedAt });
+    const { client, create, update } = fakeClient({
+      exists: true,
+      currentFields: allButCataloguedAt,
+    });
 
     await ensureCardsCollectionExists(client as never);
 
