@@ -9,7 +9,7 @@ import { importCardImages } from "../jobs/import-card-images.js";
 importCardImages(sql)
   .then((result) => {
     console.log(
-      `card image import complete: ${result.imagesUpserted} images upserted across ${result.printingsProcessed} printings (${result.notFound} not found on Scryfall)`,
+      `card image/legality import complete: ${result.imagesUpserted} images and ${result.legalitiesUpserted} legalities upserted across ${result.printingsProcessed} printings (${result.notFound} not found on Scryfall)`,
     );
   })
   .catch((error) => {

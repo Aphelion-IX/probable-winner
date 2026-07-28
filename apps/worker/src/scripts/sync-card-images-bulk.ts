@@ -11,7 +11,8 @@ import { syncCardImagesFromBulkData } from "../jobs/sync-card-images-bulk.js";
 syncCardImagesFromBulkData(sql)
   .then((result) => {
     console.log(
-      `bulk card image sync complete: ${result.imagesUpserted} images upserted, ` +
+      `bulk card image/legality sync complete: ${result.imagesUpserted} images and ` +
+        `${result.legalitiesUpserted} legalities upserted, ` +
         `${result.printingsMatched} of ${result.knownPrintings} known printings matched ` +
         `(${result.cardsScanned} Scryfall cards scanned)`,
     );
