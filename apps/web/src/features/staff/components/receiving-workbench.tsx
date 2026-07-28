@@ -13,10 +13,10 @@ import {
   receiveStock,
   receiveStockBulk,
   listRecentReceipts,
-  MAX_BULK_RECEIVE_LINES,
   type SkuSearchResult,
   type ReceiptRow,
 } from "@/features/staff/actions/manage-receiving";
+import { MAX_BULK_RECEIVE_LINES } from "@/features/staff/receiving-constants";
 import { parseCsv } from "@/lib/csv";
 
 const SELECT_CLASS = "rounded-lg border border-input bg-background px-3 py-2 text-sm";

@@ -7,6 +7,7 @@
 import { createServerSupabaseClient } from "@/server/supabase";
 import { getStaffContext } from "@/server/staff-context";
 import { logger, getRequestId } from "@/lib/logger";
+import { MAX_BULK_RECEIVE_LINES } from "@/features/staff/receiving-constants";
 
 export interface SkuSearchResult {
   skuId: string;
@@ -31,14 +32,6 @@ export interface ReceiptRow {
 
 const MAX_SKU_RESULTS = 25;
 const MAX_RECEIPT_ROWS = 50;
-
-/**
- * Upper bound on how many lines one bulk-receive call will process. Exists
- * to keep a single request's worth of sequential receive_inventory() RPCs
- * bounded rather than unbounded -- a real shipment this large should be
- * split into more than one upload/scan session.
- */
-export const MAX_BULK_RECEIVE_LINES = 500;
 
 const SKU_SELECT = `
   id,
