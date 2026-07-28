@@ -1,9 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const mockQuerySearchService = vi.fn();
+const mockQueryLocalSearchIndex = vi.fn();
 
-vi.mock("@/lib/search-service-client", () => ({
-  querySearchService: (...args: unknown[]) => mockQuerySearchService(...args),
+vi.mock("@/lib/search-index-cache", () => ({
+  queryLocalSearchIndex: (...args: unknown[]) => mockQueryLocalSearchIndex(...args),
 }));
 
 const DOCUMENT = {
@@ -32,11 +32,11 @@ function outcome(hits: unknown[]) {
 
 describe("searchCards", () => {
   beforeEach(() => {
-    mockQuerySearchService.mockReset();
+    mockQueryLocalSearchIndex.mockReset();
   });
 
   it("maps printing_id (not the sku id) into the hit used to link to the card page", async () => {
-    mockQuerySearchService.mockResolvedValue(outcome([DOCUMENT]));
+    mockQueryLocalSearchIndex.mockResolvedValue(outcome([DOCUMENT]));
     const { searchCards } = await import("./search-cards");
 
     const result = await searchCards({});
@@ -49,7 +49,7 @@ describe("searchCards", () => {
   });
 
   it("maps image_url into imageUrl", async () => {
-    mockQuerySearchService.mockResolvedValue(outcome([DOCUMENT]));
+    mockQueryLocalSearchIndex.mockResolvedValue(outcome([DOCUMENT]));
     const { searchCards } = await import("./search-cards");
 
     const result = await searchCards({});
@@ -58,7 +58,7 @@ describe("searchCards", () => {
   });
 
   it("maps an empty image_url (no catalogued image) to null, not an empty string", async () => {
-    mockQuerySearchService.mockResolvedValue(outcome([{ ...DOCUMENT, image_url: "" }]));
+    mockQueryLocalSearchIndex.mockResolvedValue(outcome([{ ...DOCUMENT, image_url: "" }]));
     const { searchCards } = await import("./search-cards");
 
     const result = await searchCards({});
@@ -67,7 +67,7 @@ describe("searchCards", () => {
   });
 
   it("passes params straight through to the search service and shapes its response", async () => {
-    mockQuerySearchService.mockResolvedValue({
+    mockQueryLocalSearchIndex.mockResolvedValue({
       hits: [],
       page: 2,
       pageSize: 48,
@@ -79,7 +79,7 @@ describe("searchCards", () => {
 
     const result = await searchCards({ q: "bolt", page: 2, limit: 48 });
 
-    expect(mockQuerySearchService).toHaveBeenCalledWith({ q: "bolt", page: 2, limit: 48 });
+    expect(mockQueryLocalSearchIndex).toHaveBeenCalledWith({ q: "bolt", page: 2, limit: 48 });
     expect(result).toMatchObject({ page: 2, pageSize: 48, totalHits: 100, totalPages: 3 });
   });
 });

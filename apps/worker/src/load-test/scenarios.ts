@@ -13,14 +13,15 @@ export interface ScenarioResult {
 
 /**
  * Blueprint §23 scenario 1: "hundreds of simultaneous searches". Blocked --
- * this load-test harness has no way to reach the worker's search HTTP
- * service (SEARCH_SERVICE_URL) from wherever it runs, and there is no
- * seeded traffic-generation setup for it in this environment.
+ * search reads happen inside apps/web's own Vercel functions
+ * (apps/web/src/lib/search-index-cache.ts), not this worker, and this
+ * load-test harness (a script run against Postgres, from apps/worker) has
+ * no way to drive HTTP traffic against a deployed web app.
  */
 export async function concurrentSearches(): Promise<ScenarioResult> {
   return {
     name: "Concurrent searches",
-    blocked: "No load-test harness wired up to the worker's search HTTP service yet.",
+    blocked: "This harness cannot drive HTTP load against apps/web's search endpoint.",
   };
 }
 

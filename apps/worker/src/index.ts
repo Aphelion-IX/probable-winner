@@ -11,23 +11,13 @@ import { pollEmailQueue } from "./consumers/email-consumer.js";
 import { checkQueueHealth } from "./monitoring/queue-health.js";
 import { checkImportFailures } from "./monitoring/import-health.js";
 import { startSearchHttpServer } from "./search/http-server.js";
-import {
-  loadSnapshotFromStorage,
-  persistSnapshotToStorage,
-  rebuildFullIndex,
-} from "./search/index-store.js";
+import { loadSnapshotFromStorage, rebuildFullIndex } from "./search/index-store.js";
 
 const POLL_INTERVAL_MS = 5_000;
 // B-202: health checks are far cheaper to run than a queue drain, but
 // running them every 5s poll tick would be excessive — once a minute is
 // enough to catch a >5min staleness threshold with room to spare.
 const HEALTH_CHECK_INTERVAL_MS = 60_000;
-// MiniSearch's index lives in this process's memory (unlike Typesense, an
-// external service) -- a periodic snapshot to storage bounds how much
-// incremental (queue-driven) drift a crash/restart could lose to this
-// interval, without paying the cost of re-uploading the several-hundred-MB
-// snapshot on every single incremental update.
-const SNAPSHOT_PERSIST_INTERVAL_MS = 30 * 60_000;
 
 // catalogue_import, stock_reconciliation, pricing_import, search_index,
 // restock_alerts, and email have consumers wired up. There is no separate
@@ -146,7 +136,6 @@ async function loadOrRebuildSearchIndex(): Promise<void> {
 async function main() {
   logger.info("worker started, polling queues");
   let lastHealthCheckAt = 0;
-  let lastSnapshotPersistAt = Date.now();
 
   await loadOrRebuildSearchIndex();
   startSearchHttpServer(sql);
@@ -158,11 +147,6 @@ async function main() {
     if (now - lastHealthCheckAt >= HEALTH_CHECK_INTERVAL_MS) {
       lastHealthCheckAt = now;
       await runHealthChecks();
-    }
-
-    if (now - lastSnapshotPersistAt >= SNAPSHOT_PERSIST_INTERVAL_MS) {
-      lastSnapshotPersistAt = now;
-      await persistSnapshotToStorage();
     }
 
     if (!processed) {

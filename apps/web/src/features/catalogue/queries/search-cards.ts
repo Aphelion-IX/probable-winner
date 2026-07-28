@@ -7,7 +7,7 @@
 // fails in production even though the same query works fine hit directly.
 import { type SearchQueryParams } from "@probable-winner/search";
 
-import { querySearchService } from "@/lib/search-service-client";
+import { queryLocalSearchIndex } from "@/lib/search-index-cache";
 
 export interface SearchCardsResult {
   hits: {
@@ -34,7 +34,7 @@ export interface SearchCardsResult {
 }
 
 export async function searchCards(params: SearchQueryParams): Promise<SearchCardsResult> {
-  const outcome = await querySearchService(params);
+  const outcome = await queryLocalSearchIndex(params);
 
   const hits = outcome.hits.map((doc) => ({
     id: doc.id,

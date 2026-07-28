@@ -5,7 +5,7 @@
 // several SKU documents (one per condition/finish/language) sharing the
 // same catalogued_at, so this over-fetches and dedupes by oracle_id in
 // memory rather than showing near-duplicate tiles.
-import { querySearchService } from "@/lib/search-service-client";
+import { queryLocalSearchIndex } from "@/lib/search-index-cache";
 
 export interface RecentlyAddedCard {
   printingId: string;
@@ -20,7 +20,7 @@ export interface RecentlyAddedCard {
 const OVER_FETCH_FACTOR = 4;
 
 export async function listRecentlyAddedCards(limit = 12): Promise<RecentlyAddedCard[]> {
-  const outcome = await querySearchService({
+  const outcome = await queryLocalSearchIndex({
     q: "*",
     inStock: true,
     sort: "newest",

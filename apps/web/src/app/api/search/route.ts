@@ -1,6 +1,7 @@
 // Search API route handler (B-084, blueprint §13.4)
 // Route handler, not a Server Action, per blueprint §19. Queries the
-// worker's search service — never Postgres per search request (blueprint
+// in-memory MiniSearch index cached in this function instance (see
+// @/lib/search-index-cache) — never Postgres per search request (blueprint
 // §20's explicit "querying PostgreSQL on every search keystroke"
 // prohibition).
 

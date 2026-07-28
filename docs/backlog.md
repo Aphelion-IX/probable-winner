@@ -77,9 +77,9 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 - AC: `supabase/config.toml` present; `supabase start` boots Postgres, Auth, Storage locally; `supabase/migrations` is empty but wired into CI (B-014).
 - Tests: `supabase db reset` succeeds against an empty migrations directory.
 
-**B-021 Local search service** — deps: B-010
-- Superseded: search runs on MiniSearch (an in-memory library, not a hosted service like Typesense), hosted inside `apps/worker` itself (`apps/worker/src/search/http-server.ts`) — there is no separate container to start. For local dev, `pnpm --filter worker dev` doubles as the local search service; set `SEARCH_SERVICE_URL`/`SEARCH_SERVICE_TOKEN` in `apps/web/.env.local` to match.
-- AC: the worker's search HTTP server starts on `SEARCH_SERVICE_PORT` and answers `GET /health`; documented in README.
+**B-021 Local search index** — deps: B-010
+- Superseded: search runs on MiniSearch (an in-memory library, not a hosted service like Typesense) — there is no separate container to start. `apps/worker` (`pnpm --filter worker dev`) builds the index and persists a snapshot to Supabase Storage; `apps/web` downloads that snapshot directly (via the same Supabase project it already talks to) and caches it in memory, so it needs no separate local search service pointed at anything.
+- AC: `pnpm --filter worker reindex-search` produces a snapshot the local `apps/web` can load and search against; the worker's admin HTTP server (`apps/worker/src/search/http-server.ts`) answers `GET /health` on `SEARCH_SERVICE_PORT`.
 - Tests: a smoke script hits `/health` and asserts a 200.
 
 **B-022 Local email viewer** — deps: B-010
@@ -87,7 +87,7 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 - Tests: a smoke test sends one templated email and asserts it lands in the local inbox.
 
 **B-023 Unified `pnpm dev` command** — deps: B-020, B-021, B-022
-- AC: one command starts Supabase, the worker (doubling as the local search service), the email viewer, and the Next.js app; documented exit/cleanup behavior.
+- AC: one command starts Supabase, the worker (building the local search index), the email viewer, and the Next.js app; documented exit/cleanup behavior.
 - Tests: manual verification only — record the steps in README; CI does not run `pnpm dev`.
 
 **B-024 README quick start** — deps: B-023
@@ -212,7 +212,7 @@ blueprint). It excludes buylist and marketplace work, which are later phases
 
 ## Phase 2 — Search and Storefront (Steps 9–13)
 
-### Step 9: Search (MiniSearch, worker-hosted)
+### Step 9: Search (MiniSearch, built by the worker, read by the web app)
 
 **B-080 Search document shape** — deps: B-050
 - AC: `CardSearchDocument` (`packages/search/src/card-search-document.ts`) matches blueprint §13.2's fields; the worker's MiniSearch index (`apps/worker/src/search/index-store.ts`) indexes name/type_line/artist/set_name for full-text and stores every field for filtering/sorting.

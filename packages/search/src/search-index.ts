@@ -1,4 +1,4 @@
-import MiniSearch from "minisearch";
+import MiniSearch, { type AsPlainObject } from "minisearch";
 
 import type { CardSearchDocument } from "./card-search-document";
 
@@ -109,16 +109,38 @@ export function patchDocument(
   return true;
 }
 
-// Serializes to the raw document list, not MiniSearch's own toJSON format --
-// rebuilding a fresh index from documents (buildSearchIndex) is already
-// required for the full-reindex path, so reusing it for "load a persisted
-// snapshot" too means there is exactly one code path that turns documents
-// into an index, rather than two that could drift apart.
+// Serializes MiniSearch's own precomputed index structures (toJSON()) rather
+// than just the raw documents -- loading this back in only has to
+// deserialize, not re-tokenize ~800k documents from scratch. That
+// re-tokenizing cost is fine for a long-running worker process doing it
+// once at startup, but apps/web now loads this same snapshot on every
+// Vercel serverless cold start (see apps/web/src/lib/search-index-cache.ts),
+// where every second of rebuild time is a second of added search latency.
+// docsById is still serialized alongside it as plain documents -- MiniSearch
+// has no public "get full document by id" API even after loadJS(), and
+// patchDocument()/persistence both need that.
+type SerializedSearchIndex = {
+  mini: AsPlainObject;
+  docs: CardSearchDocument[];
+};
+
 export function serializeSearchIndex(index: SearchIndex): string {
-  return JSON.stringify(Array.from(index.docsById.values()));
+  const payload: SerializedSearchIndex = {
+    mini: index.mini.toJSON(),
+    docs: Array.from(index.docsById.values()),
+  };
+  return JSON.stringify(payload);
 }
 
 export function deserializeSearchIndex(json: string): SearchIndex {
-  const documents = JSON.parse(json) as CardSearchDocument[];
-  return buildSearchIndex(documents);
+  const parsed = JSON.parse(json) as SerializedSearchIndex;
+
+  const mini = MiniSearch.loadJS<CardSearchDocument>(parsed.mini, {
+    idField: "id",
+    fields: INDEXED_FIELDS,
+    storeFields: STORED_FIELDS,
+  });
+  const docsById = new Map(parsed.docs.map((doc) => [doc.id, doc]));
+
+  return { mini, docsById };
 }

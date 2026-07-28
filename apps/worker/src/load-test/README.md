@@ -44,10 +44,10 @@ reads/writes matching the real access pattern otherwise). Two are reported
 as `BLOCKED` rather than faked, because the feature behind them doesn't
 exist yet in this codebase:
 
-- **Concurrent searches** — this load-test harness has no way to reach the
-  worker's search HTTP service (`SEARCH_SERVICE_URL`) from wherever it runs,
-  and there is no seeded traffic-generation setup for it in this
-  environment.
+- **Concurrent searches** — search reads happen inside apps/web's own
+  Vercel functions (apps/web/src/lib/search-index-cache.ts), not this
+  worker, and this load-test harness has no way to drive HTTP traffic
+  against a deployed web app from wherever it runs.
 - **100-card decklist import** — the decklist-import feature (parser,
   batched matching, disambiguation UI, substitution/budget,
   add-all-to-cart — backlog B-180-184) doesn't exist yet.

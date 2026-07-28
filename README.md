@@ -7,19 +7,15 @@ Multi-store trading-card retail platform.
 
 ## Local development
 
-Search (B-021, blueprint §24) runs on MiniSearch, hosted inside `apps/worker`
-itself — there's no separate service to start. Run the worker:
+Search (B-021, blueprint §24) runs on MiniSearch. `apps/worker` builds the
+index and persists a snapshot to Supabase Storage; `apps/web` downloads that
+snapshot directly and caches it in memory — there's no separate search
+service `apps/web` needs to be pointed at. Set `SEARCH_SERVICE_PORT`/
+`SEARCH_SERVICE_TOKEN`/`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` in
+`apps/worker/.env.local` (see `apps/worker/.env.example`), run the worker,
+and populate the index:
 
 ```
 pnpm --filter worker dev
-```
-
-Then set `SEARCH_SERVICE_URL`/`SEARCH_SERVICE_TOKEN` in `apps/web/.env.local`
-and `SEARCH_SERVICE_PORT`/`SEARCH_SERVICE_TOKEN`/`SUPABASE_URL`/
-`SUPABASE_SERVICE_ROLE_KEY` in `apps/worker/.env.local` (see the `.env.example`
-files in each app — the token must match on both sides), and populate the
-index with:
-
-```
 pnpm --filter worker reindex-search
 ```

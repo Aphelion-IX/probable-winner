@@ -139,7 +139,7 @@ application.
 | File storage | Supabase Storage |
 | Background queue | Supabase Queues |
 | Scheduled jobs | Supabase Cron |
-| Search | MiniSearch, hosted in the background worker process |
+| Search | MiniSearch, index built/maintained by the worker, read directly by the Vercel-hosted web app from a Supabase Storage snapshot |
 | Payments | Stripe Checkout |
 | Email | Resend and React Email |
 | Application hosting | Vercel |
@@ -211,7 +211,8 @@ Customer or staff browser
 Customer search
       |
       v
-Background worker's MiniSearch index (HTTP)
+MiniSearch index snapshot in Supabase Storage
+(built/maintained by the worker, read directly by the web app)
 ```
 
 This is not a microservice architecture. There are only two runtime applications:
@@ -815,19 +816,38 @@ faceted filtering; sorting; popularity ranking; store-availability filtering;
 recently added feeds.
 
 Implemented with MiniSearch (an in-memory JS library, not a hosted search
-service) rather than Typesense: the background worker is a long-running
-process (already the right shape per the tech stack table above) that keeps
-the index resident in memory and exposes it over an internal HTTP endpoint,
-which the web app calls. MiniSearch supports typo-tolerant (fuzzy) text
-queries and prefix matching; exact filters, sorting, and relevance/field
-weighting are implemented in application code against the index's stored
-fields (see packages/search/src/query.ts) rather than a query-string DSL.
+service) rather than Typesense. MiniSearch supports typo-tolerant (fuzzy)
+text queries and prefix matching; exact filters, sorting, and relevance/
+field weighting are implemented in application code against the index's
+stored fields (see packages/search/src/query.ts) rather than a query-string
+DSL.
+
+Building and reading the index are split across the two runtime
+applications, not colocated the way Typesense's single external service
+was:
+
+- **apps/worker** (a long-running process) builds and maintains the live
+  index -- full rebuilds from Postgres, and incremental single-document
+  updates driven by the outbox (§13.3) -- and persists a snapshot to
+  Supabase Storage (the "search-index" bucket) after every change (debounced
+  a few seconds so a burst of changes collapses into one upload, not one
+  per change; see apps/worker/src/search/index-store.ts).
+- **apps/web** (Vercel serverless functions, the only deployment target
+  available) downloads that same snapshot directly and caches the
+  reconstructed index in memory for the life of the warm function instance,
+  refreshing on a short interval (apps/web/src/lib/search-index-cache.ts).
+  This is why the snapshot is serialized via MiniSearch's own toJSON()/
+  loadJS() rather than as raw documents to re-tokenize on every load --
+  deserializing precomputed index structures is materially faster than
+  rebuilding one from scratch, and every cold serverless start pays
+  whatever that cost is.
 
 PostgreSQL remains authoritative. The search index can be rebuilt at any
 time from Postgres (apps/worker/src/search/index-store.ts's
-rebuildFullIndex) -- a persisted snapshot in Supabase Storage (the
-"search-index" bucket) is a fast-restart accelerator, not the source of
-truth.
+rebuildFullIndex); the persisted snapshot is what apps/web depends on
+directly, so the worker must actually run (at least once, to produce it,
+and periodically thereafter to keep it fresh) for search to work at all --
+see docs/deployment.md's "Gap, not yet closed" note.
 
 ### 13.2 Search document
 
@@ -882,10 +902,18 @@ Queue message
 Background worker
         v
 In-memory MiniSearch index update (same process, no network call)
+        v
+Debounced snapshot persist to Supabase Storage
+        v
+apps/web's next cache refresh picks it up
 ```
 
 This prevents database success combined with search-index failure from leaving
-the system silently inconsistent.
+the system silently inconsistent. The last two steps are specific to reads
+happening in a separate process from the one that owns the live index (see
+§13.1) -- worth naming because they mean end-to-end freshness is bounded by
+the debounce delay plus apps/web's cache refresh interval, not truly
+instantaneous the way it would be if the same process served both.
 
 ### 13.4 Search interface
 

@@ -32,6 +32,25 @@ let lastBuiltAt: number | null = null;
 const STORAGE_BUCKET = "search-index";
 const STORAGE_OBJECT_PATH = "snapshot.json.gz";
 
+// apps/web now only ever sees index changes via this persisted snapshot
+// (search-index-cache.ts), not by querying this process directly -- so an
+// incremental update that never gets persisted is, from a shopper's point
+// of view, an update that never happened. Debounced rather than persisted
+// on every single call: a burst of price/stock changes (a busy restock, a
+// bulk repricing run) collapses into one upload instead of one per change,
+// while a lone change still reaches storage within this delay rather than
+// waiting for a fixed periodic clock regardless of whether anything changed.
+const DEBOUNCED_PERSIST_DELAY_MS = 20_000;
+let pendingPersistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleDebouncedPersist(): void {
+  if (pendingPersistTimer) return;
+  pendingPersistTimer = setTimeout(() => {
+    pendingPersistTimer = null;
+    void persistSnapshotToStorage();
+  }, DEBOUNCED_PERSIST_DELAY_MS);
+}
+
 export function getIndexStats(): { documentCount: number; lastBuiltAt: number | null } {
   return { documentCount: index.docsById.size, lastBuiltAt };
 }
@@ -117,10 +136,9 @@ export async function rebuildFullIndex(
 
 // Incremental single-SKU update (B-083): rebuilds exactly one document in
 // the live in-memory index, driven by the search_index queue consumer.
-// Never a full reindex per change (blueprint §13.3). No snapshot persist
-// here -- doing that per event would mean re-uploading a several-hundred-MB
-// blob on every single price/stock change, which the periodic snapshot
-// (see apps/worker/src/index.ts) exists specifically to avoid.
+// Never a full reindex per change (blueprint §13.3). Schedules a debounced
+// persist rather than uploading a fresh snapshot on every single call --
+// see DEBOUNCED_PERSIST_DELAY_MS above.
 export async function upsertSkuDocument(sql: Sql, skuId: string): Promise<boolean> {
   const [row] = await fetchSkuSearchRows(sql, [skuId]);
 
@@ -128,10 +146,12 @@ export async function upsertSkuDocument(sql: Sql, skuId: string): Promise<boolea
     // The SKU is no longer active/sellable (or never existed) -- remove any
     // stale document rather than leaving it searchable.
     removeDocument(index, skuId);
+    scheduleDebouncedPersist();
     return false;
   }
 
   upsertDocument(index, buildCardSearchDocument(row));
+  scheduleDebouncedPersist();
   return true;
 }
 

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const mockQuerySearchService = vi.fn();
+const mockQueryLocalSearchIndex = vi.fn();
 
-vi.mock("@/lib/search-service-client", () => ({
-  querySearchService: (...args: unknown[]) => mockQuerySearchService(...args),
+vi.mock("@/lib/search-index-cache", () => ({
+  queryLocalSearchIndex: (...args: unknown[]) => mockQueryLocalSearchIndex(...args),
 }));
 
 function fakeDoc(overrides: Partial<Record<string, unknown>> = {}) {
@@ -28,22 +28,22 @@ function outcome(hits: unknown[]) {
 
 describe("listRecentlyAddedCards", () => {
   beforeEach(() => {
-    mockQuerySearchService.mockReset();
+    mockQueryLocalSearchIndex.mockReset();
   });
 
   it("queries the search service sorted newest-first and filtered to in-stock items", async () => {
-    mockQuerySearchService.mockResolvedValue(outcome([]));
+    mockQueryLocalSearchIndex.mockResolvedValue(outcome([]));
 
     const { listRecentlyAddedCards } = await import("./recently-added-cards");
     await listRecentlyAddedCards(12);
 
-    expect(mockQuerySearchService).toHaveBeenCalledWith(
+    expect(mockQueryLocalSearchIndex).toHaveBeenCalledWith(
       expect.objectContaining({ q: "*", sort: "newest", inStock: true, limit: 48 }),
     );
   });
 
   it("maps hits to the display shape, keyed by printing id", async () => {
-    mockQuerySearchService.mockResolvedValue(outcome([fakeDoc()]));
+    mockQueryLocalSearchIndex.mockResolvedValue(outcome([fakeDoc()]));
 
     const { listRecentlyAddedCards } = await import("./recently-added-cards");
     const result = await listRecentlyAddedCards(12);
@@ -62,7 +62,7 @@ describe("listRecentlyAddedCards", () => {
   });
 
   it("dedupes multiple SKU documents for the same oracle card", async () => {
-    mockQuerySearchService.mockResolvedValue(
+    mockQueryLocalSearchIndex.mockResolvedValue(
       outcome([
         fakeDoc({ id: "sku-1", printing_id: "printing-1" }),
         fakeDoc({ id: "sku-2", printing_id: "printing-1", condition: "lp" }),
@@ -83,7 +83,7 @@ describe("listRecentlyAddedCards", () => {
   });
 
   it("stops once the requested limit is reached, even with more hits available", async () => {
-    mockQuerySearchService.mockResolvedValue(
+    mockQueryLocalSearchIndex.mockResolvedValue(
       outcome([
         fakeDoc({ oracle_id: "oracle-1", printing_id: "printing-1" }),
         fakeDoc({ oracle_id: "oracle-2", printing_id: "printing-2" }),

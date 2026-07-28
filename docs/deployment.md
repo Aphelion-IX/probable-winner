@@ -8,10 +8,15 @@ required before launch.
 
 | Environment | Database | Search | Payments | Notes |
 |---|---|---|---|---|
-| Local | Local Supabase (Docker) | `pnpm --filter worker dev` (MiniSearch, worker-hosted) | Stripe test mode | `pnpm dev`; seeded fixture data |
+| Local | Local Supabase (Docker) | `pnpm --filter worker dev` builds/persists the index; `apps/web` reads the snapshot directly | Stripe test mode | `pnpm dev`; seeded fixture data |
 | Preview | Safe preview database or mocked data | — | Stripe test mode | One per feature branch (Vercel) |
-| Staging | Dedicated Supabase project | Dedicated worker deployment | Stripe test mode | Realistic data; full integration testing |
-| Production | Production database | Production worker deployment (Railway/Render/equivalent) | Stripe live mode | Production monitoring (Sentry, see `docs/security.md`) |
+| Staging | Dedicated Supabase project | Dedicated worker deployment builds/persists the index | Stripe test mode | Realistic data; full integration testing |
+| Production | Production database | Production worker deployment (Railway/Render/equivalent) builds/persists the index; `apps/web` (Vercel) reads it directly from Storage | Stripe live mode | Production monitoring (Sentry, see `docs/security.md`) |
+
+Search reads run inside `apps/web`'s own Vercel functions (there is no
+separate search service to reach at request time) -- but the worker still
+has to run to actually produce and keep updating the Storage snapshot those
+functions read. See the gap note below.
 
 Never connect a preview deployment to the production database.
 
@@ -54,15 +59,18 @@ smoke tests → verify health endpoints (`/api/health`) → monitor errors
 (Sentry, B-200).
 
 **Gap, not yet closed:** "deploy worker" above is not yet a concrete,
-reachable deployment anywhere in this repo's history -- `apps/web` has a
-real Vercel project, but `apps/worker` has never been deployed to Railway/
+running deployment anywhere in this repo's history -- `apps/web` has a real
+Vercel project, but `apps/worker` has never been deployed to Railway/
 Render/equivalent (the tech stack's own recommendation) or any other host.
-Since B-021's supersession, the worker is also where search lives
-(`SEARCH_SERVICE_URL`/`SEARCH_SERVICE_TOKEN` in `apps/web`'s environment
-must point at it), so this gap now blocks live search, not just background
-jobs. Stand up that deployment and wire the URL/token into `apps/web`'s
-Vercel project env vars before considering search "shipped" in any
-environment beyond local dev.
+This was already true before search moved onto MiniSearch (catalogue
+import, pricing import, restock alerts, etc. all need the worker running
+too), but it now also means the search-index Storage snapshot `apps/web`
+depends on (§13.1) is never produced or updated -- no snapshot ever
+existed for it to download, so search has nothing to serve, not merely
+stale results. Search itself needs no separate deployment or env var on
+`apps/web`'s side (it reads Supabase Storage directly with the same anon
+key everything else already uses); the entire remaining gap is standing up
+somewhere for `apps/worker` to actually run continuously.
 
 ## Backup verification (B-206)
 

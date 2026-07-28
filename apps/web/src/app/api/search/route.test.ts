@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const mockQuerySearchService = vi.fn();
+const mockQueryLocalSearchIndex = vi.fn();
 
-vi.mock("@/lib/search-service-client", () => ({
-  querySearchService: (...args: unknown[]) => mockQuerySearchService(...args),
+vi.mock("@/lib/search-index-cache", () => ({
+  queryLocalSearchIndex: (...args: unknown[]) => mockQueryLocalSearchIndex(...args),
 }));
 
 function request(query: string) {
@@ -25,11 +25,11 @@ function outcome(hits: unknown[], overrides: Partial<Record<string, unknown>> = 
 
 describe("GET /api/search", () => {
   beforeEach(() => {
-    mockQuerySearchService.mockReset();
+    mockQueryLocalSearchIndex.mockReset();
   });
 
   it("queries the search service with the parsed params and maps hits to the response shape", async () => {
-    mockQuerySearchService.mockResolvedValue(
+    mockQueryLocalSearchIndex.mockResolvedValue(
       outcome([
         {
           id: "sku-1",
@@ -50,7 +50,7 @@ describe("GET /api/search", () => {
     const response = await GET(request("?q=Lightning+Bolt&condition=nm"));
     const body = await response.json();
 
-    expect(mockQuerySearchService).toHaveBeenCalledWith(
+    expect(mockQueryLocalSearchIndex).toHaveBeenCalledWith(
       expect.objectContaining({ q: "Lightning Bolt", condition: "nm", page: 1, limit: 20 }),
     );
     expect(body).toEqual({
@@ -77,16 +77,16 @@ describe("GET /api/search", () => {
   });
 
   it("passes an empty query through as undefined, not a literal empty string", async () => {
-    mockQuerySearchService.mockResolvedValue(outcome([]));
+    mockQueryLocalSearchIndex.mockResolvedValue(outcome([]));
 
     const { GET } = await import("./route");
     await GET(request(""));
 
-    expect(mockQuerySearchService).toHaveBeenCalledWith(expect.objectContaining({ q: undefined }));
+    expect(mockQueryLocalSearchIndex).toHaveBeenCalledWith(expect.objectContaining({ q: undefined }));
   });
 
   it("computes totalPages from the search service's own totalHits/pageSize", async () => {
-    mockQuerySearchService.mockResolvedValue(outcome([], { totalHits: 45, totalPages: 3 }));
+    mockQueryLocalSearchIndex.mockResolvedValue(outcome([], { totalHits: 45, totalPages: 3 }));
 
     const { GET } = await import("./route");
     const response = await GET(request("?limit=20"));
@@ -96,7 +96,7 @@ describe("GET /api/search", () => {
   });
 
   it("returns a 500 with a clear message when the search service fails", async () => {
-    mockQuerySearchService.mockRejectedValue(new Error("connection refused"));
+    mockQueryLocalSearchIndex.mockRejectedValue(new Error("connection refused"));
 
     const { GET } = await import("./route");
     const response = await GET(request(""));
@@ -107,11 +107,11 @@ describe("GET /api/search", () => {
   });
 
   it("caps the limit param at 100", async () => {
-    mockQuerySearchService.mockResolvedValue(outcome([]));
+    mockQueryLocalSearchIndex.mockResolvedValue(outcome([]));
 
     const { GET } = await import("./route");
     await GET(request("?limit=500"));
 
-    expect(mockQuerySearchService).toHaveBeenCalledWith(expect.objectContaining({ limit: 100 }));
+    expect(mockQueryLocalSearchIndex).toHaveBeenCalledWith(expect.objectContaining({ limit: 100 }));
   });
 });
