@@ -13,16 +13,15 @@ export interface ScenarioResult {
 
 /**
  * Blueprint §23 scenario 1: "hundreds of simultaneous searches". Blocked --
- * the storefront's search page is still a placeholder (Typesense
- * integration, backlog Step 9 / B-080-087, was never built in this
- * environment, and there are no Typesense credentials to build against
- * per AGENTS.md/PR #4's documented constraint).
+ * search reads happen inside apps/web's own Vercel functions
+ * (apps/web/src/lib/search-index-cache.ts), not this worker, and this
+ * load-test harness (a script run against Postgres, from apps/worker) has
+ * no way to drive HTTP traffic against a deployed web app.
  */
 export async function concurrentSearches(): Promise<ScenarioResult> {
   return {
     name: "Concurrent searches",
-    blocked:
-      "Typesense search (B-080-087) is unimplemented — apps/web's /search page is a placeholder.",
+    blocked: "This harness cannot drive HTTP load against apps/web's search endpoint.",
   };
 }
 

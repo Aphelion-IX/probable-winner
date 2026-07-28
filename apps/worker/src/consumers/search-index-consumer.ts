@@ -1,6 +1,6 @@
 import type { Sql } from "postgres";
 
-import { updateSearchDocument } from "../jobs/update-search-document.js";
+import { upsertSkuDocument } from "../search/index-store.js";
 import { logger } from "../logger.js";
 
 const QUEUE_NAME = "search_index";
@@ -23,8 +23,8 @@ type IntegrationEventRow = {
 // the same transaction (emit_integration_event(), migration
 // 20260723065043 / 20260724190000). This is the consumer half of that
 // outbox (backlog B-083, blueprint §13.3): read one message, resolve the
-// affected SKU, and rebuild just that one Typesense document — never a
-// full reindex per change.
+// affected SKU, and rebuild just that one search document in the live
+// in-memory index — never a full reindex per change.
 export function extractSkuId(payload: Record<string, unknown>): string | null {
   const value = payload.sellableSkuId;
   return typeof value === "string" ? value : null;
@@ -68,7 +68,7 @@ export async function pollSearchIndexQueue(sql: Sql): Promise<boolean> {
 
     const skuId = extractSkuId(event.payload);
     if (skuId) {
-      await updateSearchDocument(sql, skuId);
+      await upsertSkuDocument(sql, skuId);
     }
 
     logger.info("search_index message processed", {

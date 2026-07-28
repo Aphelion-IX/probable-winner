@@ -23,9 +23,9 @@ export type ListSetsOptions = {
   search?: string;
 };
 
-// Simple ilike search — a skeleton ahead of Typesense-backed search
-// (backlog Step 9). Good enough for a handful of sets; not meant to survive
-// once the catalogue is fully imported and search needs to rank/facet.
+// Simple ilike search over the small, slow-growing sets table (869 rows
+// today) -- unlike card search, this never needed the search service:
+// good enough for a handful of hundreds of sets, not meant to rank/facet.
 export function buildSearchFilter(search: string): string {
   const escaped = sanitizeForIlike(search);
   return `name.ilike.%${escaped}%,code.ilike.%${escaped}%`;

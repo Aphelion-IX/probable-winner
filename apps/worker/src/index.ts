@@ -10,6 +10,8 @@ import { pollRestockAlertsQueue } from "./consumers/restock-alerts-consumer.js";
 import { pollEmailQueue } from "./consumers/email-consumer.js";
 import { checkQueueHealth } from "./monitoring/queue-health.js";
 import { checkImportFailures } from "./monitoring/import-health.js";
+import { startSearchHttpServer } from "./search/http-server.js";
+import { loadSnapshotFromStorage, rebuildFullIndex } from "./search/index-store.js";
 
 const POLL_INTERVAL_MS = 5_000;
 // B-202: health checks are far cheaper to run than a queue drain, but
@@ -114,9 +116,29 @@ async function runHealthChecks(): Promise<void> {
   }
 }
 
+// Loads the last persisted snapshot for a fast start; falls back to a full
+// rebuild from Postgres (the always-correct path) when no snapshot exists
+// yet or loading one fails for any reason -- see index-store.ts's own
+// comments on why the snapshot is a best-effort accelerator, not a hard
+// dependency.
+async function loadOrRebuildSearchIndex(): Promise<void> {
+  const loaded = await loadSnapshotFromStorage();
+  if (loaded) {
+    logger.info("search index loaded from storage snapshot");
+    return;
+  }
+
+  logger.info("no usable search index snapshot -- rebuilding from Postgres");
+  const result = await rebuildFullIndex(sql);
+  logger.info("search index rebuilt from Postgres", result);
+}
+
 async function main() {
   logger.info("worker started, polling queues");
   let lastHealthCheckAt = 0;
+
+  await loadOrRebuildSearchIndex();
+  startSearchHttpServer(sql);
 
   for (;;) {
     const processed = await tick();

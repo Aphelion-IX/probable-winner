@@ -9,11 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   adjustCustomerCredit,
-  CREDIT_ENTRY_TYPES,
-  DEBIT_ENTRY_TYPES,
   type StoreCreditAccount,
   type StoreCreditLedgerEntry,
 } from "@/features/staff/actions/manage-store-credit";
+import { CREDIT_ENTRY_TYPES, DEBIT_ENTRY_TYPES } from "@/features/staff/store-credit-constants";
 
 const SELECT_CLASS = "rounded-lg border border-input bg-background px-3 py-2 text-xs";
 

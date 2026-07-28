@@ -1,11 +1,13 @@
 // Search API route handler (B-084, blueprint §13.4)
-// Route handler, not a Server Action, per blueprint §19. Queries the real
-// Typesense index — never Postgres per search request (blueprint §20's
-// explicit "querying PostgreSQL on every search keystroke" prohibition).
+// Route handler, not a Server Action, per blueprint §19. Queries the
+// in-memory MiniSearch index cached in this function instance (see
+// @/lib/search-index-cache) — never Postgres per search request (blueprint
+// §20's explicit "querying PostgreSQL on every search keystroke"
+// prohibition).
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { type SearchQueryParams } from "@/features/catalogue/lib/build-search-query";
+import { type SearchQueryParams } from "@probable-winner/search";
 import { searchCards } from "@/features/catalogue/queries/search-cards";
 
 function parseSearchParams(request: NextRequest): SearchQueryParams {

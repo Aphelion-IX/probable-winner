@@ -1,59 +1,57 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const mockSearch = vi.fn();
-const mockCreateTypesenseClient = vi.fn().mockReturnValue({
-  collections: () => ({ documents: () => ({ search: mockSearch }) }),
-});
+const mockQueryLocalSearchIndex = vi.fn();
 
-vi.mock("@probable-winner/search", () => ({
-  createTypesenseClient: (...args: unknown[]) => mockCreateTypesenseClient(...args),
-  CARDS_COLLECTION_NAME: "cards",
+vi.mock("@/lib/search-index-cache", () => ({
+  queryLocalSearchIndex: (...args: unknown[]) => mockQueryLocalSearchIndex(...args),
 }));
 
 function request(query: string) {
   return new NextRequest(`http://localhost:3000/api/search${query}`);
 }
 
+function outcome(hits: unknown[], overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    hits,
+    page: 1,
+    pageSize: 20,
+    totalHits: hits.length,
+    totalPages: 1,
+    processingTimeMs: 3,
+    ...overrides,
+  };
+}
+
 describe("GET /api/search", () => {
   beforeEach(() => {
-    mockSearch.mockReset();
+    mockQueryLocalSearchIndex.mockReset();
   });
 
-  it("queries Typesense with the parsed params and maps hits to the response shape", async () => {
-    mockSearch.mockResolvedValue({
-      found: 1,
-      search_time_ms: 3,
-      hits: [
+  it("queries the search service with the parsed params and maps hits to the response shape", async () => {
+    mockQueryLocalSearchIndex.mockResolvedValue(
+      outcome([
         {
-          document: {
-            id: "sku-1",
-            printing_id: "printing-1",
-            name: "Lightning Bolt",
-            set_code: "2X2",
-            rarity: "uncommon",
-            artist: "Christopher Rush",
-            condition: "nm",
-            finish: "nonfoil",
-            price_amount: 1.5,
-            image_url: "https://cards.scryfall.io/normal/front/example.jpg",
-          },
+          id: "sku-1",
+          printing_id: "printing-1",
+          name: "Lightning Bolt",
+          set_code: "2X2",
+          rarity: "uncommon",
+          artist: "Christopher Rush",
+          condition: "nm",
+          finish: "nonfoil",
+          price_amount: 1.5,
+          image_url: "https://cards.scryfall.io/normal/front/example.jpg",
         },
-      ],
-    });
+      ]),
+    );
 
     const { GET } = await import("./route");
     const response = await GET(request("?q=Lightning+Bolt&condition=nm"));
     const body = await response.json();
 
-    expect(mockSearch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        q: "Lightning Bolt",
-        query_by: "name",
-        filter_by: "condition:=`nm`",
-        page: 1,
-        per_page: 20,
-      }),
+    expect(mockQueryLocalSearchIndex).toHaveBeenCalledWith(
+      expect.objectContaining({ q: "Lightning Bolt", condition: "nm", page: 1, limit: 20 }),
     );
     expect(body).toEqual({
       hits: [
@@ -78,28 +76,17 @@ describe("GET /api/search", () => {
     });
   });
 
-  it("defaults an empty query to Typesense's match-all wildcard", async () => {
-    mockSearch.mockResolvedValue({ found: 0, search_time_ms: 1, hits: [] });
+  it("passes an empty query through as undefined, not a literal empty string", async () => {
+    mockQueryLocalSearchIndex.mockResolvedValue(outcome([]));
 
     const { GET } = await import("./route");
     await GET(request(""));
 
-    expect(mockSearch).toHaveBeenCalledWith(expect.objectContaining({ q: "*" }));
+    expect(mockQueryLocalSearchIndex).toHaveBeenCalledWith(expect.objectContaining({ q: undefined }));
   });
 
-  it("omits filter_by/sort_by entirely when no filters or explicit sort are given", async () => {
-    mockSearch.mockResolvedValue({ found: 0, search_time_ms: 1, hits: [] });
-
-    const { GET } = await import("./route");
-    await GET(request(""));
-
-    const callArgs = mockSearch.mock.calls[0][0];
-    expect(callArgs).not.toHaveProperty("filter_by");
-    expect(callArgs).not.toHaveProperty("sort_by");
-  });
-
-  it("computes totalPages from found/perPage", async () => {
-    mockSearch.mockResolvedValue({ found: 45, search_time_ms: 2, hits: [] });
+  it("computes totalPages from the search service's own totalHits/pageSize", async () => {
+    mockQueryLocalSearchIndex.mockResolvedValue(outcome([], { totalHits: 45, totalPages: 3 }));
 
     const { GET } = await import("./route");
     const response = await GET(request("?limit=20"));
@@ -108,8 +95,8 @@ describe("GET /api/search", () => {
     expect(body.totalPages).toBe(3);
   });
 
-  it("returns a 500 with a clear message when Typesense fails", async () => {
-    mockSearch.mockRejectedValue(new Error("connection refused"));
+  it("returns a 500 with a clear message when the search service fails", async () => {
+    mockQueryLocalSearchIndex.mockRejectedValue(new Error("connection refused"));
 
     const { GET } = await import("./route");
     const response = await GET(request(""));
@@ -120,11 +107,11 @@ describe("GET /api/search", () => {
   });
 
   it("caps the limit param at 100", async () => {
-    mockSearch.mockResolvedValue({ found: 0, search_time_ms: 1, hits: [] });
+    mockQueryLocalSearchIndex.mockResolvedValue(outcome([]));
 
     const { GET } = await import("./route");
     await GET(request("?limit=500"));
 
-    expect(mockSearch).toHaveBeenCalledWith(expect.objectContaining({ per_page: 100 }));
+    expect(mockQueryLocalSearchIndex).toHaveBeenCalledWith(expect.objectContaining({ limit: 100 }));
   });
 });

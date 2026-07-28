@@ -1,6 +1,6 @@
 import { CardTile } from "@/components/commerce/card-tile";
 import { Pagination } from "@/components/search/pagination";
-import { type SearchQueryParams } from "@/features/catalogue/lib/build-search-query";
+import { type SearchQueryParams } from "@probable-winner/search";
 import { searchCards, type SearchCardsResult } from "@/features/catalogue/queries/search-cards";
 
 interface SearchResultsProps {

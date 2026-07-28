@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 
 import { createServerSupabaseClient } from "@/server/supabase";
+import { isUuid } from "@/lib/is-uuid";
 
 // Which SKUs exist for a printing (backlog Step 6, B-050/B-051) only changes
 // when the catalogue/SKU-generation jobs run, so — like get-card-identity.ts
@@ -84,6 +85,15 @@ async function fetchSkuOptions(printingId: string): Promise<SkuOption[]> {
 }
 
 export async function listSkuOptions(printingId: string): Promise<SkuOption[]> {
+  // Same reasoning as get-card-identity.ts's getCardIdentity(): a malformed
+  // id would otherwise reach sellable_skus.card_printing_id as a Postgrest
+  // .eq() filter and throw "invalid input syntax for type uuid" instead of
+  // the empty result this function already returns for a printing with no
+  // SKUs.
+  if (!isUuid(printingId)) {
+    return [];
+  }
+
   const cached = unstable_cache(() => fetchSkuOptions(printingId), skuOptionsCacheKey(printingId), {
     revalidate: SKU_OPTIONS_REVALIDATE_SECONDS,
     tags: [skuOptionsCacheTag(printingId)],

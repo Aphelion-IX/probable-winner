@@ -133,7 +133,8 @@ describe("receiveStockBulk", () => {
 
   it("rejects a batch over the line limit", async () => {
     mockGetStaffContext.mockResolvedValue(STAFF);
-    const { receiveStockBulk, MAX_BULK_RECEIVE_LINES } = await import("./manage-receiving");
+    const { receiveStockBulk } = await import("./manage-receiving");
+    const { MAX_BULK_RECEIVE_LINES } = await import("@/features/staff/receiving-constants");
 
     const lines = Array.from({ length: MAX_BULK_RECEIVE_LINES + 1 }, (_, i) => ({
       skuId: `sku-${i}`,

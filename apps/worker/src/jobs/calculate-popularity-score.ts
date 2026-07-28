@@ -1,15 +1,13 @@
 // Popularity score calculation (B-085, blueprint §13.6)
 // Computes search ranking score from real order/inventory metrics, batched
 // across every SKU in one query (never one query per SKU), and writes the
-// result directly into each SKU's Typesense document — popularity_score is
-// a search-ranking artifact, not business data, so it has no Postgres
-// column of its own (blueprint §13.2's CardSearchDocument is where it
-// lives).
+// result directly into each SKU's search document — popularity_score is a
+// search-ranking artifact, not business data, so it has no Postgres column
+// of its own (blueprint §13.2's CardSearchDocument is where it lives).
 
 import type { Sql } from "postgres";
-import { createTypesenseClient, CARDS_COLLECTION_NAME } from "@probable-winner/search";
 
-const IMPORT_BATCH_SIZE = 1000;
+import { patchPopularityScore } from "../search/index-store.js";
 
 export type PopularityMetrics = {
   totalOrders: number;
@@ -107,31 +105,17 @@ export async function updateAllPopularityScores(sql: Sql): Promise<PopularitySco
   try {
     const metricsBySkuId = await fetchPopularityMetrics(sql);
 
-    const documents = Array.from(metricsBySkuId, ([skuId, metrics]) => ({
-      id: skuId,
-      popularity_score: calculatePopularityScore(metrics),
-    }));
-
-    const client = createTypesenseClient();
-
     let updated = 0;
     let failed = 0;
 
-    for (let i = 0; i < documents.length; i += IMPORT_BATCH_SIZE) {
-      const batch = documents.slice(i, i + IMPORT_BATCH_SIZE);
-      const results = await client
-        .collections(CARDS_COLLECTION_NAME)
-        .documents()
-        .import(batch, { action: "update" });
-
-      for (const result of results) {
-        if (result.success) {
-          updated += 1;
-        } else {
-          // Expected for any SKU not yet reindexed into Typesense — not a
-          // real failure, just nothing to update yet.
-          failed += 1;
-        }
+    for (const [skuId, metrics] of metricsBySkuId) {
+      const patched = patchPopularityScore(skuId, calculatePopularityScore(metrics));
+      if (patched) {
+        updated += 1;
+      } else {
+        // Expected for any SKU not yet in the live search index — not a
+        // real failure, just nothing to update yet.
+        failed += 1;
       }
     }
 

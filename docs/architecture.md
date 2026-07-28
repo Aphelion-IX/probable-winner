@@ -139,7 +139,7 @@ application.
 | File storage | Supabase Storage |
 | Background queue | Supabase Queues |
 | Scheduled jobs | Supabase Cron |
-| Search | Typesense |
+| Search | MiniSearch, index built/maintained by the worker, read directly by the Vercel-hosted web app from a Supabase Storage snapshot |
 | Payments | Stripe Checkout |
 | Email | Resend and React Email |
 | Application hosting | Vercel |
@@ -211,7 +211,8 @@ Customer or staff browser
 Customer search
       |
       v
-    Typesense
+MiniSearch index snapshot in Supabase Storage
+(built/maintained by the worker, read directly by the web app)
 ```
 
 This is not a microservice architecture. There are only two runtime applications:
@@ -808,16 +809,45 @@ cancellation.
 
 ## 13. Search architecture
 
-### 13.1 Typesense purpose
+### 13.1 Search purpose
 
-Typesense should handle: instant search; autocomplete; typo tolerance; faceted
-filtering; sorting; popularity ranking; store-availability filtering; recently
-added feeds.
+The search index should handle: instant search; autocomplete; typo tolerance;
+faceted filtering; sorting; popularity ranking; store-availability filtering;
+recently added feeds.
 
-Typesense supports typo-tolerant text queries, exact filters, configurable
-relevance and field-weighting.
+Implemented with MiniSearch (an in-memory JS library, not a hosted search
+service) rather than Typesense. MiniSearch supports typo-tolerant (fuzzy)
+text queries and prefix matching; exact filters, sorting, and relevance/
+field weighting are implemented in application code against the index's
+stored fields (see packages/search/src/query.ts) rather than a query-string
+DSL.
 
-PostgreSQL remains authoritative. Typesense can be rebuilt at any time.
+Building and reading the index are split across the two runtime
+applications, not colocated the way Typesense's single external service
+was:
+
+- **apps/worker** (a long-running process) builds and maintains the live
+  index -- full rebuilds from Postgres, and incremental single-document
+  updates driven by the outbox (§13.3) -- and persists a snapshot to
+  Supabase Storage (the "search-index" bucket) after every change (debounced
+  a few seconds so a burst of changes collapses into one upload, not one
+  per change; see apps/worker/src/search/index-store.ts).
+- **apps/web** (Vercel serverless functions, the only deployment target
+  available) downloads that same snapshot directly and caches the
+  reconstructed index in memory for the life of the warm function instance,
+  refreshing on a short interval (apps/web/src/lib/search-index-cache.ts).
+  This is why the snapshot is serialized via MiniSearch's own toJSON()/
+  loadJS() rather than as raw documents to re-tokenize on every load --
+  deserializing precomputed index structures is materially faster than
+  rebuilding one from scratch, and every cold serverless start pays
+  whatever that cost is.
+
+PostgreSQL remains authoritative. The search index can be rebuilt at any
+time from Postgres (apps/worker/src/search/index-store.ts's
+rebuildFullIndex); the persisted snapshot is what apps/web depends on
+directly, so the worker must actually run (at least once, to produce it,
+and periodically thereafter to keep it fresh) for search to work at all --
+see docs/deployment.md's "Gap, not yet closed" note.
 
 ### 13.2 Search document
 
@@ -857,7 +887,8 @@ type CardSearchDocument = {
 
 ### 13.3 Search synchronisation
 
-Never update PostgreSQL and Typesense separately inside a customer request.
+Never update PostgreSQL and the search index separately inside a customer
+request.
 
 Use an outbox pattern:
 
@@ -870,11 +901,19 @@ Queue message
         v
 Background worker
         v
-Typesense update
+In-memory MiniSearch index update (same process, no network call)
+        v
+Debounced snapshot persist to Supabase Storage
+        v
+apps/web's next cache refresh picks it up
 ```
 
 This prevents database success combined with search-index failure from leaving
-the system silently inconsistent.
+the system silently inconsistent. The last two steps are specific to reads
+happening in a separate process from the one that owns the live index (see
+§13.1) -- worth naming because they mean end-to-end freshness is bounded by
+the debounce delay plus apps/web's cache refresh interval, not truly
+instantaneous the way it would be if the same process served both.
 
 ### 13.4 Search interface
 
@@ -1164,8 +1203,8 @@ Failure behaviour: attempt 1 fails → retry after short delay; repeated failure
 → move to failed-jobs queue → alert administrator → preserve payload for
 replay.
 
-A customer-facing request should not wait for: an email; a Typesense update; a
-catalogue import; a pricing calculation; an external report.
+A customer-facing request should not wait for: an email; a search index
+update; a catalogue import; a pricing calculation; an external report.
 
 ## 18. Authentication and permissions
 
@@ -1236,7 +1275,8 @@ confirmation, issuing store credit, redeeming gift cards.
 ## 20. Frontend performance rules
 
 Required: Server Components by default; small Client Components; route-level
-code splitting; search through Typesense; correctly sized card thumbnails;
+code splitting; search through the worker's search service; correctly sized
+card thumbnails;
 lazy loading below the fold; cursor pagination; virtualised staff tables;
 optimistic cart feedback; background prefetching; skeleton loading states;
 cached stable catalogue content; separate live stock payloads.
@@ -1284,8 +1324,8 @@ Database tests: RLS; staff scope; atomic stock reservations; overselling
 prevention; movement and balance consistency; duplicate webhooks; transfer
 lifecycle; ledger immutability; refund transactions.
 
-Integration tests: catalogue import; pricing import; Typesense indexing; queue
-retries; Stripe webhooks; email generation; shipping integration.
+Integration tests: catalogue import; pricing import; search index updates;
+queue retries; Stripe webhooks; email generation; shipping integration.
 
 End-to-end tests: search for a card → select condition → add to cart →
 complete checkout → order reaches picking; select a store → check local
@@ -1320,18 +1360,20 @@ delay; search-index delay; database CPU; slow SQL statements.
 
 Use four environments: local, development preview, staging, production.
 
-Local: local Next.js; local Supabase through Docker; local Typesense
-container; Stripe test mode; local email viewer; seeded fixture data.
+Local: local Next.js; local Supabase through Docker; the worker run locally
+(`pnpm --filter worker dev`) doubling as the local search service; Stripe
+test mode; local email viewer; seeded fixture data.
 
 Preview: created for feature branches; safe preview database or mocked data;
 Stripe test mode; isolated environment variables.
 
 Staging: permanent test environment; dedicated Supabase project; dedicated
-Typesense collection; realistic data; Stripe test mode; complete integration
-testing.
+worker deployment holding its own search index; realistic data; Stripe test
+mode; complete integration testing.
 
-Production: production database; production search cluster; Stripe live
-mode; production email; production monitoring.
+Production: production database; production worker deployment (Railway,
+Render, or equivalent -- see the tech stack table) serving search; Stripe
+live mode; production email; production monitoring.
 
 Vercel provides Local, Preview and Production environments and supports
 branch-based preview deployments. A dedicated staging environment can be
@@ -1407,7 +1449,7 @@ Prefer backward-compatible migrations:
 8. Do not remove existing behaviour to simplify implementation.
 9. Do not publish prices without anomaly checks.
 10. Do not process payment based on browser redirects.
-11. Do not directly dual-write PostgreSQL and Typesense.
+11. Do not directly dual-write PostgreSQL and the search index.
 12. Do not calculate balances from editable fields.
 13. Run type-check, lint and relevant tests after every change.
 14. Update documentation when business rules change.
@@ -1431,7 +1473,7 @@ that implement Steps 1–23 below.
 - **Step 6** — Build sellable SKUs.
 - **Step 7** — Build inventory transactions.
 - **Step 8** — Build store transfers.
-- **Step 9** — Build Typesense search.
+- **Step 9** — Build search (MiniSearch, hosted in the background worker).
 - **Step 10** — Build the storefront shell.
 - **Step 11** — Build card and printing pages.
 - **Step 12** — Build cart and reservations.
@@ -1470,8 +1512,9 @@ fulfilment systems rather than creating a second commerce platform.
 
 Next.js App Router, TypeScript, React, Tailwind CSS, shadcn/ui, Zod, React
 Hook Form, Supabase PostgreSQL, Supabase Auth, Supabase Storage, Supabase
-Queues, Supabase Cron, Typesense, Stripe Checkout, Resend, Sentry, Vercel,
-containerised background worker, GitHub Actions, Vitest, pgTAP, Playwright.
+Queues, Supabase Cron, MiniSearch (hosted in the background worker), Stripe
+Checkout, Resend, Sentry, Vercel, containerised background worker, GitHub
+Actions, Vitest, pgTAP, Playwright.
 
 ## 30. Final architecture decision
 

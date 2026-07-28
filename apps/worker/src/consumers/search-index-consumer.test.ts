@@ -3,10 +3,10 @@ import type { Sql } from "postgres";
 
 import { extractSkuId } from "./search-index-consumer.js";
 
-const mockUpdateSearchDocument = vi.fn();
+const mockUpsertSkuDocument = vi.fn();
 
-vi.mock("../jobs/update-search-document.js", () => ({
-  updateSearchDocument: (...args: unknown[]) => mockUpdateSearchDocument(...args),
+vi.mock("../search/index-store.js", () => ({
+  upsertSkuDocument: (...args: unknown[]) => mockUpsertSkuDocument(...args),
 }));
 
 type MockCall = { text: string; values: unknown[] };
@@ -41,7 +41,7 @@ describe("extractSkuId", () => {
 
 describe("pollSearchIndexQueue", () => {
   beforeEach(() => {
-    mockUpdateSearchDocument.mockReset();
+    mockUpsertSkuDocument.mockReset();
   });
 
   it("returns false without any further work when the queue is empty", async () => {
@@ -52,7 +52,7 @@ describe("pollSearchIndexQueue", () => {
 
     expect(result).toBe(false);
     expect(calls).toHaveLength(1);
-    expect(mockUpdateSearchDocument).not.toHaveBeenCalled();
+    expect(mockUpsertSkuDocument).not.toHaveBeenCalled();
   });
 
   it("updates the affected SKU's document and archives the message", async () => {
@@ -72,13 +72,13 @@ describe("pollSearchIndexQueue", () => {
       ],
       [],
     ]);
-    mockUpdateSearchDocument.mockResolvedValue(true);
+    mockUpsertSkuDocument.mockResolvedValue(true);
     const { pollSearchIndexQueue } = await import("./search-index-consumer.js");
 
     const result = await pollSearchIndexQueue(sql);
 
     expect(result).toBe(true);
-    expect(mockUpdateSearchDocument).toHaveBeenCalledWith(sql, "sku-1");
+    expect(mockUpsertSkuDocument).toHaveBeenCalledWith(sql, "sku-1");
     // Third call is the pgmq.archive.
     expect(calls[2].text).toContain("pgmq.archive");
   });
@@ -111,13 +111,13 @@ describe("pollSearchIndexQueue", () => {
       ],
       [],
     ]);
-    mockUpdateSearchDocument.mockResolvedValue(true);
+    mockUpsertSkuDocument.mockResolvedValue(true);
     const { pollSearchIndexQueue } = await import("./search-index-consumer.js");
 
     const result = await pollSearchIndexQueue(sql);
 
     expect(result).toBe(true);
-    expect(mockUpdateSearchDocument).toHaveBeenCalledWith(sql, "sku-6");
+    expect(mockUpsertSkuDocument).toHaveBeenCalledWith(sql, "sku-6");
     expect(calls[2].text).toContain("pgmq.archive");
   });
 
@@ -131,7 +131,7 @@ describe("pollSearchIndexQueue", () => {
     const result = await pollSearchIndexQueue(sql);
 
     expect(result).toBe(true);
-    expect(mockUpdateSearchDocument).not.toHaveBeenCalled();
+    expect(mockUpsertSkuDocument).not.toHaveBeenCalled();
     expect(calls[2].text).toContain("pgmq.archive");
   });
 
@@ -142,11 +142,11 @@ describe("pollSearchIndexQueue", () => {
     const result = await pollSearchIndexQueue(sql);
 
     expect(result).toBe(true);
-    expect(mockUpdateSearchDocument).not.toHaveBeenCalled();
+    expect(mockUpsertSkuDocument).not.toHaveBeenCalled();
     expect(calls[1].text).toContain("pgmq.archive");
   });
 
-  it("archives an event whose payload has no resolvable SKU, without calling updateSearchDocument", async () => {
+  it("archives an event whose payload has no resolvable SKU, without calling upsertSkuDocument", async () => {
     const { sql, calls } = createMockSql([
       [{ msg_id: 4, message: { integrationEventId: "event-4" } }],
       [{ id: "event-4", event_type: "something_else", payload: {} }],
@@ -157,11 +157,11 @@ describe("pollSearchIndexQueue", () => {
     const result = await pollSearchIndexQueue(sql);
 
     expect(result).toBe(true);
-    expect(mockUpdateSearchDocument).not.toHaveBeenCalled();
+    expect(mockUpsertSkuDocument).not.toHaveBeenCalled();
     expect(calls[2].text).toContain("pgmq.archive");
   });
 
-  it("leaves the message in the queue (no archive) when updateSearchDocument throws", async () => {
+  it("leaves the message in the queue (no archive) when upsertSkuDocument throws", async () => {
     const { sql, calls } = createMockSql([
       [{ msg_id: 5, message: { integrationEventId: "event-5" } }],
       [
@@ -172,7 +172,7 @@ describe("pollSearchIndexQueue", () => {
         },
       ],
     ]);
-    mockUpdateSearchDocument.mockRejectedValue(new Error("typesense unreachable"));
+    mockUpsertSkuDocument.mockRejectedValue(new Error("search index unreachable"));
     const { pollSearchIndexQueue } = await import("./search-index-consumer.js");
 
     const result = await pollSearchIndexQueue(sql);

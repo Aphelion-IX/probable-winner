@@ -5,9 +5,8 @@ import type { Sql } from "postgres";
 // stock_reconciliation have consumers wired up (apps/worker/src/index.ts);
 // search_index/email/restock_alerts/order_processing/reservation_cleanup do
 // not yet, but their queue depth is still worth watching -- a growing
-// backlog on search_index today is exactly the metric that will matter once
-// a Typesense sync consumer exists (backlog B-083), since it's a direct
-// proxy for search-index sync lag even before that consumer is built.
+// backlog on search_index is a direct proxy for search-index sync lag
+// (backlog B-083's consumer, apps/worker/src/consumers/search-index-consumer.ts).
 export const MONITORED_QUEUES = [
   "catalogue_import",
   "pricing_import",

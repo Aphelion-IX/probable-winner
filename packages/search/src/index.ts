@@ -1,9 +1,13 @@
-export type { CardSearchDocument } from "./typesense-schema";
-export { typesenseCollectionSchema } from "./typesense-schema";
+export type { CardSearchDocument } from "./card-search-document";
 export { buildCardSearchDocument, type SkuSearchInput } from "./build-document";
 export {
-  createTypesenseClient,
-  ensureCardsCollectionExists,
-  CARDS_COLLECTION_NAME,
-  type TypesenseClientOptions,
-} from "./client";
+  createEmptySearchIndex,
+  buildSearchIndex,
+  upsertDocument,
+  removeDocument,
+  patchDocument,
+  serializeSearchIndex,
+  deserializeSearchIndex,
+  type SearchIndex,
+} from "./search-index";
+export { runSearch, type SearchQueryParams, type SearchOutcome } from "./query";

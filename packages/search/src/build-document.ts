@@ -1,7 +1,7 @@
 // Pure SKU-row -> CardSearchDocument mapping (backlog B-081/B-083). Kept
-// free of any DB/Typesense client so it's testable without either.
+// free of any DB/search-index client so it's testable without either.
 
-import type { CardSearchDocument } from "./typesense-schema";
+import type { CardSearchDocument } from "./card-search-document";
 
 export type SkuSearchInput = {
   skuId: string;

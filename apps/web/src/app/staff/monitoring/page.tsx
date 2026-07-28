@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 const QUEUE_LABELS: Record<string, string> = {
   catalogue_import: "Catalogue Import",
   pricing_import: "Pricing Import",
-  search_index: "Search Index (Typesense sync)",
+  search_index: "Search Index (MiniSearch sync)",
   email: "Email",
   restock_alerts: "Restock Alerts",
   order_processing: "Order Processing",

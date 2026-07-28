@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/", label: "Home", icon: Home, exact: true },
-  { href: "/cards", label: "Shop", icon: Layers, exact: false },
+  { href: "/sets", label: "Shop", icon: Layers, exact: false },
   { href: "/search", label: "Search", icon: Search, exact: false },
   { href: "/account/saved-lists", label: "Lists", icon: Star, exact: false },
   { href: "/account", label: "Account", icon: User, exact: false },

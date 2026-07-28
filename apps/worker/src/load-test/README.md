@@ -44,10 +44,10 @@ reads/writes matching the real access pattern otherwise). Two are reported
 as `BLOCKED` rather than faked, because the feature behind them doesn't
 exist yet in this codebase:
 
-- **Concurrent searches** — the storefront's `/search` page is still a
-  placeholder; Typesense integration (backlog Step 9, B-080-087) was never
-  built, and this environment has no Typesense credentials to build
-  against (a pre-existing, documented constraint — see PR #4).
+- **Concurrent searches** — search reads happen inside apps/web's own
+  Vercel functions (apps/web/src/lib/search-index-cache.ts), not this
+  worker, and this load-test harness has no way to drive HTTP traffic
+  against a deployed web app from wherever it runs.
 - **100-card decklist import** — the decklist-import feature (parser,
   batched matching, disambiguation UI, substitution/budget,
   add-all-to-cart — backlog B-180-184) doesn't exist yet.

@@ -313,10 +313,10 @@ above:
   stack, resets it (every migration + `seed.sql`), and runs `supabase test db`
   (pgTAP/RLS regressions) as a blocking step; Build and the Playwright suite
   point at that real stack instead of an unreachable placeholder project,
-  and the E2E job is no longer `continue-on-error`. Stripe and Typesense
-  remain placeholders (no CI-provisioned test account or search service
-  exists), so specs needing either still fall back to their own graceful
-  skip guards.
+  and the E2E job is no longer `continue-on-error`. Stripe and the search
+  service remain placeholders (no CI-provisioned test account or running
+  worker search service exists), so specs needing either still fall back
+  to their own graceful skip guards.
 - **The picking → packing → shipment pipeline** is wired end to end
   (`20260726060000_wire_up_picking_packing_shipment_workflow.sql`):
   `record_pick_line_scan()` is the real Server Action call behind the
