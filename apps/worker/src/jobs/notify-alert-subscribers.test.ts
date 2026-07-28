@@ -60,7 +60,10 @@ describe("processRestockAlertCheck", () => {
 
     expect(notified).toBe(1);
     expect(sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ to: "buyer@example.com", subject: "Back in stock: Lightning Bolt" }),
+      expect.objectContaining({
+        to: "buyer@example.com",
+        subject: "Back in stock: Lightning Bolt",
+      }),
     );
     // finish/condition query uses the translated 'normal'/'NM' vocabulary,
     // not the raw sellable_skus 'nonfoil'/'nm' codes.

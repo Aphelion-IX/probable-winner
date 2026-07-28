@@ -98,7 +98,9 @@ describe("listClickAndCollectStores", () => {
     mockCreateServerSupabaseClient.mockReset();
     mockCreatePublicSupabaseClient.mockReturnValue({ from: mockFrom });
     mockReturns.mockResolvedValue({
-      data: [{ id: "store-1", name: "Geelong", code: "STR-01", region: "VIC", store_addresses: null }],
+      data: [
+        { id: "store-1", name: "Geelong", code: "STR-01", region: "VIC", store_addresses: null },
+      ],
       error: null,
     });
   });

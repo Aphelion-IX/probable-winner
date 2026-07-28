@@ -1,7 +1,10 @@
 import type { Sql } from "postgres";
 
 import { createEmailProviderFromEnv } from "../integrations/email/resend-provider.js";
-import { processPriceAlertCheck, processRestockAlertCheck } from "../jobs/notify-alert-subscribers.js";
+import {
+  processPriceAlertCheck,
+  processRestockAlertCheck,
+} from "../jobs/notify-alert-subscribers.js";
 import { logger } from "../logger.js";
 
 const QUEUE_NAME = "restock_alerts";

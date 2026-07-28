@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ResendEmailError, ResendEmailProvider, createEmailProviderFromEnv } from "./resend-provider.js";
+import {
+  ResendEmailError,
+  ResendEmailProvider,
+  createEmailProviderFromEnv,
+} from "./resend-provider.js";
 
 describe("ResendEmailProvider", () => {
   afterEach(() => {
@@ -39,7 +43,9 @@ describe("ResendEmailProvider", () => {
   it("throws ResendEmailError with the response body on a non-ok response", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: false, status: 422, text: async () => "invalid from address" }),
+      vi
+        .fn()
+        .mockResolvedValue({ ok: false, status: 422, text: async () => "invalid from address" }),
     );
 
     const provider = new ResendEmailProvider("test-key", "bad-from");

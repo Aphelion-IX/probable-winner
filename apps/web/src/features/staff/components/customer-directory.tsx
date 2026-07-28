@@ -14,6 +14,13 @@ import {
   type CustomerSummary,
   type CustomerDetail,
 } from "@/features/staff/actions/fetch-customers";
+import {
+  getStoreCreditAccount,
+  listStoreCreditLedger,
+  type StoreCreditAccount,
+  type StoreCreditLedgerEntry,
+} from "@/features/staff/actions/manage-store-credit";
+import { StoreCreditPanel } from "@/features/staff/components/store-credit-panel";
 
 function formatMoney(amount: number, currency: string | null): string {
   if (!currency) return "—";
@@ -25,13 +32,31 @@ function formatDate(value: string | null): string {
   return new Date(value).toLocaleDateString("en-AU", { dateStyle: "medium" });
 }
 
-export function CustomerDirectory({ initialCustomers }: { initialCustomers: CustomerSummary[] }) {
+export function CustomerDirectory({
+  initialCustomers,
+  permissions,
+}: {
+  initialCustomers: CustomerSummary[];
+  permissions: string[];
+}) {
   const [customers, setCustomers] = useState(initialCustomers);
   const [query, setQuery] = useState("");
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
+  const [creditAccount, setCreditAccount] = useState<StoreCreditAccount | null>(null);
+  const [creditLedger, setCreditLedger] = useState<StoreCreditLedgerEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSearching, startSearch] = useTransition();
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const canManageCredit = permissions.includes("customers.credit");
+
+  async function loadCredit(customerId: string) {
+    const [account, ledger] = await Promise.all([
+      getStoreCreditAccount(customerId),
+      listStoreCreditLedger(customerId),
+    ]);
+    setCreditAccount(account);
+    setCreditLedger(ledger);
+  }
 
   function onSearch() {
     setError(null);
@@ -51,7 +76,11 @@ export function CustomerDirectory({ initialCustomers }: { initialCustomers: Cust
     setError(null);
 
     try {
-      setDetail(await getCustomerDetail(customer.id));
+      const [customerDetail] = await Promise.all([
+        getCustomerDetail(customer.id),
+        loadCredit(customer.id),
+      ]);
+      setDetail(customerDetail);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load the customer");
       Sentry.captureException(err);
@@ -106,10 +135,28 @@ export function CustomerDirectory({ initialCustomers }: { initialCustomers: Cust
                 {detail.phone ? ` · ${detail.phone}` : ""}
               </p>
             </div>
-            <Button variant="outline" className="text-xs" onClick={() => setDetail(null)}>
+            <Button
+              variant="outline"
+              className="text-xs"
+              onClick={() => {
+                setDetail(null);
+                setCreditAccount(null);
+                setCreditLedger([]);
+              }}
+            >
               Close
             </Button>
           </div>
+
+          {creditAccount ? (
+            <StoreCreditPanel
+              customerId={detail.id}
+              canManage={canManageCredit}
+              account={creditAccount}
+              ledger={creditLedger}
+              onChanged={() => loadCredit(detail.id)}
+            />
+          ) : null}
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border p-3">

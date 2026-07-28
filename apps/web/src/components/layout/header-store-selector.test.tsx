@@ -24,7 +24,10 @@ function stubFetch(selectedStoreId: string | null = null, stores: typeof STORES 
     "fetch",
     vi.fn((url: string) => {
       if (url === "/api/stores/selected") {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ storeId: selectedStoreId }) });
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ storeId: selectedStoreId }),
+        });
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve(stores) });
     }),

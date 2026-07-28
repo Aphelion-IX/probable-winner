@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildImageRows, chunk } from "./import-card-images.js";
+import { buildImageRows, buildLegalityRows, chunk } from "./import-card-images.js";
 import type { ScryfallCard } from "../integrations/scryfall/types.js";
 
 describe("chunk", () => {
@@ -99,5 +99,63 @@ describe("buildImageRows", () => {
     const card: ScryfallCard = { id: "scry-3", name: "Weird Card" };
 
     expect(buildImageRows("printing-3", card)).toEqual([]);
+  });
+});
+
+describe("buildLegalityRows", () => {
+  const formatIdByCode = new Map([
+    ["standard", "format-standard"],
+    ["modern", "format-modern"],
+    ["commander", "format-commander"],
+  ]);
+
+  it("maps only the format codes this app tracks, in formatIdByCode order", () => {
+    const card: ScryfallCard = {
+      id: "scry-1",
+      name: "Lightning Bolt",
+      legalities: {
+        standard: "not_legal",
+        modern: "legal",
+        commander: "legal",
+        // Scryfall tracks formats this app has no formats row for -- these
+        // must not produce a row with an undefined/garbage format_id.
+        alchemy: "legal",
+        historic: "not_legal",
+      },
+    };
+
+    expect(buildLegalityRows("oracle-1", card, formatIdByCode)).toEqual([
+      { oracleCardId: "oracle-1", formatId: "format-standard", status: "not_legal" },
+      { oracleCardId: "oracle-1", formatId: "format-modern", status: "legal" },
+      { oracleCardId: "oracle-1", formatId: "format-commander", status: "legal" },
+    ]);
+  });
+
+  it("skips a format this app tracks that Scryfall's response omits", () => {
+    const card: ScryfallCard = {
+      id: "scry-1",
+      name: "Lightning Bolt",
+      legalities: { standard: "legal" },
+    };
+
+    expect(buildLegalityRows("oracle-1", card, formatIdByCode)).toEqual([
+      { oracleCardId: "oracle-1", formatId: "format-standard", status: "legal" },
+    ]);
+  });
+
+  it("skips a status this schema's check constraint doesn't recognise", () => {
+    const card: ScryfallCard = {
+      id: "scry-1",
+      name: "Lightning Bolt",
+      legalities: { standard: "some_future_status_scryfall_might_add" },
+    };
+
+    expect(buildLegalityRows("oracle-1", card, formatIdByCode)).toEqual([]);
+  });
+
+  it("returns no rows when a card has no legalities field", () => {
+    const card: ScryfallCard = { id: "scry-1", name: "Weird Card" };
+
+    expect(buildLegalityRows("oracle-1", card, formatIdByCode)).toEqual([]);
   });
 });

@@ -42,7 +42,7 @@ export function CardTile({
     <Link
       href={href}
       className={cn(
-        "group flex w-full flex-col overflow-hidden rounded-lg border border-white/10 bg-card/60 backdrop-blur-md transition-all hover:border-primary/40 hover:shadow-[0_0_24px_-8px_var(--color-primary)]",
+        "glass-panel group flex w-full flex-col overflow-hidden rounded-lg transition-all hover:border-primary/40 hover:shadow-[0_0_24px_-8px_var(--color-primary)]",
         className,
       )}
     >

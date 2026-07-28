@@ -7,7 +7,12 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { OTP_MIN_LENGTH, OTP_MAX_LENGTH, sendEmailOtp, verifyEmailOtp } from "../sign-in-with-email";
+import {
+  OTP_MIN_LENGTH,
+  OTP_MAX_LENGTH,
+  sendEmailOtp,
+  verifyEmailOtp,
+} from "../sign-in-with-email";
 
 type Stage = "email" | "code";
 

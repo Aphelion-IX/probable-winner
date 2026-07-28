@@ -113,7 +113,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
 
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">Order Items</h2>
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="glass-panel overflow-x-auto rounded-lg">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">

@@ -147,7 +147,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="glass-panel overflow-x-auto rounded-lg">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">

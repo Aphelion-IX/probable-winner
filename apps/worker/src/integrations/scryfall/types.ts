@@ -15,12 +15,22 @@ export type ScryfallCardFace = {
   image_uris?: ScryfallImageUris;
 };
 
+// Scryfall's own legality status strings
+// (https://scryfall.com/docs/api/cards, "legalities") -- these already
+// match this app's card_legalities.status check constraint exactly
+// (20260722113833_catalogue_core_tables.sql), so no translation is needed.
+export type ScryfallLegalityStatus = "legal" | "not_legal" | "restricted" | "banned";
+
 export type ScryfallCard = {
   id: string;
   oracle_id?: string;
   name: string;
   image_uris?: ScryfallImageUris;
   card_faces?: ScryfallCardFace[];
+  // Keyed by Scryfall's format code (e.g. "standard", "modern", "commander")
+  // -- a superset of the formats this app tracks; unrecognised keys are
+  // simply ignored by buildLegalityRows.
+  legalities?: Record<string, string>;
 };
 
 export type ScryfallCollectionResponse = {

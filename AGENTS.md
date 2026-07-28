@@ -44,6 +44,13 @@ rather than assuming an older Next.js API.
 14. Update documentation (`docs/`) when business rules change.
 15. Keep the storefront fast and measure performance — see the budgets in
     blueprint §2.3 / `docs/performance.md`.
+16. Apply every new `supabase/migrations/*.sql` file to the linked
+    production Supabase project (via the Supabase MCP `apply_migration`
+    tool, in migration order) as part of the same change that adds it — a
+    migration merged to `main` but never applied to the live database is
+    not shipped, it's just committed, and the app will keep failing against
+    prod as if the fix never happened. Confirm with `list_migrations`
+    that it now appears on the project before considering the change done.
 
 ## Repository layout
 

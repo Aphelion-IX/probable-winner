@@ -70,7 +70,12 @@ describe("pollRestockAlertsQueue", () => {
       [
         {
           msg_id: 2,
-          message: { checkType: "price", sellableSkuId: "sku-2", finalAmount: 20.15, currency: "AUD" },
+          message: {
+            checkType: "price",
+            sellableSkuId: "sku-2",
+            finalAmount: 20.15,
+            currency: "AUD",
+          },
         },
       ],
       [],
