@@ -41,10 +41,15 @@ describe("product page cache separation", () => {
     mockUnstableCache.mockClear();
   });
 
+  // A well-formed uuid -- both functions now short-circuit malformed ids
+  // (a bad link, a bot-guessed path) before ever reaching unstable_cache, so
+  // this regression guard needs an id that actually clears that check.
+  const PRINTING_ID = "11111111-1111-1111-1111-111111111111";
+
   it("routes the card identity (stable shell) fetch through unstable_cache", async () => {
     const { getCardIdentity } = await import("./get-card-identity");
 
-    await getCardIdentity("printing-1");
+    await getCardIdentity(PRINTING_ID);
 
     expect(mockUnstableCache).toHaveBeenCalledTimes(1);
   });
@@ -52,7 +57,7 @@ describe("product page cache separation", () => {
   it("routes the SKU options (stable shell) fetch through unstable_cache", async () => {
     const { listSkuOptions } = await import("./list-sku-options");
 
-    await listSkuOptions("printing-1");
+    await listSkuOptions(PRINTING_ID);
 
     expect(mockUnstableCache).toHaveBeenCalledTimes(1);
   });

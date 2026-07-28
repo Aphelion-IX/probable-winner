@@ -3,9 +3,20 @@ import { describe, expect, it } from "vitest";
 import {
   cardIdentityCacheKey,
   cardIdentityCacheTag,
+  getCardIdentity,
   pickImageUrl,
   THUMBNAIL_IMAGE_TYPE_PREFERENCE,
 } from "./get-card-identity";
+
+describe("getCardIdentity", () => {
+  it("returns null for a malformed id without querying the database", async () => {
+    // No @/server/supabase mock is set up in this file -- if this ever
+    // reached the database it would throw (no request context for
+    // createServerSupabaseClient's cookies() call), so resolving to null
+    // here proves the uuid-shape guard short-circuits first.
+    await expect(getCardIdentity("undefined")).resolves.toBeNull();
+  });
+});
 
 describe("cardIdentityCacheKey", () => {
   it("derives a stable key scoped to the printing id", () => {

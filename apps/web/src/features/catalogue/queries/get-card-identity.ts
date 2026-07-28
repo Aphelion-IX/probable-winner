@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 
 import { createServerSupabaseClient } from "@/server/supabase";
+import { isUuid } from "@/lib/is-uuid";
 
 // Card identity data (blueprint §14 "stable section") changes only when the
 // catalogue importer runs (backlog Step 5) — infrequent — so it's safe to
@@ -228,6 +229,15 @@ async function fetchCardIdentity(printingId: string): Promise<CardIdentity | nul
 }
 
 export async function getCardIdentity(printingId: string): Promise<CardIdentity | null> {
+  // A malformed id (bad link, bot-guessed path, literal "undefined") would
+  // otherwise reach card_printings.id as a Postgrest .eq() filter and throw
+  // "invalid input syntax for type uuid" -- an unhandled 500 instead of the
+  // clean "not found" this function already returns for a valid-but-unknown
+  // id. Checked before the cache lookup so a bad id is never cached.
+  if (!isUuid(printingId)) {
+    return null;
+  }
+
   const cached = unstable_cache(
     () => fetchCardIdentity(printingId),
     cardIdentityCacheKey(printingId),
