@@ -8,8 +8,7 @@ import type { CardBrowseItem } from "@/features/catalogue/queries/list-cards";
 // printing as a stand-in — same fallback listCards() already uses for its
 // "newest" sort. Unlike listCards()/the /cards page, this also resolves a
 // price per printing (its first active published price, since the
-// homepage rail is meant to show at-a-glance pricing) via two small
-// batched follow-up queries, not a price per printing/set/etc query.
+// homepage rail is meant to show at-a-glance pricing).
 export type PopularCardItem = CardBrowseItem & {
   price: number | null;
 };
@@ -25,6 +24,66 @@ export type PopularCardItem = CardBrowseItem & {
 // re-reads live prices of its own.
 const REVALIDATE_SECONDS = 60;
 
+type ListPopularCardsRpcRow = {
+  printing_id: string;
+  oracle_card_id: string;
+  name: string;
+  type_line: string;
+  colors: string[];
+  color_identity: string[];
+  collector_number: string;
+  rarity: string;
+  finishes: string[];
+  released_at: string | null;
+  set_code: string;
+  set_name: string;
+  set_icon_url: string | null;
+  image_url: string | null;
+  price: number | null;
+};
+
+// This used to be 3 sequential round trips (card_browse -> sellable_skus ->
+// published_prices), each individually cheap at this scale (limit 6) but
+// still separate hops. list_popular_cards() (see
+// supabase/migrations/20260729035510_list_popular_cards_function.sql) does
+// the same lookup in one call. The bigger win measured there wasn't the
+// round-trip count, though -- it was a missing index: card_browse's `order
+// by released_at desc limit 6` forced a full sequential scan and sort of
+// every card_printings row (143.6ms). The migration also adds
+// card_printings_released_at_idx, which took the identical query to 2.6ms.
+async function fetchPopularCards(limit: number): Promise<PopularCardItem[]> {
+  // Not createServerSupabaseClient(): wrapped in unstable_cache() below,
+  // which forbids calling cookies() -- and this rail is identical for every
+  // visitor regardless of session.
+  const supabase = createPublicSupabaseClient();
+
+  const { data, error } = await supabase.rpc("list_popular_cards", { p_limit: limit });
+
+  if (error) {
+    throw new Error(`Failed to list popular cards: ${error.message}`);
+  }
+
+  const rows = (data ?? []) as ListPopularCardsRpcRow[];
+
+  return rows.map((row) => ({
+    printingId: row.printing_id,
+    oracleCardId: row.oracle_card_id,
+    name: row.name,
+    typeLine: row.type_line,
+    colors: row.colors,
+    colorIdentity: row.color_identity,
+    collectorNumber: row.collector_number,
+    rarity: row.rarity,
+    finishes: row.finishes,
+    releasedAt: row.released_at,
+    setCode: row.set_code,
+    setName: row.set_name,
+    setIconUrl: row.set_icon_url,
+    imageUrl: row.image_url,
+    price: row.price,
+  }));
+}
+
 export async function listPopularCards(limit = 6): Promise<PopularCardItem[]> {
   const cached = unstable_cache(() => fetchPopularCards(limit), ["list-popular-cards", String(limit)], {
     revalidate: REVALIDATE_SECONDS,
@@ -32,102 +91,4 @@ export async function listPopularCards(limit = 6): Promise<PopularCardItem[]> {
   });
 
   return cached();
-}
-
-async function fetchPopularCards(limit: number): Promise<PopularCardItem[]> {
-  // Not createServerSupabaseClient(): wrapped in unstable_cache() above,
-  // which forbids calling cookies() -- and this rail is identical for every
-  // visitor regardless of session.
-  const supabase = createPublicSupabaseClient();
-
-  const { data: cards, error: cardsError } = await supabase
-    .from("card_browse")
-    .select("*")
-    .order("released_at", { ascending: false, nullsFirst: false })
-    .limit(limit)
-    .returns<
-      Array<{
-        printing_id: string;
-        oracle_card_id: string;
-        name: string;
-        type_line: string;
-        colors: string[];
-        color_identity: string[];
-        collector_number: string;
-        rarity: string;
-        finishes: string[];
-        released_at: string | null;
-        set_code: string;
-        set_name: string;
-        set_icon_url: string | null;
-        image_url: string | null;
-      }>
-    >();
-
-  if (cardsError) {
-    throw new Error(`Failed to list popular cards: ${cardsError.message}`);
-  }
-  if (!cards || cards.length === 0) {
-    return [];
-  }
-
-  const printingIds = cards.map((card) => card.printing_id);
-
-  const { data: skus, error: skusError } = await supabase
-    .from("sellable_skus")
-    .select("id, card_printing_id")
-    .in("card_printing_id", printingIds);
-
-  if (skusError) {
-    throw new Error(`Failed to list SKUs for popular cards: ${skusError.message}`);
-  }
-
-  const skuIds = (skus ?? []).map((sku) => sku.id);
-  const pricesBySkuId = new Map<string, number>();
-
-  if (skuIds.length > 0) {
-    const { data: prices, error: pricesError } = await supabase
-      .from("published_prices")
-      .select("sellable_sku_id, final_amount")
-      .in("sellable_sku_id", skuIds)
-      .eq("status", "active");
-
-    if (pricesError) {
-      throw new Error(`Failed to list prices for popular cards: ${pricesError.message}`);
-    }
-
-    for (const row of prices ?? []) {
-      if (!pricesBySkuId.has(row.sellable_sku_id)) {
-        pricesBySkuId.set(row.sellable_sku_id, row.final_amount);
-      }
-    }
-  }
-
-  const skuIdByPrintingId = new Map<string, string>();
-  for (const sku of skus ?? []) {
-    if (!skuIdByPrintingId.has(sku.card_printing_id)) {
-      skuIdByPrintingId.set(sku.card_printing_id, sku.id);
-    }
-  }
-
-  return cards.map((row) => {
-    const skuId = skuIdByPrintingId.get(row.printing_id);
-    return {
-      printingId: row.printing_id,
-      oracleCardId: row.oracle_card_id,
-      name: row.name,
-      typeLine: row.type_line,
-      colors: row.colors,
-      colorIdentity: row.color_identity,
-      collectorNumber: row.collector_number,
-      rarity: row.rarity,
-      finishes: row.finishes,
-      releasedAt: row.released_at,
-      setCode: row.set_code,
-      setName: row.set_name,
-      setIconUrl: row.set_icon_url,
-      imageUrl: row.image_url,
-      price: skuId ? (pricesBySkuId.get(skuId) ?? null) : null,
-    };
-  });
 }
