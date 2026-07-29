@@ -1,5 +1,16 @@
-import { createServerSupabaseClient } from "@/server/supabase";
+import { unstable_cache } from "next/cache";
+
+import { createPublicSupabaseClient } from "@/server/supabase";
 import { sanitizeForIlike } from "@/features/catalogue/lib/postgrest-filters";
+
+// sets is anon/authenticated-readable unconditionally (`using (true)`,
+// 20260722113901_catalogue_rls.sql) -- the same rows for every visitor --
+// so both queries below are cached with a short revalidate rather than
+// fetched fresh on every request, same shape as get-card-identity.ts/
+// list-set-cards.ts (cookie-free client required inside unstable_cache;
+// staleness here can't affect a real transaction since checkout re-reads
+// live data of its own).
+const REVALIDATE_SECONDS = 60;
 
 export type SetSummary = {
   code: string;
@@ -31,15 +42,16 @@ export function buildSearchFilter(search: string): string {
   return `name.ilike.%${escaped}%,code.ilike.%${escaped}%`;
 }
 
-export async function listSets(options: ListSetsOptions = {}): Promise<SetSummary[]> {
-  const supabase = await createServerSupabaseClient();
+async function fetchSets(search: string | undefined): Promise<SetSummary[]> {
+  // Not createServerSupabaseClient() -- see list-sets.ts's own top-of-file
+  // comment: this is wrapped in unstable_cache() below.
+  const supabase = createPublicSupabaseClient();
 
   let query = supabase
     .from("sets")
     .select("code, name, set_type, released_at, card_count, icon_url")
     .order("released_at", { ascending: false, nullsFirst: false });
 
-  const search = options.search?.trim();
   if (search) {
     query = query.or(buildSearchFilter(search));
   }
@@ -60,9 +72,18 @@ export async function listSets(options: ListSetsOptions = {}): Promise<SetSummar
   }));
 }
 
-// Single-set lookup for the set-detail ("set opened") page's header.
-export async function getSet(code: string): Promise<SetSummary | null> {
-  const supabase = await createServerSupabaseClient();
+export async function listSets(options: ListSetsOptions = {}): Promise<SetSummary[]> {
+  const search = options.search?.trim();
+  const cached = unstable_cache(() => fetchSets(search), ["list-sets", search ?? ""], {
+    revalidate: REVALIDATE_SECONDS,
+    tags: ["sets"],
+  });
+
+  return cached();
+}
+
+async function fetchSet(code: string): Promise<SetSummary | null> {
+  const supabase = createPublicSupabaseClient();
 
   const { data, error } = await supabase
     .from("sets")
@@ -85,4 +106,14 @@ export async function getSet(code: string): Promise<SetSummary | null> {
     cardCount: data.card_count,
     iconUrl: data.icon_url,
   };
+}
+
+// Single-set lookup for the set-detail ("set opened") page's header.
+export async function getSet(code: string): Promise<SetSummary | null> {
+  const cached = unstable_cache(() => fetchSet(code), ["get-set", code], {
+    revalidate: REVALIDATE_SECONDS,
+    tags: ["sets", `set:${code}`],
+  });
+
+  return cached();
 }
