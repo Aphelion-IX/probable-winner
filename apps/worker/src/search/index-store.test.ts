@@ -137,4 +137,26 @@ describe("index-store", () => {
 
     await expect(rebuildFullIndex(sql)).resolves.toMatchObject({ documentCount: 1 });
   });
+
+  // The real outage this guards against: the worker workflow passed only
+  // DATABASE_URL, so the snapshot could never be uploaded and apps/web --
+  // which serves every search from that snapshot -- 500'd on every query,
+  // while the worker itself looked healthy.
+  it("checkStorageConfigured reports each missing storage variable by name", async () => {
+    const { checkStorageConfigured } = await import("./index-store.js");
+
+    expect(checkStorageConfigured()).toEqual({ configured: true, missing: [] });
+
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    expect(checkStorageConfigured()).toEqual({
+      configured: false,
+      missing: ["SUPABASE_SERVICE_ROLE_KEY"],
+    });
+
+    delete process.env.SUPABASE_URL;
+    expect(checkStorageConfigured()).toEqual({
+      configured: false,
+      missing: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"],
+    });
+  });
 });

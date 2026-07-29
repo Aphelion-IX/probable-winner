@@ -59,6 +59,28 @@ export function search(params: SearchQueryParams): SearchOutcome {
   return runSearch(index, params);
 }
 
+function missingStorageEnvVars(): string[] {
+  return ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"].filter((name) => !process.env[name]);
+}
+
+// Distinguishes "this deployment can never persist a snapshot" from "this
+// particular upload failed", which persistSnapshotToStorage() deliberately
+// swallows as best-effort. Conflating the two hid a real outage for five
+// days: the worker ran on schedule, rebuilt the index from Postgres every
+// time, and logged one indistinguishable "Failed to persist" line per run
+// while apps/web served 500s for every search, because the workflow simply
+// never passed the two variables. A misconfiguration is not transient and
+// will not fix itself, so it is worth saying so once, loudly, at startup.
+//
+// Reported rather than thrown: the same worker process also drains
+// catalogue_import, pricing_import, restock_alerts and email, and taking
+// those down over a search-index misconfiguration would turn one broken
+// feature into five.
+export function checkStorageConfigured(): { configured: boolean; missing: string[] } {
+  const missing = missingStorageEnvVars();
+  return { configured: missing.length === 0, missing };
+}
+
 function requireStorageClient() {
   const url = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

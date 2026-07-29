@@ -11,7 +11,11 @@ import { pollEmailQueue } from "./consumers/email-consumer.js";
 import { checkQueueHealth } from "./monitoring/queue-health.js";
 import { checkImportFailures } from "./monitoring/import-health.js";
 import { startSearchHttpServer } from "./search/http-server.js";
-import { loadSnapshotFromStorage, rebuildFullIndex } from "./search/index-store.js";
+import {
+  checkStorageConfigured,
+  loadSnapshotFromStorage,
+  rebuildFullIndex,
+} from "./search/index-store.js";
 
 const POLL_INTERVAL_MS = 5_000;
 // B-202: health checks are far cheaper to run than a queue drain, but
@@ -122,6 +126,25 @@ async function runHealthChecks(): Promise<void> {
 // comments on why the snapshot is a best-effort accelerator, not a hard
 // dependency.
 async function loadOrRebuildSearchIndex(): Promise<void> {
+  // Checked before the load attempt so the cause is reported as a
+  // misconfiguration rather than surfacing as an ordinary failed download.
+  // Without storage, everything below still "succeeds" -- the index is
+  // rebuilt correctly, in memory, in a process that exits 20 minutes later
+  // -- while apps/web, whose only view of it is the persisted snapshot,
+  // serves 500s for every search.
+  const storage = checkStorageConfigured();
+  if (!storage.configured) {
+    const detail = storage.missing.join(", ");
+    logger.error("search index snapshot cannot be persisted -- storage is not configured", {
+      missing: storage.missing,
+    });
+    Sentry.captureMessage(
+      `Search index snapshot cannot be persisted: ${detail} not set. ` +
+        "apps/web serves search from this snapshot, so search is down until this is fixed.",
+      { level: "error", tags: { subsystem: "search-index" } },
+    );
+  }
+
   const loaded = await loadSnapshotFromStorage();
   if (loaded) {
     logger.info("search index loaded from storage snapshot");

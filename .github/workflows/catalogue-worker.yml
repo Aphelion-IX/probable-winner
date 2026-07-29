@@ -26,6 +26,20 @@ jobs:
         run: timeout 1200 pnpm --filter worker start || true
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          # The worker persists its MiniSearch snapshot to Supabase Storage,
+          # and apps/web serves every search by downloading that snapshot
+          # (apps/web/src/lib/search-index-cache.ts) -- there is no other
+          # path from the worker's in-memory index to the storefront. Without
+          # these two, requireStorageClient() throws, persistSnapshotToStorage()
+          # swallows it as best-effort, and the bucket stays empty forever:
+          # the worker rebuilds a perfectly good index on every run that no
+          # shopper can ever see, and /api/search 500s with "Failed to
+          # download search index snapshot: Object not found".
+          # Service-role, not anon: the bucket is private and grants anon
+          # SELECT only (20260728230940), so writing the snapshot is
+          # deliberately service-role-only.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Report status
         run: echo "Worker batch completed. Check Supabase for progress."
