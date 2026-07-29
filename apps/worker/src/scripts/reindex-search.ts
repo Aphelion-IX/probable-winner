@@ -8,7 +8,9 @@ import { callAdminEndpoint } from "../search/admin-client.js";
 // until the rebuild completes, then swaps over.
 callAdminEndpoint<{ documentCount: number; durationMs: number }>("/admin/reindex")
   .then((result) => {
-    console.log(`reindex complete: ${result.documentCount} documents indexed in ${result.durationMs}ms`);
+    console.log(
+      `reindex complete: ${result.documentCount} documents indexed in ${result.durationMs}ms`,
+    );
   })
   .catch((error) => {
     console.error("reindex failed:", error);

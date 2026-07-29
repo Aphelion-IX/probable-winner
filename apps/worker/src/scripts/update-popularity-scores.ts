@@ -6,8 +6,7 @@ import { callAdminEndpoint } from "../search/admin-client.js";
 // not per-request), via the worker's admin HTTP endpoint (see
 // admin-client.ts for why this can't just run locally).
 type PopularityScoringResult =
-  | { status: "completed"; updated: number; failed: number }
-  | { status: "failed"; error: string };
+  { status: "completed"; updated: number; failed: number } | { status: "failed"; error: string };
 
 callAdminEndpoint<PopularityScoringResult>("/admin/recalculate-popularity-scores")
   .then((result) => {

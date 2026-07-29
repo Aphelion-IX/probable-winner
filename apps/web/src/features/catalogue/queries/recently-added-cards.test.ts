@@ -23,7 +23,14 @@ function fakeDoc(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 function outcome(hits: unknown[]) {
-  return { hits, page: 1, pageSize: hits.length, totalHits: hits.length, totalPages: 1, processingTimeMs: 1 };
+  return {
+    hits,
+    page: 1,
+    pageSize: hits.length,
+    totalHits: hits.length,
+    totalPages: 1,
+    processingTimeMs: 1,
+  };
 }
 
 describe("listRecentlyAddedCards", () => {

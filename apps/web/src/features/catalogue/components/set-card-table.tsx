@@ -83,7 +83,10 @@ export async function SetCardTable({
         </thead>
         <tbody>
           {cards.map((card) => (
-            <tr key={`${card.printingId}-${card.finishCode}`} className="border-b hover:bg-muted/50">
+            <tr
+              key={`${card.printingId}-${card.finishCode}`}
+              className="border-b hover:bg-muted/50"
+            >
               <td className="px-4 py-3 font-medium">
                 <CardNameHoverPreview
                   href={`/cards/${encodeURIComponent(card.name)}/${card.printingId}`}
