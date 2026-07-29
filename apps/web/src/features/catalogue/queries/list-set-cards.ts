@@ -1,4 +1,6 @@
-import { createServerSupabaseClient } from "@/server/supabase";
+import { unstable_cache } from "next/cache";
+
+import { createPublicSupabaseClient } from "@/server/supabase";
 import { CARD_COLORS, CARD_FINISHES, onlyKnown } from "./list-cards";
 
 // Set-detail table (the "set opened" page): one row per printing+finish,
@@ -70,11 +72,49 @@ type ListSetCardsRpcRow = {
 // same joins/grouping/filtering/sorting in one database call -- 108ms for
 // Commander Masters, 306ms for The List, measured directly against
 // production.
-export async function listSetCards(
+//
+// That single round trip is still real per-request latency, and this result
+// is identical for every visitor -- every table list_set_cards() reads
+// (sets, card_printings, oracle_cards, sellable_skus, card_images) has an
+// unconditional `using (true)` anon/authenticated read policy, and
+// published_prices/inventory_balances' own public policies only check
+// `status = 'active'`/the fulfilment node's `active` flag, never a session
+// or customer id (confirmed against each policy's migration) -- so caching
+// it is not a per-user shortcut, it's the same answer computed once. Same
+// unstable_cache + cookie-free-client shape as get-card-identity.ts/
+// list-active-stores.ts: revalidate on a short timer rather than wiring
+// revalidateTag into every price/inventory mutation, since this is a
+// browse-page read, not the authoritative price/stock check (that happens
+// again, live, when a SKU is actually added to cart or checked out) -- up to
+// REVALIDATE_SECONDS of staleness here can't affect a real transaction's
+// correctness.
+const REVALIDATE_SECONDS = 30;
+
+export function listSetCardsCacheKey(setCode: string, options: ListSetCardsOptions): string[] {
+  return [
+    "list-set-cards",
+    setCode,
+    String(options.inStockOnly ?? false),
+    onlyKnown(options.colors, CARD_COLORS).sort().join(","),
+    onlyKnown(options.finishes, CARD_FINISHES).sort().join(","),
+    onlyKnown(options.borderColors, CARD_BORDER_COLORS).sort().join(","),
+    options.sort ?? "name-asc",
+  ];
+}
+
+export function listSetCardsCacheTag(setCode: string): string {
+  return `set-cards:${setCode}`;
+}
+
+async function fetchSetCards(
   setCode: string,
-  options: ListSetCardsOptions = {},
+  options: ListSetCardsOptions,
 ): Promise<SetCardRow[]> {
-  const supabase = await createServerSupabaseClient();
+  // Not createServerSupabaseClient(): this is wrapped in unstable_cache()
+  // below, which forbids calling cookies() (which that client awaits) -- and
+  // this data is identical for every viewer regardless of session (see the
+  // RLS-policy reasoning above).
+  const supabase = createPublicSupabaseClient();
 
   const finishFilter = onlyKnown(options.finishes, CARD_FINISHES);
   const colorFilter = onlyKnown(options.colors, CARD_COLORS);
@@ -111,4 +151,20 @@ export async function listSetCards(
     availableQuantity: row.available_quantity,
     imageUrl: row.image_url,
   }));
+}
+
+export async function listSetCards(
+  setCode: string,
+  options: ListSetCardsOptions = {},
+): Promise<SetCardRow[]> {
+  const cached = unstable_cache(
+    () => fetchSetCards(setCode, options),
+    listSetCardsCacheKey(setCode, options),
+    {
+      revalidate: REVALIDATE_SECONDS,
+      tags: [listSetCardsCacheTag(setCode)],
+    },
+  );
+
+  return cached();
 }

@@ -1,4 +1,6 @@
-import { createServerSupabaseClient } from "@/server/supabase";
+import { unstable_cache } from "next/cache";
+
+import { createPublicSupabaseClient } from "@/server/supabase";
 import type { CardBrowseItem } from "@/features/catalogue/queries/list-cards";
 
 // Homepage "Popular right now" rail. Real popularity scoring (backlog
@@ -12,8 +14,31 @@ export type PopularCardItem = CardBrowseItem & {
   price: number | null;
 };
 
+// card_browse/sellable_skus/published_prices are each anon/authenticated-
+// readable unconditionally or on a status check only (never a session/
+// customer id -- see list-set-cards.ts's own comment on the same tables),
+// and this homepage rail is the same for every visitor, so it's worth
+// caching -- three round trips (card_browse -> sellable_skus ->
+// published_prices) on every homepage load otherwise. Same shape as
+// get-card-identity.ts/list-set-cards.ts: time-based revalidation, not
+// tag-based invalidation, since this is a browse-page read and checkout
+// re-reads live prices of its own.
+const REVALIDATE_SECONDS = 60;
+
 export async function listPopularCards(limit = 6): Promise<PopularCardItem[]> {
-  const supabase = await createServerSupabaseClient();
+  const cached = unstable_cache(() => fetchPopularCards(limit), ["list-popular-cards", String(limit)], {
+    revalidate: REVALIDATE_SECONDS,
+    tags: ["popular-cards"],
+  });
+
+  return cached();
+}
+
+async function fetchPopularCards(limit: number): Promise<PopularCardItem[]> {
+  // Not createServerSupabaseClient(): wrapped in unstable_cache() above,
+  // which forbids calling cookies() -- and this rail is identical for every
+  // visitor regardless of session.
+  const supabase = createPublicSupabaseClient();
 
   const { data: cards, error: cardsError } = await supabase
     .from("card_browse")

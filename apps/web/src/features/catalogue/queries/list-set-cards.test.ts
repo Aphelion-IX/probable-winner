@@ -1,9 +1,20 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const mockRpc = vi.fn();
+const mockCreatePublicSupabaseClient = vi.fn();
+const mockCreateServerSupabaseClient = vi.fn();
 
 vi.mock("@/server/supabase", () => ({
-  createServerSupabaseClient: () => ({ rpc: mockRpc }),
+  createPublicSupabaseClient: (...args: unknown[]) => mockCreatePublicSupabaseClient(...args),
+  createServerSupabaseClient: (...args: unknown[]) => mockCreateServerSupabaseClient(...args),
+}));
+
+vi.mock("next/cache", () => ({
+  // Runs the wrapped function directly -- these tests aren't about proving
+  // the cache actually caches (that's Next's own machinery), just that
+  // listSetCards() routes through it with the cookie-free client and the
+  // right params. See list-active-stores.test.ts for the same convention.
+  unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
 }));
 
 function fakeRpcRow(overrides: Record<string, unknown> = {}) {
@@ -29,11 +40,25 @@ function fakeRpcRow(overrides: Record<string, unknown> = {}) {
 // list_set_cards() database function (see
 // supabase/migrations/20260728230342_list_set_cards_function.sql) -- these
 // tests only need to check that listSetCards() calls it with the right
-// params and maps its snake_case rows back to SetCardRow correctly, not
-// re-verify grouping/sort/filter semantics client-side.
+// params via the cookie-free client and maps its snake_case rows back to
+// SetCardRow correctly, not re-verify grouping/sort/filter semantics
+// client-side.
 describe("listSetCards", () => {
   beforeEach(() => {
     mockRpc.mockReset();
+    mockCreatePublicSupabaseClient.mockReset();
+    mockCreateServerSupabaseClient.mockReset();
+    mockCreatePublicSupabaseClient.mockReturnValue({ rpc: mockRpc });
+  });
+
+  it("uses the cookie-free public client, not the session-aware one", async () => {
+    mockRpc.mockResolvedValue({ data: [], error: null });
+    const { listSetCards } = await import("./list-set-cards");
+
+    await listSetCards("2X2");
+
+    expect(mockCreatePublicSupabaseClient).toHaveBeenCalled();
+    expect(mockCreateServerSupabaseClient).not.toHaveBeenCalled();
   });
 
   it("returns an empty array when the RPC has no rows", async () => {
