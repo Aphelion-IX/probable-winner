@@ -92,7 +92,9 @@ export async function persistSnapshotToStorage(): Promise<void> {
       });
     }
   } catch (error) {
-    logger.error("Failed to persist search index snapshot", { error: logger.serializeError(error) });
+    logger.error("Failed to persist search index snapshot", {
+      error: logger.serializeError(error),
+    });
   }
 }
 

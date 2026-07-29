@@ -17,7 +17,13 @@
 // for re-downloading and re-parsing the whole index.
 import { gunzipSync } from "node:zlib";
 
-import { deserializeSearchIndex, runSearch, type SearchIndex, type SearchOutcome, type SearchQueryParams } from "@probable-winner/search";
+import {
+  deserializeSearchIndex,
+  runSearch,
+  type SearchIndex,
+  type SearchOutcome,
+  type SearchQueryParams,
+} from "@probable-winner/search";
 
 import { createPublicSupabaseClient } from "@/server/supabase";
 import { logger } from "@/lib/logger";
@@ -33,9 +39,7 @@ let loadPromise: Promise<SearchIndex> | null = null;
 async function downloadAndDeserializeIndex(): Promise<SearchIndex> {
   const supabase = createPublicSupabaseClient();
 
-  const { data, error } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .download(STORAGE_OBJECT_PATH);
+  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(STORAGE_OBJECT_PATH);
 
   if (error || !data) {
     throw new Error(`Failed to download search index snapshot: ${error?.message ?? "no data"}`);

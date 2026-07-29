@@ -114,10 +114,7 @@ export function listSetCardsCacheTag(setCode: string): string {
   return `set-cards:${setCode}`;
 }
 
-async function fetchSetCards(
-  setCode: string,
-  options: ListSetCardsOptions,
-): Promise<SetCardRow[]> {
+async function fetchSetCards(setCode: string, options: ListSetCardsOptions): Promise<SetCardRow[]> {
   // Not createServerSupabaseClient(): this is wrapped in unstable_cache()
   // below, which forbids calling cookies() (which that client awaits) -- and
   // this data is identical for every viewer regardless of session (see the

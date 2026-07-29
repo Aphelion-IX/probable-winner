@@ -85,10 +85,14 @@ async function fetchPopularCards(limit: number): Promise<PopularCardItem[]> {
 }
 
 export async function listPopularCards(limit = 6): Promise<PopularCardItem[]> {
-  const cached = unstable_cache(() => fetchPopularCards(limit), ["list-popular-cards", String(limit)], {
-    revalidate: REVALIDATE_SECONDS,
-    tags: ["popular-cards"],
-  });
+  const cached = unstable_cache(
+    () => fetchPopularCards(limit),
+    ["list-popular-cards", String(limit)],
+    {
+      revalidate: REVALIDATE_SECONDS,
+      tags: ["popular-cards"],
+    },
+  );
 
   return cached();
 }

@@ -119,9 +119,8 @@ describe("index-store", () => {
 
   it("loadSnapshotFromStorage returns false and leaves the index untouched on download failure", async () => {
     mockFetchSkuSearchRows.mockResolvedValueOnce([fakeRow("sku-1")]);
-    const { rebuildFullIndex, loadSnapshotFromStorage, getIndexStats } = await import(
-      "./index-store.js"
-    );
+    const { rebuildFullIndex, loadSnapshotFromStorage, getIndexStats } =
+      await import("./index-store.js");
     await rebuildFullIndex(sql);
 
     mockDownload.mockResolvedValue({ data: null, error: new Error("not found") });

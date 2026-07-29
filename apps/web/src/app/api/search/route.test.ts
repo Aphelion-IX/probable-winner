@@ -82,7 +82,9 @@ describe("GET /api/search", () => {
     const { GET } = await import("./route");
     await GET(request(""));
 
-    expect(mockQueryLocalSearchIndex).toHaveBeenCalledWith(expect.objectContaining({ q: undefined }));
+    expect(mockQueryLocalSearchIndex).toHaveBeenCalledWith(
+      expect.objectContaining({ q: undefined }),
+    );
   });
 
   it("computes totalPages from the search service's own totalHits/pageSize", async () => {
