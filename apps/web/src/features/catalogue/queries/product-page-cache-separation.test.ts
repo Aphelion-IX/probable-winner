@@ -33,6 +33,7 @@ function chainableStub(result: { data: unknown; error: unknown }) {
 vi.mock("@/server/supabase", () => ({
   createServerSupabaseClient: () => ({
     from: () => chainableStub({ data: null, error: null }),
+    rpc: () => Promise.resolve({ data: [], error: null }),
   }),
 }));
 

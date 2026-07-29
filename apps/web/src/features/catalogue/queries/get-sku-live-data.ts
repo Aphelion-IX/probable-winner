@@ -11,54 +11,44 @@ export type SkuLiveData = {
   availableQuantity: number;
 };
 
-type PublishedPriceRow = {
-  final_amount: number;
-  currency: string;
+type GetSkuLiveDataRpcRow = {
+  sku_id: string;
+  price: number | null;
+  currency: string | null;
+  available_quantity: number;
 };
 
+// This used to be 3 concurrent (Promise.all) PostgREST requests -- already
+// not the sequential round-trip amplification bug fixed for
+// list_set_cards()/list_popular_cards(), since none of the 3 queries
+// depended on another's result, but still 3 separate HTTP round trips for
+// what is the single highest-frequency catalogue query in the app: this
+// backs apps/web/src/app/api/sellable-skus/[id]/route.ts, called on every
+// product page view and every condition/finish switch a shopper makes.
+// get_sku_live_data() (see
+// supabase/migrations/20260729043229_get_sku_live_data_function.sql) does
+// the same 3 lookups in one call -- each was already sub-millisecond and
+// properly indexed on its own (confirmed via EXPLAIN ANALYZE against
+// production), so the win here is purely fewer round trips, not query time.
 export async function getSkuLiveData(skuId: string): Promise<SkuLiveData | null> {
   const supabase = await createServerSupabaseClient();
 
-  const [
-    { data: sku, error: skuError },
-    { data: priceRow, error: priceError },
-    { data: balances, error: balanceError },
-  ] = await Promise.all([
-    supabase.from("sellable_skus").select("id").eq("id", skuId).maybeSingle(),
-    supabase
-      .from("published_prices")
-      .select("final_amount, currency")
-      .eq("sellable_sku_id", skuId)
-      .eq("status", "active")
-      .maybeSingle<PublishedPriceRow>(),
-    supabase
-      .from("inventory_balances")
-      .select("quantity_available_online")
-      .eq("sellable_sku_id", skuId),
-  ]);
+  const { data, error } = await supabase.rpc("get_sku_live_data", { p_sku_id: skuId });
 
-  if (skuError) {
-    throw new Error(`Failed to look up SKU: ${skuError.message}`);
+  if (error) {
+    throw new Error(`Failed to look up SKU: ${error.message}`);
   }
-  if (!sku) {
+
+  const rows = (data ?? []) as GetSkuLiveDataRpcRow[];
+  const row = rows[0];
+  if (!row) {
     return null;
   }
-  if (priceError) {
-    throw new Error(`Failed to look up price: ${priceError.message}`);
-  }
-  if (balanceError) {
-    throw new Error(`Failed to look up availability: ${balanceError.message}`);
-  }
-
-  const availableQuantity = (balances ?? []).reduce(
-    (total, row) => total + (row.quantity_available_online ?? 0),
-    0,
-  );
 
   return {
-    skuId,
-    price: priceRow?.final_amount ?? null,
-    currency: priceRow?.currency ?? null,
-    availableQuantity,
+    skuId: row.sku_id,
+    price: row.price,
+    currency: row.currency,
+    availableQuantity: row.available_quantity,
   };
 }
