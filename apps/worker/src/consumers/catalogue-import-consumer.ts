@@ -85,6 +85,20 @@ export async function pollCatalogueImportQueue(sql: Sql): Promise<boolean> {
         setCode,
         skusInserted: skus.skusInserted,
       });
+
+      // card_printings and sellable_skus had never had ANALYZE run on them
+      // in production despite holding 100K+ real rows -- Postgres's planner
+      // thought both tables had ~15 rows, producing catastrophic nested-loop
+      // plans for the set-detail page's "no filters applied" query
+      // (list_set_cards(), 2.5-38s, timing out). Autovacuum's own
+      // modification counter was equally stale, so it never auto-analyzed
+      // either. This is the live import path's SQL counterpart
+      // (import_set_and_promote(), see
+      // supabase/migrations/20260729093012_analyze_after_catalogue_import.sql);
+      // this worker consumer isn't currently the live path (per
+      // 20260723130907_catalogue_import_edge_function.sql's reconciliation
+      // note) but gets the same safeguard so it stays correct if/when it is.
+      await sql`analyze card_printings, sellable_skus, oracle_cards, card_identifiers`;
     }
   } catch (error) {
     // Left in the queue: pgmq's visibility timeout will make it re-readable
