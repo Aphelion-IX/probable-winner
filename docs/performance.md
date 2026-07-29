@@ -201,6 +201,44 @@ lead the index on `x` and make the filter a partial predicate — do not lead
 on the filter column.** And confirm with `EXPLAIN ANALYZE`: a composite index
 that looks right is often not used at all.
 
+### 4. Benchmarking as a superuser, against a 3 s storefront budget
+
+The storefront reads the catalogue with the anon key, and Supabase ships a
+**`statement_timeout` of 3 s on the `anon` role** (8 s on `authenticated`).
+That is the real budget for every public page query — exceed it and the page
+does not render slowly, it throws
+`canceling statement due to statement timeout`.
+
+`list_set_cards()` was measured at 108 ms for Commander Masters when it
+shipped and at **2,930 ms** for the same set once re-measured as `anon`.
+Large sets were over the limit outright — The List took 11 s — so those set
+pages served an error while smaller sets looked fine. Two reasons the
+original number was not wrong so much as not comparable:
+
+- **The measuring role bypassed RLS.** `security invoker` functions
+  re-evaluate every policy per row for the calling role. The superuser
+  measurement skipped the `inventory_balances` node check and the
+  `published_prices` org check entirely.
+- **The measurement was warm, the query was not warmable.** `shared_buffers`
+  is 256 MB; the query touched ~112,000 buffers (~875 MB), so it evicted its
+  own working set and ran cold on every call — 4.2 s even back-to-back.
+
+The fix (`20260729061810_speed_up_list_set_cards.sql`) was to stop reading
+rows the page never uses: partial indexes covering only the rows the
+storefront wants (7,711 of 1.2M `inventory_balances` rows have stock; 150k of
+816k SKUs have an active price), with the read columns *and the columns the
+RLS policies test* in `INCLUDE` so the policy check does not force a heap
+fetch of its own. Both lookups became index-only scans with ~0 heap fetches.
+Joining `oracle_cards` once per printing rather than once per SKU, and
+looking the card image up after the `LIMIT`, removed the rest. **2,930 ms →
+87 ms** for Commander Masters; across all 869 sets the default view is now
+max 467 ms, p95 72 ms, none over the 3 s ceiling.
+
+**Rule of thumb: benchmark public queries as `anon` (`set local role anon`),
+not as the superuser your SQL console gives you, and treat 3 s as a hard
+ceiling rather than a target. When a query touches more buffers than
+`shared_buffers` holds, "warm" is not a state it can reach in production.**
+
 ### Not a trap: "unused index" advisories
 
 The performance advisor reports ~125 unused indexes. These were checked and

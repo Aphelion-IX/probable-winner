@@ -68,10 +68,18 @@ type ListSetCardsRpcRow = {
 // inventory_balances into 100-300+ sequential HTTP round trips for large
 // sets (The List, Commander Masters, Doctor Who, ...), each individually
 // fast but dominated end-to-end by round-trip latency. list_set_cards() (see
-// supabase/migrations/20260728230342_list_set_cards_function.sql) does the
-// same joins/grouping/filtering/sorting in one database call -- 108ms for
-// Commander Masters, 306ms for The List, measured directly against
-// production.
+// supabase/migrations/20260728230342_list_set_cards_function.sql, since
+// rewritten by 20260729061810_speed_up_list_set_cards.sql) does the same
+// joins/grouping/filtering/sorting in one database call.
+//
+// That call runs as `anon`, which Supabase caps at a 3s statement_timeout,
+// so it is a hard ceiling and not a target: large sets used to blow straight
+// through it and render an error instead of a table. Measured as anon
+// against production after the rewrite, the default in-stock view is 87ms
+// for Commander Masters and 467ms for The List, and no set in the catalogue
+// exceeds 500ms. See docs/performance.md's fourth trap before changing this
+// query -- in particular, measure as `anon`, since a superuser measurement
+// silently skips the RLS policies this path pays for on every row.
 //
 // That single round trip is still real per-request latency, and this result
 // is identical for every visitor -- every table list_set_cards() reads
